@@ -1,6 +1,8 @@
 # Local Candidate 0.2.12-clash.2
 
-Status: **candidate, awaiting the authorized minimal live gate**. Production remains on `0.2.4`.
+Status: **active on the original tailnet HTTPS entry; old instance retained**.
+The owner-authorized minimal live gate passed on 2026-10-02. This is not old
+instance retirement or full client/billing qualification.
 This is the durable delivery record for the already-built image, not the current
 branch HEAD. Later documentation and deployment-tool commits do not relabel it.
 The `.1` candidate is superseded.
@@ -87,6 +89,50 @@ not replayed and lossless stream resumption is not promised. The old instance
 stays alive for rollback and background-role ownership. Fresh protected backup,
 the rehearsed compatibility restrictions and post-switch verification remain.
 See [the current switch policy](LOCAL_UPGRADE.md#current-local-switch-policy).
+
+## Actual Local Activation
+
+- New slot `sub2api-green-clash2` started with the exact image above, separate
+  app volume, unchanged production PostgreSQL/Redis and fixed JWT/TOTP keys.
+  Seven expected migrations are present in the live migration ledger. A fresh
+  private backup was taken at `2026-10-02T15:09:12.135Z` before startup.
+- Direct candidate real Responses check completed at
+  `2026-10-02T15:30:22.559Z`: current Codex model `gpt-6-astra`, HTTP 200,
+  actual `OK`, completed terminal event, first token 5041 ms, total 6289 ms.
+- HAProxy runtime map and persisted map changed to `green`; only Tailscale
+  HTTPS 443 changed from loopback `18080` to the stable loopback `18380`.
+  HTTPS 8443 remains on `7777`. The proxy and old application were not restarted.
+- A second real check through the unchanged original HTTPS URL completed at
+  `2026-10-02T15:32:11.412Z`: HTTP 200, `X-Sub2API-Slot: green`, actual `OK`,
+  completed terminal event, first token 5338 ms, total 5708 ms. Both requests
+  used 24 input / 5 output tokens each, with zero automatic probe/proxy retries.
+  No key or response body is retained in the deployment state.
+- Existing local administrator login and actual version passed. The original
+  HTTPS login HTML and its six entry JS/CSS assets matched the candidate's bytes
+  and content types. All 177 mapped old JS/CSS files passed exact byte/type checks
+  through the deployed resource bridge before switching.
+- Old container `6364466784a859fbeb12088ca81afd4a161decb34655337bdc5187c3815e85a7`
+  remains healthy, original start time and restart count zero. Candidate
+  refresh/cleanup/monitor-v2 aggregation stay disabled while old owns those roles;
+  retain the compatibility flag and freeze account tests/channel checks/backup
+  scheduling during coexistence. Old password-reset links are invalidated.
+- Local `18080` still serves the old instance. New local clients use
+  `http://127.0.0.1:18380/v1`; the original tailnet API URL is unchanged.
+  Hermes/Codex configuration files were not edited. Client automatic recovery
+  and lossless in-flight resumption were not separately demonstrated.
+- The legacy setup-mode resource bridge's inherited `/health` check was a false
+  unhealthy result. `legacy-assets-health.yaml` checks its actual static `/`
+  endpoint instead; only that resource container was recreated to install it.
+  Neither business instance, dependencies, nor ingress was recreated. The proxy
+  mounts only the secret-free ingress subdirectory, not the private Compose file.
+
+Private state and complete secret-bearing Compose configuration are under
+`/Users/clawbotbot/Projects/sub2api-local/releases/clash-2` (0700/0600).
+Use `local-release.mjs status` and `local-release.mjs rollback` from this release
+checkout. Rollback changes the proxy map, preserving live database writes; it
+never restores the old backup or stops either business instance. Check current
+old-version compatibility before an operational rollback. No live rollback or
+full old-instance retirement was performed during activation.
 
 ## Additional Qualification Before Old Retirement
 

@@ -25,7 +25,8 @@ const network = 'sub2api_sub2api-network'
 const ingressBase = 'http://127.0.0.1:18380'
 const greenBase = 'http://127.0.0.1:18282'
 const composePath = join(directory, 'compose-private.json')
-const compose = ['compose', '--project-name', project, '--env-file', '/dev/null', '--file', composePath]
+const compose = ['compose', '--project-name', project, '--env-file', '/dev/null', '--file', composePath,
+  '--file', join(root, 'deploy/local-upgrade/legacy-assets-health.yaml')]
 
 function command(cmd, args, input) {
   const r = spawnSync(cmd, args, { input, encoding: 'utf8', timeout: 60_000, maxBuffer: 4 << 20 })
@@ -207,6 +208,8 @@ try {
     assert.equal(state.candidateCommit, candidateCommit)
     assert.equal(inspect(service('green')).Image, state.candidateImageId)
     if (action === 'verify') {
+      assert(['prepared-awaiting-real-call', 'verified-ready-to-switch'].includes(state.phase),
+        'Verify only a prepared candidate before activation')
       assert.equal(await version(greenBase), state.version)
       state.directGateway = await liveGateway(`${greenBase}/v1`)
       state.verifiedAt = new Date().toISOString()
@@ -267,9 +270,24 @@ try {
     }
   }
   checkOld()
+  const runtimeMap = runtime('show map /var/lib/sub2api-ingress/active.map')
+  assert(runtimeMap.includes(`active ${state.activeSlot}`), 'Runtime route differs from release state')
+  assert.equal((await readFile(join(ingressDirectory, 'active.map'), 'utf8')).trim(), `active ${state.activeSlot}`,
+    'Persisted route differs from release state')
+  const entryHealth = await fetch(`${ingressBase}/health`, { signal: AbortSignal.timeout(5000) })
+  assert.equal(entryHealth.status, 200)
+  assert.equal(entryHealth.headers.get('x-sub2api-slot'), state.activeSlot)
+  const actualServe = serve()
+  const tailnetTarget = actualServe.Web[handlerKey].Handlers['/'].Proxy
+  assert([ingressBase, 'http://127.0.0.1:18080'].includes(tailnetTarget))
+  if (state.activeSlot === 'green') assert.equal(tailnetTarget, ingressBase)
+  assert.deepEqual(actualServe.Web['openclaw-macmini-ts.tailff52e6.ts.net:8443'],
+    state.tailscaleBefore.Web['openclaw-macmini-ts.tailff52e6.ts.net:8443'])
+  const servingVersion = await version(ingressBase)
+  assert.equal(servingVersion, state.activeSlot === 'green' ? state.version : '0.2.4')
   console.log(JSON.stringify({ phase: state.phase, activeSlot: state.activeSlot, version: state.version,
     candidateCommit, directory, stableLocalEntry: ingressBase, oldLocalEntry: 'http://127.0.0.1:18080',
-    tailnetTarget: serve().Web[handlerKey].Handlers['/'].Proxy,
+    tailnetTarget, servingVersion, runtimeAndPersistedRouteAgree: true,
     directGateway: state.directGateway, entryGateway: state.entryGateway, oldRetained: true }, null, 2))
 } catch (error) {
   if (state) { state.lastOperationFailed = { action, at: new Date().toISOString() }; await save(state) }

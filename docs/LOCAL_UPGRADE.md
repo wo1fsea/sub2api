@@ -25,6 +25,9 @@ if activation verification fails. Local direct clients on `18080` still use old;
 new local clients should use `18380`. Secrets/state stay in the private deployment
 directory, never in this fork. Do not use `compose down` on that release project
 as a rollback procedure; use the rollback command while both instances remain.
+The helper includes `legacy-assets-health.yaml`: the secret-free resource bridge
+serves static files in setup mode and must be probed at `/`, not application
+`/health`. Only the ingress config/map directory is mounted into HAProxy.
 
 ```sh
 node --test deploy/local-upgrade/live-gateway.test.mjs
@@ -44,6 +47,11 @@ The JSON probe record contains timing/token counts only, not the key or response
 text. No acknowledgement of legal terms or default Codex configuration change
 is performed. The older full formal procedure below remains a reference for
 later production-grade releases and old-instance retirement.
+
+This local activation completed at `2026-10-02T15:32:11.412Z`: both real probes
+passed and the original HTTPS entry serves `0.2.12-clash.2` from the green slot.
+The old slot remains running for rollback/background roles. See the delivery
+record for the exact image, migration, asset and live-probe evidence.
 
 The exact `.2` package and post-build evidence are recorded in [the delivery record](LOCAL_DELIVERY_CLASH_2.md). A later deployment-tool/documentation commit is not the source revision embedded in the existing image.
 
