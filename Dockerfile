@@ -23,6 +23,7 @@ ARG NPM_CONFIG_REGISTRY=
 FROM --platform=${BUILDPLATFORM} ${NODE_IMAGE} AS frontend-builder
 ARG NPM_CONFIG_REGISTRY
 ARG PNPM_VERSION=9
+ARG NODE_BUILD_OPTIONS=
 
 WORKDIR /app/frontend
 
@@ -42,7 +43,7 @@ RUN --mount=type=cache,id=sub2api-pnpm-store,target=/root/.local/share/pnpm/stor
 # Copy only that subtree to keep the build dependency minimal.
 COPY frontend/ ./
 COPY docs/legal/ /app/docs/legal/
-RUN pnpm run build
+RUN NODE_OPTIONS="${NODE_BUILD_OPTIONS}" pnpm run build
 
 # -----------------------------------------------------------------------------
 # Stage 2: Backend Builder
@@ -59,6 +60,8 @@ ARG COMMIT=docker
 ARG DATE
 ARG GOPROXY
 ARG GOSUMDB
+ARG GO_BUILD_PARALLELISM=2
+ARG GO_BUILD_MEMORY_LIMIT=off
 # Populated by buildx from the --platform target (e.g. linux/amd64).
 ARG TARGETOS
 ARG TARGETARCH
@@ -91,7 +94,8 @@ RUN --mount=type=cache,id=sub2api-gomod,target=/go/pkg/mod \
     VERSION_VALUE="${VERSION}" && \
     if [ -z "${VERSION_VALUE}" ]; then VERSION_VALUE="$(./scripts/resolve-version.sh)"; fi && \
     DATE_VALUE="${DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" && \
-    CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build \
+    GOMEMLIMIT=${GO_BUILD_MEMORY_LIMIT} CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build \
+    -p ${GO_BUILD_PARALLELISM} \
     -tags embed \
     -ldflags="-s -w -X main.Version=${VERSION_VALUE} -X main.Commit=${COMMIT} -X main.Date=${DATE_VALUE} -X main.BuildType=release" \
     -trimpath \

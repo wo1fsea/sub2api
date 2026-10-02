@@ -38,14 +38,14 @@ Requires committed, clean source; a local `v0.2.12` tag resolving to the manifes
 ```sh
 docker-buildx create --name sub2api-release-20261002 \
   --driver docker-container \
-  --driver-opt memory=2g,cpu-period=100000,cpu-quota=100000 \
+  --driver-opt memory=2560m,cpu-period=100000,cpu-quota=100000 \
   --buildkitd-config deploy/local-upgrade/buildkitd.toml colima --bootstrap
 SUB2API_BUILDX=/opt/homebrew/bin/docker-buildx \
 SUB2API_BUILDER=sub2api-release-20261002 \
   node deploy/local-upgrade/build-local.mjs
 ```
 
-Reuse the named builder if it already exists. The script builds from a committed-source archive, exports to ignored `release/`, and imports only the candidate image to verify its identity. It refuses to overwrite a completed package; an interrupted build with identical inputs may be retried. It does not push images, start services, or change routes. Build outside the service host when possible; otherwise enforce resource limits and monitor the old site's latency, health, memory, and disk. Do not stop the old site to make room for a build.
+Reuse the named builder if it already exists, checking its actual container limits. Local build resources are recorded in `build-inputs.json`: a 2560MiB builder cap, 1664MiB Node heap, and Go compilation parallelism two with a 768MiB soft memory limit per Go process. A 2GiB builder was insufficient for the frontend typecheck. The script builds from a committed-source archive, exports to ignored `release/`, and imports only the candidate image to verify its identity. It refuses to overwrite a completed package; an interrupted build with identical inputs may be retried. It does not push images, start services, or change routes. Build outside the service host when possible; otherwise enforce resource limits and monitor the old site's latency, health, memory, and disk. Do not stop the old site to make room for a build.
 
 ## Upgrade From the Current Service
 

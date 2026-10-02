@@ -4,6 +4,14 @@
   "version": "0.2.12-clash.1",
   "platform": "linux/arm64",
   "pnpmVersion": "9.15.9",
+  "buildResources": {
+    "memory": "2560m",
+    "cpuQuota": 100000,
+    "maxParallelism": 1,
+    "nodeOptions": "--max-old-space-size=1664",
+    "goParallelism": 2,
+    "goMemoryLimit": "768MiB"
+  },
   "smokeImages": {
     "postgres": "postgres@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2",
     "redis": "redis@sha256:becdda6c7f4b3fb42e42fd7f120bbf5c54c4caaaf16f26da24e4563d2c1f0576"
