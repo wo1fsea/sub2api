@@ -161,11 +161,25 @@ try {
     const lines = [...new Set(oldMaps.join('\n').trim().split('\n').filter(Boolean))].sort()
     assert(lines.length > 150 && lines.length < 1000)
     assert(lines.every(line => /^\/assets\/[a-zA-Z0-9_./-]+\.(js|css) legacy_assets$/.test(line)))
-    await mkdir(directory, { mode: 0o700 })
-    await mkdir(ingressDirectory, { mode: 0o700 })
-    await writeFile(join(ingressDirectory, 'active.map'), 'active blue\n', { flag: 'wx', mode: 0o600 })
-    await writeFile(join(ingressDirectory, 'old-assets.map'), `${lines.join('\n')}\n`, { flag: 'wx', mode: 0o600 })
-    await copyFile(join(root, 'deploy/local-upgrade/haproxy-legacy-assets.cfg'), join(ingressDirectory, 'haproxy.cfg'))
+    let existingState
+    try { existingState = JSON.parse(await readFile(statePath, 'utf8')) } catch (error) {
+      if (error.code !== 'ENOENT') throw error
+    }
+    if (existingState) {
+      assert(['preparing', 'starting-shared-candidate'].includes(existingState.phase), 'Only a failed pre-activation prepare can resume')
+      assert.equal(existingState.candidateCommit, manifest.commit)
+      assert.equal(existingState.candidateImageId, manifest.imageId)
+      assert.equal(existingState.backup, backup)
+      assert.equal(existingState.activeSlot, 'blue')
+      assert.equal((await readFile(join(ingressDirectory, 'active.map'), 'utf8')).trim(), 'active blue')
+      assert.equal((await readFile(join(ingressDirectory, 'old-assets.map'), 'utf8')).trim(), lines.join('\n'))
+    } else {
+      await mkdir(directory, { mode: 0o700 })
+      await mkdir(ingressDirectory, { mode: 0o700 })
+      await writeFile(join(ingressDirectory, 'active.map'), 'active blue\n', { flag: 'wx', mode: 0o600 })
+      await writeFile(join(ingressDirectory, 'old-assets.map'), `${lines.join('\n')}\n`, { flag: 'wx', mode: 0o600 })
+      await copyFile(join(root, 'deploy/local-upgrade/haproxy-legacy-assets.cfg'), join(ingressDirectory, 'haproxy.cfg'))
+    }
     const env = environment(previous)
     assert(env.JWT_SECRET && /^[0-9a-fA-F]{64}$/.test(env.TOTP_ENCRYPTION_KEY))
     const logging = { driver: 'json-file', options: { 'max-size': '5m', 'max-file': '2' } }
@@ -185,11 +199,37 @@ try {
         volumes: [`${join(ingressDirectory, 'haproxy.cfg')}:/usr/local/etc/haproxy/haproxy.cfg:ro`,
           `${ingressDirectory}:/var/lib/sub2api-ingress:ro`] }
     }, networks: { production: { external: true, name: 'sub2api_sub2api-network' } }, volumes: { 'green-data': {} } }
-    await writeFile(composePath, JSON.stringify(config), { flag: 'wx', mode: 0o600 })
-    state = { phase: 'preparing', activeSlot: 'blue', version: manifest.version, candidateCommit: manifest.commit,
+    if (existingState) {
+      assert((await readFile(composePath, 'utf8')) === JSON.stringify(config), 'Prepared configuration differs; sensitive details suppressed')
+    } else {
+      await writeFile(composePath, JSON.stringify(config), { flag: 'wx', mode: 0o600 })
+    }
+    state = existingState || { phase: 'preparing', activeSlot: 'blue', version: manifest.version, candidateCommit: manifest.commit,
       candidateImageId: manifest.imageId, previousId, previousImage, previousVersion, backup,
       assetReport: assetPath, restoreReport: resolve(process.argv[6]), tailscaleBefore,
       previousStartedAt: previous.State.StartedAt, backgroundOwner: 'sub2api' }
+    await save(state)
+    // AUTO_SETUP=false requires the installed configuration/marker in app data.
+    // Restore only the candidate's independent volume, never shared DB/Redis.
+    docker([...compose, 'create', 'green', 'ingress'])
+    const candidateContainer = inspect(service('green'))
+    assert.equal(candidateContainer.Image, manifest.imageId)
+    if (!state.volumeInitialized) {
+      if (candidateContainer.State.Running) {
+        const setup = await fetch(`${greenBase}/setup/status`, { signal: AbortSignal.timeout(5000) })
+        assert.equal((await setup.json()).data.needs_setup, true, 'Do not overwrite data of an already installed candidate')
+        docker([...compose, 'stop', '--timeout', '5', 'green'])
+      }
+      const volume = `${project}_green-data`
+      assert.equal(inspect(volume).Labels['com.docker.compose.project'], project)
+      docker(['run', '--rm', '--name', `${project}-initialize`, '--network', 'none', '--entrypoint', 'sh', '--log-driver', 'none',
+        '--cpus', '0.25', '--memory', '128m', '--mount', `type=volume,source=${volume},target=/restore`,
+        '--mount', `type=bind,source=${backup},target=/backup,readonly`, manifest.imageId, '-ec',
+        'tar -xzf /backup/app-data.tar.gz -C /restore; chown -R 1000:1000 /restore'])
+      state.volumeInitialized = true
+      await save(state)
+    }
+    state.phase = 'starting-shared-candidate'
     await save(state)
     docker([...compose, 'up', '--detach', '--wait', '--wait-timeout', '120'])
     docker(['exec', service('ingress'), 'haproxy', '-c', '-f', '/usr/local/etc/haproxy/haproxy.cfg'])
@@ -274,6 +314,12 @@ try {
     stableLocalEntry: ingressBase, previousEntry: previousBase, runtimeAndPersistedRouteAgree: true,
     updateAvailable: state.updateStatus?.has_update, directGateway: state.directGateway, entryGateway: state.entryGateway,
     assets: state.assets, previousRetained: true, backgroundOwner: state.backgroundOwner }, null, 2))
+} catch (error) {
+  if (state) {
+    state.lastOperationFailed = { action, at: new Date().toISOString(), sensitiveDetailsSuppressed: true }
+    await save(state)
+  }
+  throw error
 } finally {
   await lock.close()
   await unlink(lockPath)
