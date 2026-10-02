@@ -1,6 +1,27 @@
 # Sub2API Local Upgrade
 
-This package is a Linux ARM64 release candidate combining upstream `v0.2.12` with our grayscale Clash skin and an opt-in mixed-version scheduler compatibility mode (`0.2.12-clash.2`). It is not approval to deploy. Packaging never changes the running service, production database, secrets, or traffic route. The Cursor experiment is excluded.
+This package combines upstream `v0.2.13` with **Restrained Neubrutalism**, our OpenJev-inspired appearance with grayscale hatch charts. The application version is exactly `0.2.13`; the source SHA and image ID identify our local build separately. Do not suppress legitimate future upstream updates. Packaging alone never changes the running service, production database, secrets, or entry. The Cursor experiment is excluded.
+
+## Current release: v0.2.13
+
+`release-next.mjs` upgrades the observed `0.2.12-clash.2` deployment. It starts the new candidate at loopback `18482` and a separate HAProxy at `18480`, initially pointing to the previous healthy entry at `18380`. It does not restart that entry. The new release inherits existing JWT/TOTP configuration, shares DB/Redis, disables duplicate refresh/cleanup/aggregation, and retains legacy scheduler compatibility. The `0.2.4` instance still owns background roles; it must remain running until a separate role handover is implemented.
+
+The inspected `v0.2.12` → `v0.2.13` diff adds no migrations or dependency changes. The tag's VERSION file still says `0.2.12`, so both our VERSION file and build inputs are corrected to the published release number `0.2.13`.
+
+After source checks and exact-image smoke, take a fresh backup with `SUB2API_BACKUP_APP=sub2api-green-clash2 node deploy/local-upgrade/backup-private.mjs`. Rehearse the restored current data with `rehearse-private.mjs BACKUP MANIFEST`; zero new migrations are expected. Run `test-assets.mjs MANIFEST` with `SUB2API_OLD_ASSET_IMAGE` set to the current immutable image. The new proxy maps the union of `0.2.4` and `.2` fingerprinted assets through the retained previous entry. The asset bridge receives GET/HEAD paths only.
+
+```sh
+node deploy/local-upgrade/release-next.mjs prepare MANIFEST BACKUP ASSET_REPORT RESTORE_REPORT
+node deploy/local-upgrade/release-next.mjs verify
+node deploy/local-upgrade/release-next.mjs activate
+node deploy/local-upgrade/release-next.mjs status
+# Restore previous after proving its real upstream availability:
+node deploy/local-upgrade/release-next.mjs rollback
+```
+
+Verify requires the current configured Codex key/model to complete one short real Responses stream on the candidate. Activate checks all mapped old static assets, moves only Tailscale HTTPS 443 to `18480`, then repeats a real stream through the original HTTPS URL. HTTPS 8443 remains on `7777`. A failure restores the previous entry. No automatic POST replay, formal acceptance delay or lossless continuation of an interrupted stream is claimed. Old instances remain available for reconnects/rollback. Hermes clients on direct `18080` remain on their prior entry.
+
+The sections below document the previous `.2` release and the longer reference procedure; use `release-next.mjs` for this release, not the old hard-coded prepare command.
 
 ## Current Local Switch Policy
 

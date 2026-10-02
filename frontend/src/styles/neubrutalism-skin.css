@@ -324,7 +324,10 @@
   font-size: 12px;
 }
 
-[data-skin='neubrutalism'] :is(.modal-content, .dialog-container, .skin-auth-layout .card-glass, .dropdown) {
+[data-skin='neubrutalism'] :is(.modal-content, .dialog-container, .skin-auth-layout .card-glass, .dropdown, .date-picker-dropdown) {
+  background: var(--skin-surface);
+  border: 1px solid var(--skin-line);
+  border-radius: 0;
   box-shadow: 4px 4px 0 var(--skin-line);
 }
 
@@ -425,6 +428,30 @@
   height: 12px;
   flex-shrink: 0;
   border: 1px solid var(--skin-line);
+}
+
+/* Measure the card, not the viewport: two dashboard columns can be narrow. */
+[data-skin='neubrutalism'] .skin-model-chart {
+  container-type: inline-size;
+}
+
+[data-skin='neubrutalism'] .skin-model-chart-content {
+  flex-direction: column;
+}
+
+[data-skin='neubrutalism'] .skin-model-chart table {
+  min-width: 420px;
+}
+
+[data-skin='neubrutalism'] .skin-model-chart :is(th, td) {
+  padding-right: 8px;
+  white-space: nowrap;
+}
+
+@container (min-width: 640px) {
+  [data-skin='neubrutalism'] .skin-model-chart-content {
+    flex-direction: row;
+  }
 }
 
 [data-skin='neubrutalism'] .skin-dashboard-metrics .card {

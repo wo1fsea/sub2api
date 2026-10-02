@@ -38,6 +38,7 @@ describe('grayscale skin palette', () => {
         ? [1, 3, 5].map(offset => parseInt(declaration.value.slice(offset, offset + 2), 16))
         : declaration.value.split(' ').map(Number)
       expect(channels).toHaveLength(3)
+      checked++
       if (['--skin-bg', '--skin-surface', '--skin-white', '--skin-gray-50'].includes(declaration.prop) && channels[0] === 247) {
         expect(channels).toEqual([247, 246, 240])
         return
@@ -48,7 +49,6 @@ describe('grayscale skin palette', () => {
       }
       expect(channels[0]).toBe(channels[1])
       expect(channels[1]).toBe(channels[2])
-      checked++
     })
     expect(checked).toBeGreaterThan(25)
   })

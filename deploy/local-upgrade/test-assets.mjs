@@ -14,7 +14,8 @@ const ts = require('typescript')
 assert(process.argv[2], 'Pass the exact candidate manifest path')
 const candidate = JSON.parse(await readFile(resolve(process.argv[2]), 'utf8'))
 assert.match(candidate.imageId, /^sha256:[a-f0-9]{64}$/)
-const oldImage = 'sha256:ccf47a1c62e355f51f896e489f8253e119fe4101b103cd701ba458cc6c6f0f77'
+const oldImage = process.env.SUB2API_OLD_ASSET_IMAGE || 'sha256:ccf47a1c62e355f51f896e489f8253e119fe4101b103cd701ba458cc6c6f0f77'
+assert.match(oldImage, /^sha256:[a-f0-9]{64}$/)
 const proxyImage = 'haproxy@sha256:8007effce89a08af0236b9529a0daab5b8b36fa939f4162f28201f1bf8731dbf'
 const outputRoot = join(root, 'frontend/tmp/asset-tests')
 await mkdir(outputRoot, { recursive: true })

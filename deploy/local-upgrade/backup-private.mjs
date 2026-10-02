@@ -49,14 +49,17 @@ async function archive(name, args, maxBytes) {
   }
 }
 
-const containers = JSON.parse(docker(['inspect', 'sub2api', 'sub2api-postgres', 'sub2api-redis']))
+const appName = process.env.SUB2API_BACKUP_APP || 'sub2api'
+assert(['sub2api', 'sub2api-green-clash2'].includes(appName), 'Resolve the current known application before backing it up')
+const containers = JSON.parse(docker(['inspect', appName, 'sub2api-postgres', 'sub2api-redis']))
 for (const container of containers) {
-  assert.equal(container.Config.Labels['com.docker.compose.project'], 'sub2api')
   assert.equal(container.State.Running, true)
   assert.equal(container.State.Health.Status, 'healthy')
 }
 const [app, postgres, redis] = containers
-assert(app.Mounts.some(m => m.Type === 'volume' && m.Name === 'sub2api_app-data' && m.Destination === '/app/data'))
+assert(app.Mounts.some(m => m.Type === 'volume' && m.Destination === '/app/data'))
+assert.equal(postgres.Config.Labels['com.docker.compose.project'], 'sub2api')
+assert.equal(redis.Config.Labels['com.docker.compose.project'], 'sub2api')
 const started = new Date().toISOString()
 // This private recovery record contains secrets. It must never enter Git or a delivery package.
 await writeFile(join(directory, 'recovery-private.json'), JSON.stringify(containers, null, 2), { flag: 'wx', mode: 0o600 })
@@ -71,6 +74,7 @@ assert.equal(currentApp.RestartCount, app.RestartCount)
 const manifest = {
   started, finished: new Date().toISOString(), archives,
   oldImageId: app.Image, oldContainerId: app.Id,
+  oldVersion: app.Config.Labels['org.opencontainers.image.version'] || '0.2.4',
   databaseImageId: postgres.Image, redisImageId: redis.Image,
   kind: 'live-consistent-postgres-dump-and-separate-redis-snapshot',
   crossStoreAtomicSnapshot: false, productionDeploymentPerformed: false,

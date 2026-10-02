@@ -29,7 +29,9 @@ async function checksum(path) {
 }
 
 assert.equal(run('git', ['status', '--porcelain'], true), '', 'Commit source changes before packaging')
-assert.match(inputs.version, /^[0-9]+\.[0-9]+\.[0-9]+-[a-z0-9.]+$/)
+assert.match(inputs.version, /^[0-9]+\.[0-9]+\.[0-9]+$/)
+assert.equal(inputs.upstreamTag, `v${inputs.version}`)
+assert.equal((await readFile(join(root, 'backend/cmd/server/VERSION'), 'utf8')).trim(), inputs.version)
 assert.equal(inputs.platform, 'linux/arm64')
 assert.equal(run('git', ['rev-parse', `${inputs.upstreamTag}^{commit}`], true), inputs.upstreamCommit)
 run('git', ['merge-base', '--is-ancestor', inputs.upstreamCommit, 'HEAD'])
@@ -107,10 +109,10 @@ await writeFile(join(output, 'manifest.json'), `${JSON.stringify({
   status: 'candidate-not-approved-for-production',
   productionDeploymentPerformed: false,
   sourceValidation: validation,
-  releaseGates: ['exact-image smoke and old database restore/migration requalification',
-    'mixed-version live background jobs, billing and session compatibility',
-    'authorized real gateway and client readiness', 'first stable-entry/Tailscale migration',
-    'old lazy-loaded assets and real application persistence drain', 'post-switch observation and verified rollback']
+  releaseGates: ['exact-image smoke and current database restore compatibility',
+    'fresh private backup and retained background-role owner',
+    'successful real gateway response on the candidate', 'entry activation and real response through original URL',
+    'old static assets and healthy rollback instance retained']
 }, null, 2)}\n`)
 const files = ['image.tar', 'source.tar.gz', 'README.md', 'manifest.json', 'source-validation.json', 'smoke.mjs', 'smoke-compose.yaml']
 const checksums = []

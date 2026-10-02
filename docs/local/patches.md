@@ -4,6 +4,8 @@ This ledger tracks our intentionally small fork. Production approval is separate
 
 ## Upstream Baseline
 
+Current target: `v0.2.13` (`3040209f205472038c1ba745a1bedd2edd9053b1`), merged on branch `codex/feat/restrained-neubrutalism`. Runtime/package version is `0.2.13`, with separate immutable source/image identity. The custom appearance is now [Restrained Neubrutalism](../NEUBRUTALISM_SKIN.md), preserving hatch charts and migrating old `clash` preferences. `release-next.mjs` retains the currently serving `.2` instance and adds a separately validated entry. No new database migrations occur in this incremental upstream release. The following baseline details describe the previous delivery.
+
 - Previous skin base: `bdb42e22f81fcb633ff0a060961211dd2bcb515b`.
 - Running production source: `5de5e2bed035d43591a2e10e51f420ef6a84eb98` (`0.2.4`); do not confuse it with the development base.
 - Selected stable target: `v0.2.12`, `5106065716e494204fc0e8db16f68f6e9d576be0`.
@@ -15,7 +17,7 @@ This ledger tracks our intentionally small fork. Production approval is separate
 
 | Change | Commit or location | Verification and retirement condition |
 | --- | --- | --- |
-| One Clash skin, gray base, sparse fluorescent accents, hatch charts, two-tone dashboard text | `29ea51394617fd9c774a0fb8f01a6ee25ebd6d21`; `docs/CLASH_SKIN.md` | Frontend unit tests, typecheck, build, lint; synthetic desktop/mobile browser checks. Keep while this custom appearance is wanted; compare with upstream shell changes on every merge. |
+| Restrained Neubrutalism, OpenJev paper/ink, sparse lime, hatch charts, two-tone dashboard text | `frontend/src/styles/neubrutalism-skin.css`; `docs/NEUBRUTALISM_SKIN.md` | Frontend tests, typecheck, build, lint and visual checks. Keep while this custom appearance is wanted; compare upstream shell changes on every merge. |
 | TypeSafe quota test fixture and assertions | `0d45c5146`; `frontend/src/api/__tests__/settings.authSourceDefaults.spec.ts` | Full frontend suite: 2604 passed. No business-logic change. Remove this local difference when upstream has equivalent six-platform coverage. |
 | Exact local pnpm and bounded build resources | `Dockerfile`, `PNPM_VERSION`, `NODE_BUILD_OPTIONS`, `GO_BUILD_PARALLELISM`, `GO_BUILD_MEMORY_LIMIT` | Default pnpm remains major 9; local build sets 9.15.9, explicit Node heap, and Go compile limits. No runtime behavior change. Retire when upstream provides equivalent toolchain/resource inputs. |
 | Auditable candidate packaging and isolated smoke tests | `deploy/local-upgrade/`; `docs/LOCAL_UPGRADE.md` | Build only committed source; pin base images; verify identity; export checksums; never change production traffic. Retain while local delivery needs this workflow. |

@@ -17,6 +17,8 @@ const candidate = JSON.parse(await readFile(candidatePath, 'utf8'))
 assert.match(candidate.imageId, /^sha256:[a-f0-9]{64}$/)
 assert.equal(candidate.platform, 'linux/arm64')
 const manifest = JSON.parse(await readFile(join(backup, 'backup-manifest.json'), 'utf8'))
+const oldVersion = manifest.oldVersion || '0.2.4'
+const expectedNewMigrations = oldVersion === '0.2.4' ? 7 : 0
 const inventory = await readFile(join(root, 'deploy/local-upgrade/compatibility-inventory.sql'), 'utf8')
 const originals = JSON.parse(await readFile(join(backup, 'recovery-private.json'), 'utf8'))
 assert.equal((await stat(backup)).mode & 0o777, 0o700)
@@ -192,7 +194,7 @@ try {
   for (const table of expectedStable) assert.deepEqual(report.afterMigrations[table], before[table], `Migration changed existing ${table} projections`)
   report.newMigrations = JSON.parse(sql("SELECT coalesce(json_agg(json_build_object('filename',filename,'checksum',checksum) ORDER BY filename),'[]'::json) FROM schema_migrations;"))
     .filter(item => !report.priorMigrations.some(prior => prior.filename === item.filename))
-  assert.equal(report.newMigrations.length, 7)
+  assert.equal(report.newMigrations.length, expectedNewMigrations)
   assert.equal(Number(sql('SELECT count(*) FROM user_platform_quotas WHERE daily_limit_usd IS NULL AND weekly_limit_usd IS NULL AND monthly_limit_usd IS NULL;')), 0)
   for (const item of report.priorMigrations) {
     assert.equal(sql(`SELECT checksum FROM schema_migrations WHERE filename='${item.filename}';`), item.checksum)
@@ -208,9 +210,9 @@ try {
       assert.equal(request(service, path, token).status, 200, `${service} ${path}`)
     }
     const version = JSON.parse(request(service, '/api/v1/admin/system/version', token).body).data.version
-    assert.equal(version, service === 'green' ? candidate.version : '0.2.4')
+    assert.equal(version, service === 'green' ? candidate.version : oldVersion)
   }
-  report.checks.push('seven expected migrations', 'existing migration checksums unchanged',
+  report.checks.push(`${expectedNewMigrations} expected new migrations`, 'existing migration checksums unchanged',
     'business projections unchanged', 'old session valid in both versions', 'existing compliance preserved', 'both admin read workflows')
   const groupId = Number(sql("SELECT id FROM groups WHERE platform='openai' AND deleted_at IS NULL ORDER BY id LIMIT 1;"))
   assert(groupId > 0)
