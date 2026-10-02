@@ -8,7 +8,7 @@
     "memory": "2560m",
     "cpuQuota": 100000,
     "maxParallelism": 1,
-    "nodeOptions": "--max-old-space-size=1664",
+    "nodeOptions": "--max-old-space-size=2048",
     "goParallelism": 2,
     "goMemoryLimit": "768MiB"
   },
