@@ -138,6 +138,7 @@ vite.config.js
 docs/*
 !docs/CLASH_SKIN.md
 !docs/LOCAL_UPGRADE.md
+!docs/LOCAL_DELIVERY_CLASH_2.md
 !docs/local/
 docs/local/*
 !docs/local/patches.md

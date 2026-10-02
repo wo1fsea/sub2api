@@ -2,6 +2,8 @@
 
 This package is a Linux ARM64 release candidate combining upstream `v0.2.12` with our grayscale Clash skin and an opt-in mixed-version scheduler compatibility mode (`0.2.12-clash.2`). It is not approval to deploy. Packaging never changes the running service, production database, secrets, or traffic route. The Cursor experiment is excluded.
 
+The exact `.2` package and post-build evidence are recorded in [the delivery record](LOCAL_DELIVERY_CLASH_2.md). A later deployment-tool/documentation commit is not the source revision embedded in the existing image.
+
 ## Package Contents
 
 - `image.tar`: Docker image including the compiled gateway and embedded frontend.
@@ -80,15 +82,18 @@ node deploy/local-upgrade/test-audit.mjs
 node deploy/local-upgrade/test-backend.mjs unit
 node deploy/local-upgrade/test-backend.mjs integration
 node deploy/local-upgrade/test-proxy.mjs /absolute/path/to/manifest.json
+node deploy/local-upgrade/test-assets.mjs /absolute/path/to/manifest.json
 ```
 
-Preflight is read-only: it checks immutable image identity, unchanged production container health, and an allowlisted aggregate inventory in a PostgreSQL read-only transaction. It never emits credentials or grants deployment approval. Secret-environment presence is not proof of effective file configuration; inspect actual JWT/TOTP/encryption settings privately before installing slots.
+Preflight is read-only: it checks immutable image identity, unchanged production container health, and an allowlisted aggregate inventory in a PostgreSQL read-only transaction. It never emits credentials or grants deployment approval. Secret-environment presence is not proof of effective file configuration; inspect actual JWT/TOTP settings privately before installing slots. General secret encryption and payment signing use the configured TOTP key, not a separate `SECRET_ENCRYPTION_KEY` variable.
 
 Backup helpers place recovery data outside Git/Vault, with directory mode `0700` and file mode `0600`. `recovery-private.json` contains secrets and must never be printed, committed, or packaged. PostgreSQL is a consistent logical snapshot; Redis and mutable app data are separate snapshots, not a cross-store atomic backup. The backup manifest remains `restoreVerified: false`; successful restore evidence is in the separate rehearsal report for the exact image.
 
 Rehearsal restores actual data onto independent PostgreSQL/Redis and separate app volumes, on an internal no-egress network without host ports. It checks business projections (including account credentials as hashes), seven expected migrations, old checksums, existing compliance, old sessions, admin reads, peer key writes, models and restart compatibility. Token refresh is disabled: this does not prove live account refresh or all background-job compatibility. Random project/volume ownership is checked; helpers have names and bounded private failure/state diagnostics so a Docker client timeout cannot silently orphan restore work.
 
 The backend runner uses the upstream Go toolchain, bounded parallelism/memory, and an allowlisted environment without model credentials. It retains at most ten run directories and caps captured failure details at 4 MiB per report; successful test logs are discarded. Passing dependency integration tests does not count as passing real model tests that were intentionally skipped. The audit helper runs its optional PostgreSQL/Redis cases separately and requires zero skips.
+
+The asset helper requires the checkout's frozen frontend development dependencies (JSDOM and TypeScript parsers). It discovers fingerprinted JS/CSS dependencies from the actual embedded builds, compares bytes and content types, and tests `haproxy-legacy-assets.cfg` with a GET/HEAD exact-path map. The legacy resource instance uses the exact old image in setup mode, UID 1000, a read-only root and empty temporary data, no production secrets/dependencies, no host port, and only an internal no-egress network. Only the proxy publishes an ephemeral loopback port. Old resource paths stay available after the old application asset fixture is stopped; setup/API/POST paths cannot reach the resource instance. Setup-mode test probes use `/` rather than `/health`. This is not live browser/API or full-media continuity evidence. Do not publish the resource instance or route an entire `/assets/` prefix to its setup server. The templates remain uninstalled; confirm forwarding trust, capacity and real browser behavior before use.
 
 ## Mixed-Version Restrictions
 

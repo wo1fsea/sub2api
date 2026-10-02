@@ -42,7 +42,7 @@ console.log(JSON.stringify({ checkedAt: new Date().toISOString(), readOnly: true
   candidateCommit: manifest.commit, candidateImageId: manifest.imageId,
   production: { containerId: app.Id, imageId: app.Image, startedAt: app.State.StartedAt,
     restartCount: app.RestartCount, health: app.State.Health.Status },
-  secretEnvironmentPresence: Object.fromEntries(['JWT_SECRET', 'TOTP_ENCRYPTION_KEY', 'SECRET_ENCRYPTION_KEY']
+  secretEnvironmentPresence: Object.fromEntries(['JWT_SECRET', 'TOTP_ENCRYPTION_KEY']
     .map(key => [key, Boolean(env[key])])),
   effectiveFileConfigurationInspected: false, backgroundJobs, findings,
   productionDeploymentPerformed: false, approvedForProduction: false }, null, 2))
