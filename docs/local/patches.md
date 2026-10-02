@@ -9,7 +9,7 @@ This ledger tracks our intentionally small fork. Production approval is separate
 - Selected stable target: `v0.2.12`, `5106065716e494204fc0e8db16f68f6e9d576be0`.
 - Merge: `4d9ec797f185cbef46d58bd3c1a5f3f7a2d76a81`, no conflicts.
 - Candidate branch: `codex/sync/20261002-v0.2.12`.
-- Candidate version: `0.2.12-clash.1`, Linux ARM64.
+- Candidate version: `0.2.12-clash.2`, Linux ARM64; supersedes the `.1` candidate after requalification.
 
 ## Retained Changes
 
@@ -19,11 +19,19 @@ This ledger tracks our intentionally small fork. Production approval is separate
 | TypeSafe quota test fixture and assertions | `0d45c5146`; `frontend/src/api/__tests__/settings.authSourceDefaults.spec.ts` | Full frontend suite: 2604 passed. No business-logic change. Remove this local difference when upstream has equivalent six-platform coverage. |
 | Exact local pnpm and bounded build resources | `Dockerfile`, `PNPM_VERSION`, `NODE_BUILD_OPTIONS`, `GO_BUILD_PARALLELISM`, `GO_BUILD_MEMORY_LIMIT` | Default pnpm remains major 9; local build sets 9.15.9, explicit Node heap, and Go compile limits. No runtime behavior change. Retire when upstream provides equivalent toolchain/resource inputs. |
 | Auditable candidate packaging and isolated smoke tests | `deploy/local-upgrade/`; `docs/LOCAL_UPGRADE.md` | Build only committed source; pin base images; verify identity; export checksums; never change production traffic. Retain while local delivery needs this workflow. |
+| Opt-in legacy scheduler projection compatibility | `backend/internal/config/config.go`, `backend/internal/repository/scheduler_cache.go`, repository provider and focused unit tests | `GATEWAY_SCHEDULING_LEGACY_SNAPSHOT_COMPAT=true` preserves RPM/threshold admission when an old writer publishes reduced metadata. Defaults off; full payload missing/corrupt never uses unsafe metadata. Retire after old writers/rollback targets are gone or upstream provides equivalent mixed-version support. |
+| Deadline check before OAuth credential persistence | `oauth_refresh_api.go`, `token_refresh_service.go`, focused service tests | A context timer may run late under load even after the absolute deadline; reject late credentials on both unified and legacy refresh paths. Preserve the existing post-commit cleanup behavior. Remove after an equivalent upstream fix is incorporated. |
+| Process-isolated retained-heap unit check | `billing_inflight_reservation_test.go` | Keep 20,000 random-model requests, no-DB assertions and the original 8 MiB retained-memory limit; isolate the measurement from unrelated suite allocations. Test-only, no production logic change. Remove after upstream supplies equivalent isolation. |
+| Private restore/preflight and protocol failure drills | `deploy/local-upgrade/` | Read-only live inventory, protected bounded backups, no-egress restored old-data drill, credential-free bounded test reports and pinned HAProxy fixtures. These never grant production approval; actual readiness/drain remain separate gates. |
 
 ## Verification Boundary
 
 On the merged candidate, fresh frozen-lockfile dependency installation, frontend typecheck, full frontend lint, all 2604 frontend tests, and the production frontend build passed. Synthetic browser checks passed at 1440px, 983x895 at 2x density, and 390px/320px, including skin rollback, dark mode, persistence, hatch rendering, two-tone text, date menus, user dialogs, and rejected writes. Screenshots were reviewed independently of pixel/fit assertions.
 
-The full backend unit suite has one failing process-global heap-growth assertion, `TestInflightEstimate_AccountMappingNoDBAndBoundedMemory`; the other 56 packages passed. The backend is unchanged from `v0.2.12`, and the test passed in isolation. Its suite sensitivity is unresolved; the assertion is not relaxed and no production fix is implied. Backend integration tests, matching golangci-lint, real gateway calls, restored old-data migration rehearsal, mixed-version background jobs, and production hot-switch rehearsal remain release gates.
+Earlier whole-suite runs exposed a process-global heap assertion and deadline-timer races in both OAuth refresh paths, including under Go 1.27.0. Passing once with the upstream toolchain was not a root-cause fix. The retained-heap workload is now isolated without increasing its limit, and the refresh paths check the absolute deadline before persistence. Focused regressions repeated 20 times passed; the final full-suite qualification is recorded against exact backend/frontend Git trees in the source validation record.
+
+An actual protected production backup was restored onto independent internal/no-egress PostgreSQL/Redis. Seven expected migrations, stable business projections including account hashes, old sessions, existing compliance, both admin read workflows, peer synthetic key writes and old/new restarts passed on the `.1` image. Re-run this drill on the `.2` image; the earlier image result must not be relabeled as new-image proof. Token refresh was disabled and no real gateway calls were made. The backup is not a cross-store atomic snapshot.
+
+HAProxy fixture checks passed for runtime activation/rollback, same keep-alive rerouting, old SSE/WebSockets, new WebSockets, no POST replay on 500/transport failure and persisted-route recovery. Mock write drain does not establish real application drain. Real low-budget model/client workflows, background-job/lease behavior, first Tailscale entry migration, old assets, actual async persistence drain and post-switch observation remain production gates. Keep the old process alive when any drain evidence is missing.
 
 Build and synthetic startup results belong in the delivery record alongside the final source SHA and package digest. Never interpret a successful empty-database smoke test as permission to migrate production. Shared-database migration can affect the old site before traffic switches.

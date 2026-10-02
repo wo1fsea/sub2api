@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const inputs = JSON.parse(await readFile(join(root, 'deploy/local-upgrade/build-inputs.json'), 'utf8'))
+const validation = JSON.parse(await readFile(join(root, 'deploy/local-upgrade/source-validation.json'), 'utf8'))
 const buildx = process.env.SUB2API_BUILDX || 'docker-buildx'
 const builder = process.env.SUB2API_BUILDER || 'sub2api-release-20261002'
 
@@ -33,6 +34,11 @@ assert.equal(inputs.platform, 'linux/arm64')
 assert.equal(run('git', ['rev-parse', `${inputs.upstreamTag}^{commit}`], true), inputs.upstreamCommit)
 run('git', ['merge-base', '--is-ancestor', inputs.upstreamCommit, 'HEAD'])
 const commit = run('git', ['rev-parse', 'HEAD'], true)
+assert.equal(run('git', ['rev-parse', 'HEAD:backend'], true), validation.backendTree,
+  'Backend changed since source qualification; re-run and record its checks')
+assert.equal(run('git', ['rev-parse', 'HEAD:frontend'], true), validation.frontendTree,
+  'Frontend changed since source qualification; re-run and record its checks')
+assert.equal(validation.status, 'source-checks-passed-not-production-approved')
 const date = run('git', ['show', '-s', '--format=%cI', commit], true)
 const image = `sub2api-local:${inputs.version}-${commit.slice(0, 12)}`
 const name = `sub2api_${inputs.version}_${inputs.platform.replace('/', '_')}_${commit.slice(0, 12)}`
@@ -94,16 +100,19 @@ await copyFile(join(root, 'docs/LOCAL_UPGRADE.md'), join(output, 'README.md'))
 for (const file of ['smoke.mjs', 'smoke-compose.yaml']) {
   await copyFile(join(root, 'deploy/local-upgrade', file), join(output, file))
 }
+await copyFile(join(root, 'deploy/local-upgrade/source-validation.json'), join(output, 'source-validation.json'))
 await writeFile(join(output, 'manifest.json'), `${JSON.stringify({
   ...inputs, commit, buildDate: date, image, imageId, imageConfigDigest,
   buildCommand: 'node deploy/local-upgrade/build-local.mjs',
   status: 'candidate-not-approved-for-production',
   productionDeploymentPerformed: false,
-  releaseGates: ['backend full unit suite memory assertion', 'backend integration and lint',
-    'production backup restore drill', 'old database migration rehearsal',
-    'mixed-version compatibility', 'real gateway readiness and admin workflow', 'stable entry and draining rehearsal']
+  sourceValidation: validation,
+  releaseGates: ['exact-image smoke and old database restore/migration requalification',
+    'mixed-version live background jobs, billing and session compatibility',
+    'authorized real gateway and client readiness', 'first stable-entry/Tailscale migration',
+    'old lazy-loaded assets and real application persistence drain', 'post-switch observation and verified rollback']
 }, null, 2)}\n`)
-const files = ['image.tar', 'source.tar.gz', 'README.md', 'manifest.json', 'smoke.mjs', 'smoke-compose.yaml']
+const files = ['image.tar', 'source.tar.gz', 'README.md', 'manifest.json', 'source-validation.json', 'smoke.mjs', 'smoke-compose.yaml']
 const checksums = []
 for (const file of files) checksums.push(`${await checksum(join(output, file))}  ${file}`)
 await writeFile(join(output, 'SHA256SUMS'), `${checksums.join('\n')}\n`)

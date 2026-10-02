@@ -1,0 +1,24 @@
+{
+  "status": "source-checks-passed-not-production-approved",
+  "recordedDate": "2026-10-02",
+  "backendTree": "d710cce7f11532ce28de896cf30402a68c92deac",
+  "frontendTree": "903fbb153deb8129c6b03f3c32abfe1720b49f4a",
+  "toolchain": "go1.27.0",
+  "backendUnit": { "passed": true, "packagesPassed": 57, "testsPassed": 21856, "testsSkipped": 18 },
+  "backendIntegration": { "passed": true, "packagesPassed": 51, "testsPassed": 13565, "testsSkipped": 16 },
+  "auditDependencyIntegration": { "passed": true, "testsPassed": 214, "testsSkipped": 0 },
+  "backendLint": { "version": "2.13.0", "issues": 0 },
+  "focusedHeapAndDeadlineRegressions": { "passed": true, "repetitions": 20 },
+  "frontend": {
+    "validatedSource": "f8e8556c8ac47794dd7d9e15488b9f9c78b14793",
+    "unchangedTreeReused": true,
+    "testsPassed": 2604,
+    "typecheck": "passed",
+    "lint": "passed",
+    "productionBuild": "passed",
+    "syntheticDesktopMobileBrowser": "passed"
+  },
+  "realGatewayCallsTested": false,
+  "productionDeploymentPerformed": false,
+  "note": "Optional real-provider/plugin/audit cases can skip without credentials. Audit dependencies were separately tested with zero skips. Exact-image smoke/restore and live readiness/drain are separate gates. Raw bounded reports remain ignored and private."
+}

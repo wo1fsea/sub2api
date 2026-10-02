@@ -1,12 +1,13 @@
 # Sub2API Local Upgrade
 
-This package is a Linux ARM64 release candidate combining upstream `v0.2.12` with our grayscale Clash skin. It is not approval to deploy. Packaging never changes the running service, production database, secrets, or traffic route. The Cursor experiment is excluded.
+This package is a Linux ARM64 release candidate combining upstream `v0.2.12` with our grayscale Clash skin and an opt-in mixed-version scheduler compatibility mode (`0.2.12-clash.2`). It is not approval to deploy. Packaging never changes the running service, production database, secrets, or traffic route. The Cursor experiment is excluded.
 
 ## Package Contents
 
 - `image.tar`: Docker image including the compiled gateway and embedded frontend.
 - `source.tar.gz`: committed source, without dependencies, secrets, runtime data, or database backups.
 - `manifest.json`: version, full source and upstream commits, image ID, pinned build inputs, and outstanding production gates.
+- `source-validation.json`: source checks tied to exact backend/frontend Git trees; not real-call or production approval.
 - `SHA256SUMS`: checksums of package contents.
 - `README.md`: this upgrade procedure.
 - `smoke.mjs` and `smoke-compose.yaml`: isolated synthetic runtime checks, never a production upgrade command.
@@ -35,7 +36,7 @@ A new administrator in the empty test database must acknowledge the upstream com
 
 ## Build the Same Candidate
 
-Requires committed, clean source; a local `v0.2.12` tag resolving to the manifest's upstream commit; Docker and Buildx; and network access for dependency installation. Base image digests and pnpm are fixed in `deploy/local-upgrade/build-inputs.json`. Frozen frontend lockfile and Go module checksums are enforced. Alpine package repositories are still external inputs, so this is an auditable build recipe, not a promise of bit-for-bit reproducibility.
+Requires committed, clean source; a local `v0.2.12` tag resolving to the manifest's upstream commit; Docker and Buildx; and network access for dependency installation. The checked-in source validation record must match the backend/frontend Git trees; a changed tree requires fresh qualification, not relabeling earlier results. Base image digests and pnpm are fixed in `deploy/local-upgrade/build-inputs.json`. Frozen frontend lockfile and Go module checksums are enforced. Alpine package repositories are still external inputs, so this is an auditable build recipe, not a promise of bit-for-bit reproducibility.
 
 ```sh
 docker-buildx create --name sub2api-release-20261002 \
@@ -67,14 +68,43 @@ Seven new SQL migrations occur on this path; existing migration files were not m
 
 The release also invalidates previously issued password-reset links. Communicate this and test freshly issued links and atomic consumption. Database migration happens on candidate startup, before traffic is switched. The migration advisory lock only serializes migrations; it does not prove compatibility or eliminate table locks.
 
+## Protected Rehearsal and Preflight
+
+Run these helpers from the committed source checkout, with the exact candidate manifest. They are not deployment commands:
+
+```sh
+node deploy/local-upgrade/preflight.mjs /absolute/path/to/manifest.json
+node deploy/local-upgrade/backup-private.mjs /Users/clawbotbot/Projects/sub2api-upgrade-private
+node deploy/local-upgrade/rehearse-private.mjs /absolute/path/to/backup-DIRECTORY /absolute/path/to/manifest.json
+node deploy/local-upgrade/test-audit.mjs
+node deploy/local-upgrade/test-backend.mjs unit
+node deploy/local-upgrade/test-backend.mjs integration
+node deploy/local-upgrade/test-proxy.mjs /absolute/path/to/manifest.json
+```
+
+Preflight is read-only: it checks immutable image identity, unchanged production container health, and an allowlisted aggregate inventory in a PostgreSQL read-only transaction. It never emits credentials or grants deployment approval. Secret-environment presence is not proof of effective file configuration; inspect actual JWT/TOTP/encryption settings privately before installing slots.
+
+Backup helpers place recovery data outside Git/Vault, with directory mode `0700` and file mode `0600`. `recovery-private.json` contains secrets and must never be printed, committed, or packaged. PostgreSQL is a consistent logical snapshot; Redis and mutable app data are separate snapshots, not a cross-store atomic backup. The backup manifest remains `restoreVerified: false`; successful restore evidence is in the separate rehearsal report for the exact image.
+
+Rehearsal restores actual data onto independent PostgreSQL/Redis and separate app volumes, on an internal no-egress network without host ports. It checks business projections (including account credentials as hashes), seven expected migrations, old checksums, existing compliance, old sessions, admin reads, peer key writes, models and restart compatibility. Token refresh is disabled: this does not prove live account refresh or all background-job compatibility. Random project/volume ownership is checked; helpers have names and bounded private failure/state diagnostics so a Docker client timeout cannot silently orphan restore work.
+
+The backend runner uses the upstream Go toolchain, bounded parallelism/memory, and an allowlisted environment without model credentials. It retains at most ten run directories and caps captured failure details at 4 MiB per report; successful test logs are discarded. Passing dependency integration tests does not count as passing real model tests that were intentionally skipped. The audit helper runs its optional PostgreSQL/Redis cases separately and requires zero skips.
+
+## Mixed-Version Restrictions
+
+- During coexistence, set `GATEWAY_SCHEDULING_LEGACY_SNAPSHOT_COMPAT=true` on the candidate. The old image drops RPM and newer threshold fields from shared `sched:meta:*` projections; the local compatibility mode instead reads the complete `sched:acc:*` payload and rebuilds the current safe projection in memory. It does not change shared key formats, expose OAuth tokens to candidate-list consumers, or repair the old binary. Missing/corrupt full payloads take the existing miss/error path, never unsafe legacy metadata. Defaults remain unchanged. The extra Redis bytes/CPU must be included in live readiness; keep the mode for as long as an old writer can remain or return.
+- The observed production inventory had zero enabled scheduled account tests, zero enabled channel checks, a disabled backup schedule and no active backup/restore operations. These are point-in-time checks, not permanent guarantees. Freeze those workflows during overlap: scheduled account tests/channel checks have only process-local exclusion, and the old backup writer does not participate in the new metadata writer lock/protection rules. Re-run preflight immediately before any shared-dependency installation or rollback.
+- Password-reset token formats differ. Keep reset issuance/verification/consumption on one version, drain pending reset requests and communicate link invalidation. Do not randomly balance auth workflows or promise old-image rollback of new reset tokens. Verification-attempt counters also differ across versions.
+- OAuth refresh and existing singleton jobs use distributed locks, but locks alone do not prove state/lease safety under real upstream calls. The isolated drill deliberately prevents account egress; controlled live refresh, counters, multi-turn state and billing still require separate evidence.
+
 ## Required Release Sequence
 
 1. Record the old image ID, container ID, configuration revision, source/version, and current entry route. Create a private backup of PostgreSQL, required Redis state, configuration, encryption keys, and mutable application data. Restore it into an isolated rehearsal environment and prove that restoration works. Never put these files in this public fork or in the upgrade package.
 2. Rehearse the old-to-new migration on an isolated copy. Capture duration and locks, compare quota/pricing/billing semantics and balances, verify restart idempotence, and run both old and new images against the migrated rehearsal data. Validate mixed-version Redis state and background jobs. OAuth refresh has distributed locking, but this does not establish safety for every scheduled task. If compatibility cannot be proven, do not attach the candidate to production dependencies; engineer a compatible staged migration first.
-3. Introduce a stable Caddy entry on a free loopback port, proposed `18380`, initially routing to the still-running old `18080`. Test UI, auth, headers, normal API, SSE, WebSocket, timeouts, and resource use through it. Migrate clients only after that entry works. A Tailscale Serve target change and original-port takeover require their own connection-preservation rehearsal; first entry migration is not automatically zero-interruption.
+3. Introduce a stable HAProxy entry on a free loopback port, proposed `18380`, initially routing to the still-running old `18080`. The pinned image tested is `haproxy@sha256:8007effce89a08af0236b9529a0daab5b8b36fa939f4162f28201f1bf8731dbf`; `haproxy.cfg` is a template, not an installed production proxy. Test UI, auth, forwarding headers/trust, normal API, SSE, WebSocket, timeouts, and resource use through the actual entry. Migrate clients only after that entry works. A Tailscale Serve target change and original-port takeover require their own connection-preservation rehearsal; first entry migration is not automatically zero-interruption.
 4. Only after the preceding gates pass, start the candidate in a separate application slot with the same production PostgreSQL/Redis and unchanged JWT/TOTP/encryption secrets. Keep slot installation/configuration directories separate; mutable business files must be safely accessible to both. Neither dependencies nor the old application are recreated. Verify migration locks and old-site business probes while the candidate starts.
 5. Candidate readiness must pass three successive rounds: expected source/version, DB/Redis, existing login sessions, authorization failures, model listing, selected real low-rate gateway calls, SSE first token and end event, relevant WebSocket/multi-turn/tool flows, UI and lazy-loaded assets. Use an explicitly authorized test key/account and spending budget. A static `/health`, empty-database smoke test, or synthetic skin preview is insufficient.
-6. Acquire a single release lock, validate the proxy configuration, and use a smooth reload to route new requests to the candidate. Do not restart the proxy. Disable blind retries of non-idempotent POSTs. Check the actual serving version through the stable entry and continuously probe both the new route and old in-flight work. Existing SSE/WebSocket connections stay with the old process.
+6. Acquire a single release lock, validate the proxy configuration, and update the HAProxy runtime map to route new requests to the candidate, without proxy reload/restart. Read back the runtime route, verify responses through the entry, and atomically persist the map in the private directory for restart recovery. Disk/runtime disagreement blocks retirement and requires reconciliation while both slots stay alive. The admin socket must remain unpublished and local to the proxy container. Disable blind retries of non-idempotent POSTs. Continuously probe the new route and old in-flight work. Existing SSE/WebSocket connections stay with the old process.
 7. Observe the new route for at least ten minutes and until business error rate, latency, billing, and async writes are acceptable. Keep the old process running until active requests, SSE/WebSocket sessions, and associated async persistence are explicitly zero. A fixed timer, health check, or TCP count alone is not drain proof. If requests do not drain, retain the old instance and investigate. The current application has a five-second SIGTERM shutdown timeout, so a longer Compose stop grace alone does not protect unfinished work.
 8. After readiness, observation, and drain all pass, stop only the old application slot. Retain its immutable image and configuration for the agreed rollback window. PostgreSQL, Redis, and the stable entry remain running. Record image ID, checksums, migration outcome, route changes, probe/drain evidence, and rollback eligibility.
 
@@ -82,6 +112,8 @@ The release also invalidates previously issued password-reset links. Communicate
 
 Before switch: keep the old route; a candidate failure must not stop the old site. If migration has already affected shared data, evaluate impact immediately rather than assuming the old route is unaffected.
 
-After switch: smooth-reload back to the old slot only if rehearsal proves it remains correct with the currently migrated and newly written data. Keep the new process alive to finish its existing requests. Do not restore a pre-upgrade snapshot into the live database during hot rollback; that would lose subsequent writes. If backward compatibility is not established, a forward repair or explicitly approved recovery procedure is required. Missing evidence means no production switch, not an automatic maintenance outage.
+After switch: change the runtime map back to the old slot only if rehearsal proves it remains correct with the currently migrated and newly written data, including any newly used features/auth/backup metadata. Persist and verify the route. Keep the new process alive to finish its existing requests. Do not restore a pre-upgrade snapshot into the live database during hot rollback; that would lose subsequent writes. If backward compatibility is not established, a forward repair or explicitly approved recovery procedure is required. Missing evidence means no production switch, not an automatic maintenance outage.
+
+The proxy fixture has proved same-connection HTTP rerouting, a six-second old SSE, existing/new WebSockets, runtime rollback without process replacement, no POST replay after 500/transport failure, and persisted-route recovery after an isolated restart with drained connections. Its mock write counter explicitly is **not** real application drain proof. The running old binary exposes no complete per-instance request plus usage-worker plus billing-cache drain snapshot. Do not stop it based on time, TCP count, the fixture, or `/health`. The source cleanup stops usage and billing-cache workers in parallel, so absence of HTTP work alone does not establish persistence safety. Until actual drain proof exists, keep the old slot running and do not report the release as completed.
 
 This procedure avoids a planned application-service gap after the stable entry is established. It does not provide host, Docker VM, proxy, or database high availability on a single Mac.

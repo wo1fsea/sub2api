@@ -220,9 +220,10 @@ return 1
 )
 
 type schedulerCache struct {
-	rdb            *redis.Client
-	mgetChunkSize  int
-	writeChunkSize int
+	rdb                  *redis.Client
+	mgetChunkSize        int
+	writeChunkSize       int
+	legacySnapshotCompat bool
 }
 
 func NewSchedulerCache(rdb *redis.Client) service.SchedulerCache {
@@ -279,7 +280,11 @@ func (c *schedulerCache) GetSnapshot(ctx context.Context, bucket service.Schedul
 	keys := make([]string, 0, len(ids))
 	lastUsedKeys := make([]string, 0, len(ids))
 	for _, id := range ids {
-		keys = append(keys, schedulerAccountMetaKey(id))
+		if c.legacySnapshotCompat {
+			keys = append(keys, schedulerAccountKey(id))
+		} else {
+			keys = append(keys, schedulerAccountMetaKey(id))
+		}
 		lastUsedKeys = append(lastUsedKeys, schedulerLastUsedKey(id))
 	}
 	values, err := c.mgetChunked(ctx, keys)
@@ -299,6 +304,12 @@ func (c *schedulerCache) GetSnapshot(ctx context.Context, bucket service.Schedul
 		account, err := decodeCachedAccount(val)
 		if err != nil {
 			return nil, false, err
+		}
+		if c.legacySnapshotCompat {
+			// Old writers retain the full account but publish reduced admission fields.
+			// Re-project locally without exposing tokens to the candidate-list path.
+			metadata := buildSchedulerMetadataAccount(*account)
+			account = &metadata
 		}
 		if err := applySchedulerLastUsed(account, lastUsedValues[i]); err != nil {
 			return nil, false, err

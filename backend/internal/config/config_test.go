@@ -30,6 +30,18 @@ func TestLoadDefaultModelsListReadMaxBytes(t *testing.T) {
 	require.Equal(t, DefaultModelsListReadMaxBytes, cfg.Gateway.ModelsListReadMaxBytes)
 }
 
+func TestLoadLegacySnapshotCompatibility(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		t.Run(fmt.Sprint(enabled), func(t *testing.T) {
+			resetViperWithJWTSecret(t)
+			t.Setenv("GATEWAY_SCHEDULING_LEGACY_SNAPSHOT_COMPAT", fmt.Sprint(enabled))
+			cfg, err := Load()
+			require.NoError(t, err)
+			require.Equal(t, enabled, cfg.Gateway.Scheduling.LegacySnapshotCompat)
+		})
+	}
+}
+
 func TestLoadTimezonePrecedence(t *testing.T) {
 	tests := []struct {
 		name         string

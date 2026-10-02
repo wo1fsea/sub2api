@@ -652,6 +652,28 @@ func TestRefreshIfNeeded_LateSuccessAfterDeadlineDoesNotPersist(t *testing.T) {
 	require.Zero(t, repo.updateCredentialsCalls, "late credentials must not cross the unified API persistence boundary")
 }
 
+type refreshDeadlinePendingContext struct {
+	context.Context
+	deadline time.Time
+}
+
+func (c refreshDeadlinePendingContext) Deadline() (time.Time, bool) { return c.deadline, true }
+
+func TestRefreshIfNeeded_ExpiredDeadlineBeforeCancellationDoesNotPersist(t *testing.T) {
+	account := &Account{ID: 86, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive}
+	repo := &refreshAPIAccountRepo{account: account}
+	executor := &refreshAPIExecutorStub{needsRefresh: true, credentials: map[string]any{"access_token": "late-token"}}
+	api := NewOAuthRefreshAPI(repo, nil)
+	// Deterministically model a deadline whose cancellation timer has not run yet.
+	ctx := refreshDeadlinePendingContext{Context: context.Background(), deadline: time.Now().Add(-time.Second)}
+	require.NoError(t, ctx.Err())
+	result, err := api.RefreshIfNeeded(ctx, account, executor, time.Hour)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Nil(t, result)
+	require.Zero(t, repo.successCASCalls)
+	require.Zero(t, repo.updateCredentialsCalls)
+}
+
 func TestRefreshIfNeeded_NilCredentials(t *testing.T) {
 	account := &Account{ID: 9, Platform: PlatformGemini, Type: AccountTypeOAuth, Status: StatusActive}
 	repo := &refreshAPIAccountRepo{account: account}
