@@ -8,7 +8,7 @@ import { updateFavicon } from '@/utils/branding'
 import { isIOSDevice } from '@/utils/device'
 import { initSkin } from '@/composables/useSkin'
 import './style.css'
-import './styles/clash-skin.css'
+import './styles/neubrutalism-skin.css'
 
 function initIOSViewportZoomFix() {
   // iOS Safari 在输入框字号小于 16px 时聚焦会自动放大页面，且失焦后不会恢复。

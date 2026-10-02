@@ -6,7 +6,7 @@ import tailwindcss from 'tailwindcss'
 import colors from 'tailwindcss/colors'
 import config from '../../../tailwind.config.js'
 
-const source = readFileSync(resolve('src/styles/clash-skin.css'), 'utf8')
+const source = readFileSync(resolve('src/styles/neubrutalism-skin.css'), 'utf8')
 
 const families = [
   'red', 'orange', 'amber', 'yellow', 'lime', 'green', 'emerald', 'teal', 'cyan',
@@ -28,16 +28,24 @@ describe('grayscale skin palette', () => {
     }
   })
 
-  it('keeps all base surface and utility tokens achromatic in both modes', () => {
+  it('keeps utility colors neutral with only the reference paper surface slightly warm', () => {
     const root = postcss.parse(source)
     let checked = 0
     root.walkDecls(/^--skin-/, declaration => {
-      if (['--skin-lime', '--skin-pink', '--skin-radius'].includes(declaration.prop)) return
+      if (['--skin-lime', '--skin-radius'].includes(declaration.prop)) return
       if (declaration.value.startsWith('var(')) return
       const channels = declaration.value.startsWith('#')
         ? [1, 3, 5].map(offset => parseInt(declaration.value.slice(offset, offset + 2), 16))
         : declaration.value.split(' ').map(Number)
       expect(channels).toHaveLength(3)
+      if (['--skin-bg', '--skin-surface', '--skin-white', '--skin-gray-50'].includes(declaration.prop) && channels[0] === 247) {
+        expect(channels).toEqual([247, 246, 240])
+        return
+      }
+      if (['--skin-ink', '--skin-line'].includes(declaration.prop) && channels[0] === 23) {
+        expect(channels).toEqual([23, 23, 21])
+        return
+      }
       expect(channels[0]).toBe(channels[1])
       expect(channels[1]).toBe(channels[2])
       checked++

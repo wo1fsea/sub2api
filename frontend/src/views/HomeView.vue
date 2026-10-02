@@ -16,7 +16,7 @@
   <div
     v-else-if="compactHomeEnabled"
     data-testid="compact-home"
-    class="flex min-h-screen flex-col bg-gray-50 text-gray-900 dark:bg-dark-950 dark:text-white"
+    class="skin-home flex min-h-screen flex-col bg-gray-50 text-gray-900 dark:bg-dark-950 dark:text-white"
   >
     <header class="border-b border-gray-200 px-4 py-4 sm:px-6 dark:border-dark-800">
       <nav class="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 sm:gap-4">
@@ -69,17 +69,17 @@
     </header>
 
     <main class="flex min-w-0 flex-1 items-center justify-center px-4 py-16 sm:px-6">
-      <div class="min-w-0 max-w-2xl text-center">
+      <div class="skin-home-content min-w-0 max-w-2xl text-center">
         <img
           :src="siteLogo || '/logo.svg'"
           alt="Logo"
           class="skin-brand-logo mx-auto mb-6 h-20 w-20 rounded-2xl object-contain"
         />
-        <h1 class="[overflow-wrap:anywhere] text-3xl font-bold md:text-4xl">{{ siteName }}</h1>
+        <h1 class="skin-home-title [overflow-wrap:anywhere] text-3xl font-bold md:text-4xl">{{ siteName }}</h1>
         <p class="mt-4 whitespace-pre-wrap [overflow-wrap:anywhere] text-base text-gray-600 dark:text-dark-300">{{ siteSubtitle }}</p>
         <router-link
           :to="isAuthenticated ? dashboardPath : '/login'"
-          class="mt-8 inline-flex min-h-10 items-center justify-center rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-primary-700"
+          class="skin-home-action mt-8 inline-flex min-h-10 items-center justify-center rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-primary-700"
         >
           {{ isAuthenticated ? t('home.goToDashboard') : t('home.login') }}
         </router-link>

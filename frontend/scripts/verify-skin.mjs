@@ -34,7 +34,7 @@ async function auditPixels(page, buffer) {
       colored++
       const rawHue = high === r ? (g - b) / delta : high === g ? (b - r) / delta + 2 : (r - g) / delta + 4
       const hue = (rawHue * 60 + 360) % 360
-      if ((hue >= 62 && hue <= 86) || (hue >= 320 && hue <= 339)) continue
+      if (hue >= 62 && hue <= 86) continue
       unexpected++
       if (examples.size < 6) examples.add(`rgb(${r},${g},${b})`)
     }
@@ -84,14 +84,15 @@ async function auditTypography(page, name) {
       if (field.getClientRects().length) colors.add(getComputedStyle(field).color)
     }
     const dark = document.documentElement.classList.contains('dark')
-    const primary = dark ? 'rgb(244, 244, 244)' : 'rgb(24, 24, 24)'
+    const primary = dark ? 'rgb(244, 244, 244)' : 'rgb(23, 23, 21)'
     const secondary = dark ? 'rgb(188, 188, 188)' : 'rgb(74, 74, 74)'
     const luminance = gray => {
       const value = gray / 255
       return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
     }
-    const foregrounds = dark ? [244, 188] : [24, 74]
-    const backgrounds = dark ? [24, 34] : [244, 253]
+    // Use conservative channel bounds for the slightly warm paper/ink reference.
+    const foregrounds = dark ? [244, 188] : [23, 74]
+    const backgrounds = dark ? [24, 34] : [240, 244]
     const minimumContrast = Math.min(...foregrounds.flatMap(text => backgrounds.map(background => {
       const values = [luminance(text), luminance(background)].sort((a, b) => b - a)
       return (values[0] + 0.05) / (values[1] + 0.05)
@@ -123,7 +124,7 @@ async function checkFit(page, name) {
   await page.screenshot({ path: `${output}/${name}.png`, scale: 'css' })
   let palette
   let typography
-  if (await page.locator('html').getAttribute('data-skin') === 'clash') {
+  if (await page.locator('html').getAttribute('data-skin') === 'neubrutalism') {
     palette = await auditPixels(page, await page.screenshot({ fullPage: true, scale: 'css' }))
     assert.equal(palette.unexpected, 0, `${name}: unexpected original colors ${palette.examples.join(', ')}`)
     assert(palette.coloredRatio < 0.08, `${name}: fluorescent accents occupy too much of the page`)
@@ -178,10 +179,10 @@ try {
   page.on('pageerror', error => errors.push(error.message))
   await page.goto(`${base}/admin/dashboard`)
   await page.locator('.skin-dashboard-metrics').first().waitFor()
-  await page.getByRole('button', { name: 'Clash 风格皮肤', exact: true }).waitFor()
-  await checkFit(page, 'desktop-clash')
-  await checkDatePicker(page, 'desktop-clash')
-  const skinButton = page.getByRole('button', { name: 'Clash 风格皮肤', exact: true })
+  await page.getByRole('button', { name: '克制的新粗野主义', exact: true }).waitFor()
+  await checkFit(page, 'desktop-neubrutalism')
+  await checkDatePicker(page, 'desktop-neubrutalism')
+  const skinButton = page.getByRole('button', { name: '克制的新粗野主义', exact: true })
   assert.equal(await skinButton.getAttribute('aria-pressed'), 'true')
   assert.equal(await page.locator('.skin-dashboard-metrics .card').first().evaluate(e => getComputedStyle(e).borderRadius), '0px')
   await skinButton.click()
@@ -194,7 +195,7 @@ try {
   assert.equal(await page.locator('html').getAttribute('data-skin'), 'original')
   await skinButton.focus()
   await page.keyboard.press('Enter')
-  assert.equal(await page.locator('html').getAttribute('data-skin'), 'clash')
+  assert.equal(await page.locator('html').getAttribute('data-skin'), 'neubrutalism')
 
   const secondTab = await context.newPage()
   await secondTab.goto(`${base}/admin/dashboard`)
@@ -202,13 +203,13 @@ try {
   await skinButton.click()
   await secondTab.waitForFunction(() => document.documentElement.dataset.skin === 'original')
   await skinButton.click()
-  await secondTab.waitForFunction(() => document.documentElement.dataset.skin === 'clash')
+  await secondTab.waitForFunction(() => document.documentElement.dataset.skin === 'neubrutalism')
   await secondTab.close()
 
   await page.getByRole('button', { name: '深色模式', exact: true }).click()
   assert.equal(await page.locator('html').evaluate(e => e.classList.contains('dark')), true)
-  await checkFit(page, 'desktop-clash-dark')
-  await checkDatePicker(page, 'desktop-clash-dark')
+  await checkFit(page, 'desktop-neubrutalism-dark')
+  await checkDatePicker(page, 'desktop-neubrutalism-dark')
   await skinButton.click()
   assert.equal(await page.locator('html').evaluate(e => e.classList.contains('dark')), true)
   await checkFit(page, 'desktop-original-dark')
@@ -221,7 +222,7 @@ try {
 
   await page.getByRole('link', { name: '用户管理', exact: true }).click()
   await page.waitForURL('**/admin/users')
-  assert.equal(await page.locator('html').getAttribute('data-skin'), 'clash')
+  assert.equal(await page.locator('html').getAttribute('data-skin'), 'neubrutalism')
   await checkFit(page, 'desktop-users')
   await page.getByRole('button', { name: '深色模式', exact: true }).click()
   await checkFit(page, 'desktop-users-dark')
@@ -243,16 +244,16 @@ try {
   commentPage.on('pageerror', error => errors.push(error.message))
   await commentPage.goto(`${base}/admin/dashboard`)
   await commentPage.locator('.skin-dashboard-metrics').first().waitFor()
-  await checkFit(commentPage, 'comment-983-clash')
-  await checkDatePicker(commentPage, 'comment-983-clash')
+  await checkFit(commentPage, 'comment-983-neubrutalism')
+  await checkDatePicker(commentPage, 'comment-983-neubrutalism')
   const modelCard = commentPage.locator('.card').filter({ has: commentPage.locator('canvas') }).first()
   await modelCard.scrollIntoViewIfNeeded()
   await commentPage.screenshot({ path: `${output}/comment-983-chart-table.png`, scale: 'css' })
   await commentPage.getByRole('button', { name: '切换菜单', exact: true }).click()
   await commentPage.getByRole('button', { name: '深色模式', exact: true }).click()
   await commentPage.getByRole('link', { name: '仪表盘', exact: true }).click()
-  await checkFit(commentPage, 'comment-983-clash-dark')
-  await checkDatePicker(commentPage, 'comment-983-clash-dark')
+  await checkFit(commentPage, 'comment-983-neubrutalism-dark')
+  await checkDatePicker(commentPage, 'comment-983-neubrutalism-dark')
   await commentContext.close()
 
   for (const width of [390, 320]) {
@@ -261,7 +262,7 @@ try {
     mobilePage.on('pageerror', error => errors.push(error.message))
     await mobilePage.goto(`${base}/admin/dashboard`)
     await mobilePage.locator('.skin-dashboard-metrics').first().waitFor()
-    await checkFit(mobilePage, `mobile-${width}-clash`)
+    await checkFit(mobilePage, `mobile-${width}-neubrutalism`)
     await mobilePage.getByRole('button', { name: '切换菜单' }).click()
     await mobilePage.waitForFunction(() => document.querySelector('.sidebar').getBoundingClientRect().x === 0)
     assert.equal(await mobilePage.locator('.sidebar').evaluate(e => e.getBoundingClientRect().x), 0)
@@ -272,9 +273,9 @@ try {
   const guest = await browser.newContext({ viewport: { width: 390, height: 844 } })
   const login = await guest.newPage()
   await login.goto(`${base}/login`)
-  await login.getByRole('button', { name: 'Clash 风格皮肤', exact: true }).waitFor()
+  await login.getByRole('button', { name: '克制的新粗野主义', exact: true }).waitFor()
   await checkFit(login, 'mobile-login')
-  await login.getByRole('button', { name: 'Clash 风格皮肤', exact: true }).click()
+  await login.getByRole('button', { name: '克制的新粗野主义', exact: true }).click()
   assert.equal(await login.locator('html').getAttribute('data-skin'), 'original')
   await guest.close()
 
@@ -284,8 +285,8 @@ try {
   await recovery.goto(`${base}/admin/dashboard`)
   await recovery.locator('.skin-dashboard-metrics').first().waitFor()
   assert.equal(await recovery.locator('html').getAttribute('data-skin'), 'original')
-  await recovery.getByRole('button', { name: 'Clash 风格皮肤', exact: true }).click()
-  assert.equal(await recovery.locator('html').getAttribute('data-skin'), 'clash')
+  await recovery.getByRole('button', { name: '克制的新粗野主义', exact: true }).click()
+  assert.equal(await recovery.locator('html').getAttribute('data-skin'), 'neubrutalism')
   await corrupted.close()
 
   const blockedWrite = await context.request.post(`${base}/api/v1/admin/settings`, { data: { site_name: 'not applied' } })

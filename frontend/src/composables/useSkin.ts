@@ -1,11 +1,12 @@
 import { readonly, ref } from 'vue'
 
-export type Skin = 'original' | 'clash'
+export type Skin = 'original' | 'neubrutalism'
 export const SKIN_STORAGE_KEY = 'sub2api.skin'
-const currentSkin = ref<Skin>('clash')
+const currentSkin = ref<Skin>('neubrutalism')
 
 function normalizeSkin(value: string | null): Skin {
-  if (value === null || value === 'clash') return 'clash'
+  // Preserve preferences from the first release; the old name is only an input alias.
+  if (value === null || value === 'neubrutalism' || value === 'clash') return 'neubrutalism'
   return 'original'
 }
 
@@ -38,6 +39,9 @@ export function initSkin() {
     // Use the default skin without blocking bootstrap.
   }
   applySkin(normalizeSkin(savedSkin))
+  if (savedSkin === 'clash') {
+    try { localStorage.setItem(SKIN_STORAGE_KEY, 'neubrutalism') } catch { /* Storage may be unavailable. */ }
+  }
   window.removeEventListener('storage', syncSkin)
   window.addEventListener('storage', syncSkin)
 }

@@ -21,7 +21,7 @@ function expectGrayscale(colors: string[]) {
 describe('shared chart theme', () => {
   beforeEach(() => {
     document.documentElement.classList.remove('dark')
-    setSkin('clash')
+    setSkin('neubrutalism')
   })
   afterEach(() => {
     vi.restoreAllMocks()
@@ -55,9 +55,9 @@ describe('shared chart theme', () => {
       await wrapper.vm.$nextTick()
       expect(wrapper.vm.skin).toBe('original')
       expect(wrapper.vm.isDark).toBe(true)
-      setSkin('clash')
+      setSkin('neubrutalism')
       await wrapper.vm.$nextTick()
-      expect(wrapper.vm.skin).toBe('clash')
+      expect(wrapper.vm.skin).toBe('neubrutalism')
     } finally {
       wrapper.unmount()
     }

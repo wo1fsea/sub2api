@@ -10,8 +10,8 @@ describe('skin preference', () => {
   })
 
   it('defaults to the one custom skin before mount', () => {
-    expect(document.documentElement.dataset.skin).toBe('clash')
-    expect(useSkin().skin.value).toBe('clash')
+    expect(document.documentElement.dataset.skin).toBe('neubrutalism')
+    expect(useSkin().skin.value).toBe('neubrutalism')
   })
 
   it('persists original appearance without changing dark mode', () => {
@@ -24,24 +24,34 @@ describe('skin preference', () => {
   })
 
   it('restores the custom skin and falls back safely on an unknown saved id', () => {
-    localStorage.setItem(SKIN_STORAGE_KEY, 'clash')
+    localStorage.setItem(SKIN_STORAGE_KEY, 'neubrutalism')
     initSkin()
-    expect(useSkin().skin.value).toBe('clash')
+    expect(useSkin().skin.value).toBe('neubrutalism')
     localStorage.setItem(SKIN_STORAGE_KEY, 'not-a-skin')
     initSkin()
     expect(useSkin().skin.value).toBe('original')
+  })
+
+  it('migrates the previous release preference and recognizes old-tab updates', () => {
+    localStorage.setItem(SKIN_STORAGE_KEY, 'clash')
+    initSkin()
+    expect(document.documentElement.dataset.skin).toBe('neubrutalism')
+    expect(localStorage.getItem(SKIN_STORAGE_KEY)).toBe('neubrutalism')
+    setSkin('original')
+    window.dispatchEvent(new StorageEvent('storage', { key: SKIN_STORAGE_KEY, newValue: 'clash' }))
+    expect(useSkin().skin.value).toBe('neubrutalism')
   })
 
   it('synchronizes another tab and resets when storage is cleared', () => {
     window.dispatchEvent(new StorageEvent('storage', { key: SKIN_STORAGE_KEY, newValue: 'original' }))
     expect(useSkin().skin.value).toBe('original')
     window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
-    expect(useSkin().skin.value).toBe('clash')
+    expect(useSkin().skin.value).toBe('neubrutalism')
   })
 
   it('ignores unrelated preferences', () => {
     window.dispatchEvent(new StorageEvent('storage', { key: 'theme', newValue: 'dark' }))
-    expect(useSkin().skin.value).toBe('clash')
+    expect(useSkin().skin.value).toBe('neubrutalism')
   })
 
   it('does not block startup or switching when storage throws', () => {

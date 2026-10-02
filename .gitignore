@@ -33,7 +33,7 @@ backend/.gocache/
 # Node.js / Vue 前端
 # ===================
 node_modules/
-frontend/node_modules/
+frontend/node_modules
 frontend/dist/
 *.local
 *.tsbuildinfo
@@ -136,7 +136,7 @@ deploy/docker-compose.override.yml
 .gocache/
 vite.config.js
 docs/*
-!docs/CLASH_SKIN.md
+!docs/NEUBRUTALISM_SKIN.md
 !docs/LOCAL_UPGRADE.md
 !docs/LOCAL_DELIVERY_CLASH_2.md
 !docs/local/

@@ -39,7 +39,7 @@ describe('TokenUsageTrend', () => {
   })
 
   it('uses one secondary text tone for every axis and legend, with original rollback', async () => {
-    setSkin('clash')
+    setSkin('neubrutalism')
     const wrapper = mount(TokenUsageTrend, { props: { trendData: [] } })
     const options = () => (wrapper.vm as any).$?.setupState.lineOptions
     const textColors = () => [

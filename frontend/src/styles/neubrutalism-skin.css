@@ -1,0 +1,529 @@
+/* Restrained Neubrutalism: print-like structure around conventional product flows. */
+:root[data-skin='neubrutalism'] {
+  --skin-bg: #f7f6f0;
+  --skin-surface: #f7f6f0;
+  --skin-ink: #171715;
+  --skin-muted: #4a4a4a;
+  --skin-line: #171715;
+  --skin-line-soft: #dcdcdc;
+  --skin-neutral: #f4f4f4;
+  --skin-lime: #d4ff3f;
+  --skin-radius: 0px;
+  --skin-white: 247 246 240;
+  --skin-gray-50: 247 246 240;
+  --skin-gray-100: 244 244 244;
+  --skin-gray-200: 220 220 220;
+  --skin-gray-300: 205 205 205;
+  --skin-gray-400: 117 117 117;
+  --skin-gray-500: 97 97 97;
+  --skin-gray-600: 78 78 78;
+  --skin-gray-700: 56 56 56;
+  --skin-gray-800: 34 34 34;
+  --skin-gray-900: 24 24 24;
+  --skin-gray-950: 15 15 15;
+  --skin-tone-50: var(--skin-gray-50);
+  --skin-tone-100: var(--skin-gray-100);
+  --skin-tone-200: var(--skin-gray-200);
+  --skin-tone-300: var(--skin-gray-300);
+  --skin-tone-400: var(--skin-gray-400);
+  --skin-tone-500: var(--skin-gray-500);
+  --skin-tone-600: var(--skin-gray-600);
+  --skin-tone-700: var(--skin-gray-700);
+  --skin-tone-800: var(--skin-gray-800);
+  --skin-tone-900: var(--skin-gray-900);
+  --skin-tone-950: var(--skin-gray-950);
+  --skin-primary-50: var(--skin-gray-100);
+  --skin-primary-100: var(--skin-gray-100);
+  --skin-primary-200: var(--skin-gray-200);
+  --skin-primary-300: var(--skin-gray-300);
+  --skin-primary-400: var(--skin-gray-400);
+  --skin-primary-500: var(--skin-gray-700);
+  --skin-primary-600: var(--skin-gray-800);
+  --skin-primary-700: var(--skin-gray-900);
+  --skin-primary-800: var(--skin-gray-900);
+  --skin-primary-900: var(--skin-gray-900);
+  --skin-primary-950: var(--skin-gray-950);
+  --skin-dark-50: var(--skin-gray-50);
+  --skin-dark-100: var(--skin-gray-100);
+  --skin-dark-200: var(--skin-gray-200);
+  --skin-dark-300: var(--skin-gray-300);
+  --skin-dark-400: 162 162 162;
+  --skin-dark-500: 117 117 117;
+  --skin-dark-600: var(--skin-gray-600);
+  --skin-dark-700: var(--skin-gray-700);
+  --skin-dark-800: var(--skin-gray-800);
+  --skin-dark-900: var(--skin-gray-900);
+  --skin-dark-950: var(--skin-gray-950);
+}
+
+:root.dark[data-skin='neubrutalism'] {
+  --skin-bg: #181818;
+  --skin-surface: #222222;
+  --skin-ink: #f4f4f4;
+  --skin-muted: #bcbcbc;
+  --skin-line: #a2a2a2;
+  --skin-line-soft: #4e4e4e;
+  --skin-neutral: #383838;
+  --skin-gray-400: 162 162 162;
+  --skin-gray-500: 162 162 162;
+  --skin-primary-300: var(--skin-gray-200);
+  --skin-primary-400: var(--skin-gray-200);
+  --skin-primary-900: var(--skin-gray-700);
+  --skin-tone-600: var(--skin-gray-700);
+  --skin-tone-700: var(--skin-gray-700);
+  --skin-tone-800: var(--skin-gray-800);
+  --skin-tone-900: var(--skin-gray-800);
+}
+
+[data-skin='neubrutalism'] body {
+  background: var(--skin-bg);
+  color: var(--skin-ink);
+}
+
+[data-skin='neubrutalism'] ::selection {
+  background: var(--skin-lime);
+  color: #181818;
+}
+
+[data-skin='neubrutalism'] .skin-decoration {
+  display: none;
+}
+
+[data-skin='neubrutalism'] :is(.glass, .glass-card, .card-glass) {
+  background: var(--skin-surface);
+  backdrop-filter: none;
+}
+
+[data-skin='neubrutalism'] :is(.card, .glass-card, .card-glass, .modal-content, .dialog-container, .dropdown) {
+  background: var(--skin-surface);
+  border: 1px solid var(--skin-line);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+[data-skin='neubrutalism'] .card-hover:hover {
+  transform: none;
+  border-color: var(--skin-line);
+  box-shadow: none;
+}
+
+[data-skin='neubrutalism'] :is(.sidebar, .skin-app-header) {
+  background: var(--skin-bg);
+  border-color: var(--skin-line);
+}
+
+[data-skin='neubrutalism'] .sidebar-link {
+  border: 1px solid transparent;
+  color: var(--skin-ink);
+}
+
+[data-skin='neubrutalism'] .sidebar-link-active {
+  border-color: var(--skin-line);
+  background: var(--skin-neutral);
+  box-shadow: inset 3px 0 0 var(--skin-lime);
+}
+
+[data-skin='neubrutalism'] .sidebar-section-title {
+  color: var(--skin-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.04em;
+}
+
+[data-skin='neubrutalism'] :is(.skin-app-header h1, .page-title) {
+  width: fit-content;
+  max-width: 100%;
+  color: var(--skin-ink);
+  overflow-wrap: anywhere;
+  font-weight: 900;
+  letter-spacing: -0.035em;
+  line-height: 1.2;
+}
+
+[data-skin='neubrutalism'] .page-title {
+  font-size: clamp(1.75rem, 2.5vw, 2.25rem);
+}
+
+[data-skin='neubrutalism'] .sidebar-brand-title {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+[data-skin='neubrutalism'] :is(.skin-app-header p, .input-label, .table th) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+[data-skin='neubrutalism'] .card :is(h2, h3) {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+[data-skin='neubrutalism'] .btn {
+  box-shadow: none;
+  font-weight: 600;
+  transform: none;
+  transition: background-color 120ms, box-shadow 120ms, transform 120ms;
+}
+
+[data-skin='neubrutalism'] :is(.btn-primary, .skin-home-action) {
+  background: var(--skin-lime);
+  color: #181818;
+  border: 1px solid #181818;
+  border-radius: 0;
+  box-shadow: 3px 3px 0 #181818;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 700;
+  transition: box-shadow 120ms, transform 120ms;
+}
+
+[data-skin='neubrutalism'] :is(.btn-primary, .skin-home-action):not(:disabled):hover {
+  background: var(--skin-lime);
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 #181818;
+}
+
+[data-skin='neubrutalism'] :is(.btn-primary, .skin-home-action):not(:disabled):active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 #181818;
+}
+
+[data-skin='neubrutalism'] .btn-primary:disabled {
+  background: var(--skin-neutral);
+  color: var(--skin-muted);
+  border-color: var(--skin-line-soft);
+  box-shadow: none;
+}
+
+[data-skin='neubrutalism'] :is(.btn-secondary, .input, .table-container) {
+  border-color: var(--skin-line);
+}
+
+[data-skin='neubrutalism'] :is(.btn-secondary, .input) {
+  background: var(--skin-surface);
+  color: var(--skin-ink);
+}
+
+[data-skin='neubrutalism'] .input-error {
+  border-color: var(--skin-line);
+  border-style: dashed;
+}
+
+[data-skin='neubrutalism'] :is(.btn-danger, .btn-warning, .btn-success, .btn-stripe, .btn-airwallex, .btn-alipay, .btn-wxpay) {
+  background: var(--skin-neutral);
+  color: var(--skin-ink);
+  border: 1px solid var(--skin-line);
+  box-shadow: none;
+}
+
+[data-skin='neubrutalism'] :is(.btn-danger, .btn-warning, .btn-success, .btn-stripe, .btn-airwallex, .btn-alipay, .btn-wxpay):not(:disabled):hover {
+  background: var(--skin-surface);
+  color: var(--skin-ink);
+  box-shadow: 2px 2px 0 var(--skin-line);
+}
+
+[data-skin='neubrutalism'] :is(.badge-success, .badge-warning, .badge-danger, .badge-purple) {
+  background: var(--skin-neutral);
+  color: var(--skin-ink);
+  border: 1px solid var(--skin-line-soft);
+}
+
+[data-skin='neubrutalism'] :is(.badge-warning, .badge-danger) {
+  border-color: var(--skin-line);
+  border-style: dashed;
+}
+
+[data-skin='neubrutalism'] :is(.skin-brand-logo, .skin-locale-flag, svg, canvas, .model-icon-fallback, .score-legend, [class*='health-'], .driver-popover-description, .aliyun-captcha-button) {
+  filter: grayscale(1);
+}
+
+[data-skin='neubrutalism'] .skin-brand-logo {
+  box-shadow: none;
+}
+
+[data-skin='neubrutalism'] .model-icon path {
+  fill: var(--skin-ink);
+}
+
+[data-skin='neubrutalism'] .model-icon-fallback {
+  background: var(--skin-neutral);
+  color: var(--skin-ink);
+}
+
+/* Provider marks use fixed hex utilities outside the shared Tailwind palette. */
+[data-skin='neubrutalism'] [class*='border-[#'] {
+  border-color: var(--skin-line);
+}
+
+[data-skin='neubrutalism'] [class*='bg-[#'] {
+  background-color: var(--skin-neutral);
+}
+
+[data-skin='neubrutalism'] [class*='text-[#'] {
+  color: var(--skin-ink);
+}
+
+[data-skin='neubrutalism'] .border-t-transparent {
+  border-top-color: transparent;
+}
+
+[data-skin='neubrutalism'] [style*='--plaza-accent'] {
+  --plaza-accent: var(--skin-muted) !important;
+}
+
+[data-skin='neubrutalism'] [style*='--chip-accent'] {
+  --chip-accent: var(--skin-muted) !important;
+}
+
+[data-skin='neubrutalism'] input.input-ring:focus {
+  border-color: var(--skin-line);
+  box-shadow: none;
+  outline: 2px solid var(--skin-ink);
+  outline-offset: 2px;
+}
+
+[data-skin='neubrutalism'] :is(.bg-gradient-primary, .bg-gradient-dark, .bg-mesh-gradient) {
+  background-image: none;
+}
+
+[data-skin='neubrutalism'] :is(.shadow-glow, .shadow-glow-lg) {
+  box-shadow: none;
+}
+
+[data-skin='neubrutalism'] :is(.skin-switcher, .stat-icon-primary, .badge-primary, .text-gradient) {
+  background: var(--skin-neutral);
+  color: var(--skin-ink);
+}
+
+[data-skin='neubrutalism'] .skin-switcher[aria-pressed='true'] {
+  position: relative;
+  background: var(--skin-surface);
+  color: var(--skin-ink);
+  border-color: var(--skin-line);
+}
+
+[data-skin='neubrutalism'] .skin-switcher[aria-pressed='true']::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 5px;
+  height: 5px;
+  background: var(--skin-lime);
+  border: 1px solid #181818;
+}
+
+[data-skin='neubrutalism'] .text-gradient {
+  background: none;
+  -webkit-text-fill-color: var(--skin-ink);
+}
+
+[data-skin='neubrutalism'] .table th {
+  background: var(--skin-neutral);
+  color: var(--skin-ink);
+  font-size: 12px;
+}
+
+[data-skin='neubrutalism'] :is(.modal-content, .dialog-container, .skin-auth-layout .card-glass, .dropdown) {
+  box-shadow: 4px 4px 0 var(--skin-line);
+}
+
+[data-skin='neubrutalism'] .skin-auth-layout h1 {
+  font-size: 42px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+}
+
+[data-skin='neubrutalism'] .skin-home :is(header, footer) {
+  border-color: var(--skin-line);
+}
+
+[data-skin='neubrutalism'] .skin-home-content {
+  width: 100%;
+  max-width: 960px;
+  text-align: left;
+}
+
+[data-skin='neubrutalism'] .skin-home-content .skin-brand-logo {
+  width: 48px;
+  height: 48px;
+  margin-left: 0;
+  border: 1px solid var(--skin-line);
+}
+
+[data-skin='neubrutalism'] .skin-home-title {
+  font-size: clamp(3rem, 6vw, 4rem);
+  font-weight: 900;
+  letter-spacing: -0.07em;
+  line-height: 0.95;
+}
+
+[data-skin='neubrutalism'] .skin-home-content p {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--skin-muted);
+}
+
+[data-skin='neubrutalism'] .skin-home-action {
+  min-height: 44px;
+  padding: 12px 24px;
+}
+
+[data-skin='neubrutalism'] .table td {
+  border-color: var(--skin-line-soft);
+}
+
+[data-skin='neubrutalism'] :is(.tabs, .badge-primary) {
+  border: 1px solid var(--skin-line-soft);
+}
+
+[data-skin='neubrutalism'] .badge {
+  border-radius: 0;
+}
+
+[data-skin='neubrutalism'] .skin-auth-layout {
+  background: var(--skin-bg);
+  padding-top: 64px;
+}
+
+[data-skin='neubrutalism'] .skin-dashboard-metrics {
+  gap: 0;
+  border-top: 1px solid var(--skin-line);
+  border-left: 1px solid var(--skin-line);
+}
+
+/* Dashboard text has two semantic levels, independent of utility color families. */
+:root[data-skin='neubrutalism'] .skin-dashboard :is(h2, h3, p, span, td, th, label, a, button, input, select, textarea, [class*='text-']) {
+  color: var(--skin-ink);
+}
+
+:root[data-skin='neubrutalism'] .skin-dashboard :is(p.text-xs, span.text-xs, th, .input-hint, .date-picker-label) {
+  color: var(--skin-muted);
+}
+
+[data-skin='neubrutalism'] :is(.skin-app-header, .sidebar) :is(.text-gray-400, .text-gray-500, .text-gray-600) {
+  color: var(--skin-muted);
+}
+
+:root[data-skin='neubrutalism'] .skin-dashboard :is(.btn-primary, .btn-primary *) {
+  color: #181818;
+}
+
+[data-skin='neubrutalism'] .skin-dashboard .date-picker-actions .date-picker-apply {
+  background: var(--skin-surface);
+  color: var(--skin-ink);
+  border: 1px solid var(--skin-line);
+  border-radius: 0;
+}
+
+[data-skin='neubrutalism'] .skin-dashboard .date-picker-actions .date-picker-apply:hover {
+  background: var(--skin-neutral);
+}
+
+[data-skin='neubrutalism'] .skin-chart-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  border: 1px solid var(--skin-line);
+}
+
+[data-skin='neubrutalism'] .skin-dashboard-metrics .card {
+  min-width: 0;
+  border: 0;
+  border-right: 1px solid var(--skin-line);
+  border-bottom: 1px solid var(--skin-line);
+}
+
+[data-skin='neubrutalism'] .skin-dashboard-metrics .card > div > div:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+[data-skin='neubrutalism'] .skin-dashboard-metrics .card > div {
+  position: relative;
+  display: block;
+}
+
+[data-skin='neubrutalism'] .skin-dashboard-metrics .text-xl {
+  margin-top: 6px;
+  font-size: clamp(24px, 2.2vw, 32px);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+[data-skin='neubrutalism'] .skin-dashboard-metrics .card > div > div:last-child > p:first-child {
+  padding-right: 24px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.025em;
+}
+
+[data-skin='neubrutalism'] .skin-dashboard-metrics .skin-metric-icon {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 0;
+}
+
+[data-skin='neubrutalism'] .skin-metric-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+[data-skin='neubrutalism'] :is(.skin-metric-icon, .skin-metric-icon svg) {
+  background: transparent;
+  color: var(--skin-ink);
+}
+
+[data-skin='neubrutalism'] :is(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--skin-ink);
+  outline-offset: 3px;
+}
+
+@media (min-width: 1024px) {
+  [data-skin='neubrutalism'] .skin-app-header > div {
+    height: 80px;
+  }
+
+  [data-skin='neubrutalism'] .skin-app-header h1 {
+    font-size: 28px;
+  }
+}
+
+@media (max-width: 480px) {
+  [data-skin='neubrutalism'] .skin-dashboard-metrics .card > div {
+    display: block;
+    position: relative;
+  }
+
+  [data-skin='neubrutalism'] .skin-dashboard-metrics .skin-metric-icon {
+    position: absolute;
+    top: 0;
+    right: 0;
+    padding: 0;
+  }
+
+  [data-skin='neubrutalism'] .skin-metric-icon svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  [data-skin='neubrutalism'] .skin-dashboard-metrics .card > div > div:last-child > p:first-child {
+    padding-right: 24px;
+  }
+
+  [data-skin='neubrutalism'] .skin-dashboard-metrics .text-xl {
+    margin-top: 6px;
+    font-size: 22px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-skin='neubrutalism'] :is(.btn, .skin-home-action) {
+    transition: none;
+    transform: none;
+  }
+}

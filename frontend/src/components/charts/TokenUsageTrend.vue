@@ -56,7 +56,7 @@ const props = defineProps<{
   loading?: boolean
 }>()
 
-const chartColors = computed(() => skin.value === 'clash' ? {
+const chartColors = computed(() => skin.value === 'neubrutalism' ? {
   text: chartMuted.value,
   grid: isDarkMode.value ? '#4e4e4e' : '#dcdcdc',
   input: isDarkMode.value ? '#dddddd' : '#555555',
@@ -125,7 +125,7 @@ const chartData = computed(() => {
         tension: 0.3,
         yAxisID: 'yPercent'
       }
-    ].map((dataset, index) => skin.value === 'clash' && index < 4 ? {
+    ].map((dataset, index) => skin.value === 'neubrutalism' && index < 4 ? {
       ...dataset, fill: false, borderDash: [[], [6, 3], [2, 3], [8, 3, 2, 3]][index]
     } : dataset)
   }
@@ -202,7 +202,7 @@ const lineOptions = computed(() => ({
         drawOnChartArea: false
       },
       ticks: {
-        color: skin.value === 'clash' ? chartMuted.value : chartColors.value.cacheHitRate,
+        color: skin.value === 'neubrutalism' ? chartMuted.value : chartColors.value.cacheHitRate,
         font: {
           size: 10
         },

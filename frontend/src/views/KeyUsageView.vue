@@ -532,7 +532,7 @@ function setDailyUsageDays(days: 7 | 30 | 90) {
 // ==================== Ring Animation ====================
 
 const CIRCUMFERENCE = 2 * Math.PI * 68
-const RING_GRADIENTS = computed(() => skin.value === 'clash'
+const RING_GRADIENTS = computed(() => skin.value === 'neubrutalism'
   ? distributionColors.value.slice(0, 4).map(color => ({ from: color, to: color }))
   : [
   { from: '#14b8a6', to: '#5eead4' },

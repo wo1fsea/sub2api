@@ -75,7 +75,7 @@
           </div>
 
           <!-- New Users Today -->
-          <div class="card p-4" data-skin-accent="pink">
+          <div class="card p-4">
             <div class="flex items-center gap-3">
               <div class="skin-metric-icon rounded-lg bg-emerald-100 p-2 dark:bg-emerald-900/30">
                 <Icon name="userPlus" size="md" class="text-emerald-600 dark:text-emerald-400" :stroke-width="2" />
@@ -448,7 +448,7 @@ const granularityOptions = computed(() => [
 const { skin, isDark: isDarkMode, distributionColors, chartMuted } = useChartTheme()
 
 // Chart colors
-const chartColors = computed(() => skin.value === 'clash' ? {
+const chartColors = computed(() => skin.value === 'neubrutalism' ? {
   text: chartMuted.value,
   grid: isDarkMode.value ? '#4e4e4e' : '#dcdcdc'
 } : {
@@ -549,7 +549,7 @@ const userTrendChartData = computed(() => {
   })
 
   const sortedDates = Array.from(allDates).sort()
-  const colors = skin.value === 'clash' ? distributionColors.value : [
+  const colors = skin.value === 'neubrutalism' ? distributionColors.value : [
     '#3b82f6',
     '#10b981',
     '#f59e0b',
@@ -569,7 +569,7 @@ const userTrendChartData = computed(() => {
     data: sortedDates.map((date) => group.data.get(date) || 0),
     borderColor: colors[idx % colors.length],
     backgroundColor: `${colors[idx % colors.length]}20`,
-    borderDash: skin.value === 'clash' ? [[], [6, 3], [2, 3], [8, 3, 2, 3]][idx % 4] : [],
+    borderDash: skin.value === 'neubrutalism' ? [[], [6, 3], [2, 3], [8, 3, 2, 3]][idx % 4] : [],
     fill: false,
     tension: 0.3
   }))

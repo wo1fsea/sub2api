@@ -212,7 +212,7 @@ describe('ModelDistributionChart', () => {
     }) as unknown as CanvasRenderingContext2D)
     const wrapper = mount(ModelDistributionChart, { props: { modelStats } })
     const original = JSON.parse(wrapper.get('.chart-data').text())
-    setSkin('clash')
+    setSkin('neubrutalism')
     await wrapper.vm.$nextTick()
     const custom = JSON.parse(wrapper.get('.chart-data').text())
     expect(custom.datasets[0].backgroundColor[0]).toEqual({ hatch: 0 })
@@ -232,7 +232,7 @@ describe('ModelDistributionChart', () => {
       fillRect: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), stroke: vi.fn(),
       createPattern: () => ({ hatch: nextPattern++ })
     }) as unknown as CanvasRenderingContext2D)
-    setSkin('clash')
+    setSkin('neubrutalism')
     const wrapper = mount(ModelDistributionChart, {
       props: {
         modelStats, enableRankingView: true,

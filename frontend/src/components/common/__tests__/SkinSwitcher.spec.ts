@@ -14,16 +14,16 @@ describe('SkinSwitcher', () => {
     const wrapper = mount(SkinSwitcher, {
       global: {
         plugins: [createI18n({ legacy: false, locale: 'en', messages: {
-          en: { common: { clashSkin: () => 'Clash skin', useOriginalSkin: () => 'Use original skin', useClashSkin: () => 'Use Clash skin' } }
+          en: { common: { neubrutalismSkin: () => 'Restrained Neubrutalism', useOriginalSkin: () => 'Use original skin', useNeubrutalismSkin: () => 'Use Restrained Neubrutalism' } }
         } })]
       }
     })
     const button = wrapper.get('button')
-    expect(button.attributes('aria-label')).toBe('Clash skin')
+    expect(button.attributes('aria-label')).toBe('Restrained Neubrutalism')
     expect(button.attributes('aria-pressed')).toBe('true')
     await button.trigger('click')
     expect(button.attributes('aria-pressed')).toBe('false')
-    expect(button.attributes('title')).toBe('Use Clash skin')
+    expect(button.attributes('title')).toBe('Use Restrained Neubrutalism')
     expect(localStorage.getItem(SKIN_STORAGE_KEY)).toBe('original')
     await button.trigger('click')
     expect(button.attributes('aria-pressed')).toBe('true')
