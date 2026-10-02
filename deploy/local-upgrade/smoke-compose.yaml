@@ -1,0 +1,81 @@
+# Isolated synthetic tests only. Never attach production networks or volumes.
+services:
+  app:
+    image: ${SUB2API_SMOKE_IMAGE:?candidate image required}
+    pull_policy: never
+    cpus: 0.5
+    mem_limit: 512m
+    ports:
+      - "127.0.0.1:${SUB2API_SMOKE_PORT:?loopback test port required}:8080"
+    volumes:
+      - app-data:/app/data
+    environment:
+      AUTO_SETUP: "true"
+      RUN_MODE: simple
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: "8080"
+      SERVER_MODE: release
+      TZ: Asia/Shanghai
+      DATABASE_HOST: postgres
+      DATABASE_USER: smoke
+      DATABASE_DBNAME: smoke
+      DATABASE_PASSWORD: ${SUB2API_SMOKE_DB_PASSWORD:?synthetic password required}
+      DATABASE_SSLMODE: disable
+      DATABASE_MAX_OPEN_CONNS: "10"
+      DATABASE_MAX_IDLE_CONNS: "2"
+      REDIS_HOST: redis
+      REDIS_POOL_SIZE: "16"
+      REDIS_MIN_IDLE_CONNS: "2"
+      ADMIN_EMAIL: smoke@example.invalid
+      ADMIN_PASSWORD: ${SUB2API_SMOKE_ADMIN_PASSWORD:?synthetic password required}
+      JWT_SECRET: ${SUB2API_SMOKE_JWT_SECRET:?synthetic key required}
+      TOTP_ENCRYPTION_KEY: ${SUB2API_SMOKE_TOTP_KEY:?synthetic key required}
+      GOMAXPROCS: "2"
+      GOMEMLIMIT: 384MiB
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    logging: &bounded-logs
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: "2"
+  postgres:
+    image: ${SUB2API_SMOKE_POSTGRES_IMAGE:?pinned postgres required}
+    pull_policy: never
+    cpus: 0.5
+    mem_limit: 384m
+    environment:
+      POSTGRES_USER: smoke
+      POSTGRES_DB: smoke
+      POSTGRES_PASSWORD: ${SUB2API_SMOKE_DB_PASSWORD:?synthetic password required}
+    volumes:
+      - pg-data:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U smoke -d smoke"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    logging: *bounded-logs
+  redis:
+    image: ${SUB2API_SMOKE_REDIS_IMAGE:?pinned redis required}
+    pull_policy: never
+    cpus: 0.25
+    mem_limit: 64m
+    command: [redis-server, --save, "", --appendonly, "no"]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    logging: *bounded-logs
+networks:
+  default:
+    internal: true
+volumes:
+  app-data:
+  pg-data:

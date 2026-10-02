@@ -56,7 +56,7 @@ node scripts/verify-skin.mjs
 
 `verify-skin.mjs` requires Playwright and a Chromium browser. With shared tooling outside this repository, set `SUB2API_PLAYWRIGHT_MODULE` to that installed Playwright `index.mjs`. Set `SUB2API_SKIN_PREVIEW_URL` only to an isolated preview. The script requires a loopback URL and the `skin-preview` fixture version before testing; it makes a deliberately rejected write request and must not target production. Generated screenshots/reports live under ignored `frontend/tmp/`.
 
-Validation on 2026-10-02:
+Initial skin validation on 2026-10-02, before the upstream merge:
 
 - Focused skin/palette/chart/table/i18n/dashboard suite: 88 passed, including generated Tailwind utility fallback checks, hatch generation/fallback, ranked/unranked markers, and light/dark chart text with original rollback.
 - Full frontend suite: 2110 passed, 2 failed. Both failures were reproduced on the unchanged base commit during the initial skin work: provider count in `ChannelMonitorView.grok.spec.ts` and missing test Pinia in `GroupsView.codexManifest.spec.ts`.
@@ -64,12 +64,20 @@ Validation on 2026-10-02:
 - Browser checks passed at desktop 1440px, the commented 983x895 viewport at 2x pixel density, and mobile 390px/320px, including light/dark, refresh, cross-tab sync, keyboard toggle, ranking, users navigation, expanded date-range menus, locale dropdown, unsaved create-user dialog, login, unknown-ID recovery, and rejected writes. No page-level horizontal overflow or clipped metric values was found in these states. Dashboard DOM text and input colors use exactly two tones, including expanded menus; their contrast against page/card surfaces exceeds 8:1. The date apply button also passes a 7:1 contrast check at rest and hover in both modes. A separate in-app exploratory pass covered ranking/model switches and the English date menu.
 - Full-page pixel audits found no strongly chromatic colors outside lime/pink in the tested Clash views. Chromatic pixels occupied about 0.17% of the desktop dashboard, 0.42% of the users page, and 3.71% of mobile login; this measures the rendered samples, not every app route. Chart screenshots were achromatic and their canvases contained rendered pixels. Doughnut pixel transitions confirmed real hatch detail; visual review covered light/dark hatch direction and spacing, matching table markers, dashboard text, and date menus.
 
-Dependencies were reused from the existing `sub2api-cursor` worktree because registry access failed. A fresh frozen-lockfile install has not been verified. Upstream's current remote HEAD has not been confirmed.
+The initial validation reused dependencies from the existing `sub2api-cursor` worktree because registry access failed. The later upstream integration below supersedes that dependency and test boundary.
+
+## Upstream Integration
+
+Upstream `v0.2.12` (`5106065716e494204fc0e8db16f68f6e9d576be0`) was merged without conflicts in the separate `/Users/clawbotbot/Projects/sub2api-release` worktree on `codex/sync/20261002-v0.2.12`. The original skin and Cursor worktrees were preserved. A new frozen-lockfile install with pnpm 9.15.9 succeeded; full typecheck, frontend lint, production frontend build, and 2604 frontend tests passed after correcting upstream's stale five-platform test expectations for TypeSafe.
+
+The synthetic browser inventory above was rerun on the merged source at isolated port `18382`. Desktop, the annotated viewport, mobile, both appearance modes, hatching, two-tone text, dialogs, date menus, persistence, keyboard operation, and blocked writes passed. No page-level overflow, blank chart, or unexpected chromatic residual was detected in these samples. Updated viewport screenshots were visually inspected. This still does not certify all specialized routes or a real production backend.
+
+Local patches and remaining backend release gates are recorded in `docs/local/patches.md`. Packaging and the continuous-service upgrade sequence are in `docs/LOCAL_UPGRADE.md`.
 
 ## Release Gate
 
 Worktree: `/Users/clawbotbot/Projects/sub2api-skins`, branch `codex/feat/skin-system`, base `bdb42e22f81fcb633ff0a060961211dd2bcb515b`. The Cursor experiment is not included.
 
-This preview is not deployed to the production Compose stack. Production remains on its fixed image and existing direct entry point. Source changes, tests, and this document are local until explicitly published; no remote push is implied by this preview.
+This preview is not deployed to the production Compose stack. Production remains on its fixed image and existing direct entry point. Publishing the candidate source does not approve or perform production deployment; the delivery record must separately confirm remote source SHA, image/package identity, validation, and production status.
 
 Before release, confirm the appearance, resolve or explicitly accept the baseline test failures, install/build reproducibly against the chosen upstream baseline, test an isolated real backend, and complete the stable-entry blue/green preparation in the vault runbook. Check the candidate site's real behavior before switching new traffic. Keep the old instance until in-flight requests are drained and the new version passes observation. Static `/health` and this frontend preview do not prove production readiness or uninterrupted gateway service.
