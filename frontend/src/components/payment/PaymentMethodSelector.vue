@@ -24,7 +24,7 @@
         @click="method.available && emit('select', method.type)"
       >
         <span class="flex w-full min-w-0 items-center justify-center gap-2">
-          <img :src="methodIcon(method.type)" :alt="methodLabel(method)" class="h-7 w-7 shrink-0 object-contain" />
+          <img :src="methodIcon(method.type)" :alt="methodLabel(method)" class="skin-brand-logo h-7 w-7 shrink-0 object-contain" />
           <span class="flex min-w-0 flex-col items-start leading-none">
             <span data-testid="payment-method-label" class="block w-full truncate text-base font-semibold">
               {{ methodLabel(method) }}

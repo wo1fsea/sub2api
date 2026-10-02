@@ -5,12 +5,13 @@
       <nav class="mx-auto flex max-w-6xl items-center justify-between">
         <router-link to="/home" class="flex items-center gap-3">
           <div class="h-10 w-10 overflow-hidden rounded-xl shadow-md">
-            <img :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
+            <img :src="siteLogo || '/logo.svg'" alt="Logo" class="skin-brand-logo h-full w-full object-contain" />
           </div>
           <span class="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">{{ siteName }}</span>
         </router-link>
         <div class="flex items-center gap-3">
           <LocaleSwitcher />
+          <SkinSwitcher />
           <a
             v-if="docUrl"
             :href="docUrl"
@@ -422,12 +423,15 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores'
 import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
+import SkinSwitcher from '@/components/common/SkinSwitcher.vue'
+import { useChartTheme } from '@/composables/useChartTheme'
 import Icon from '@/components/icons/Icon.vue'
 import { buildGatewayUrl } from '@/api/client'
 import { formatDateLocalInput } from '@/utils/format'
 import { sanitizeUrl } from '@/utils/url'
 
 const { t, locale } = useI18n()
+const { skin, distributionColors } = useChartTheme()
 const appStore = useAppStore()
 const subscriptionFeatureEnabled = computed(() => resolveFeatureFlag(appStore.cachedPublicSettings, FeatureFlags.subscription))
 
@@ -528,12 +532,14 @@ function setDailyUsageDays(days: 7 | 30 | 90) {
 // ==================== Ring Animation ====================
 
 const CIRCUMFERENCE = 2 * Math.PI * 68
-const RING_GRADIENTS = [
+const RING_GRADIENTS = computed(() => skin.value === 'clash'
+  ? distributionColors.value.slice(0, 4).map(color => ({ from: color, to: color }))
+  : [
   { from: '#14b8a6', to: '#5eead4' },
   { from: '#6366F1', to: '#A5B4FC' },
   { from: '#10B981', to: '#6EE7B7' },
   { from: '#F59E0B', to: '#FCD34D' },
-]
+])
 
 const ringAnimated = ref(false)
 const displayPcts = ref<number[]>([])

@@ -1,3 +1,12 @@
+import colors from 'tailwindcss/colors'
+
+function skinPalette(name, palette) {
+  return Object.fromEntries(Object.entries(palette).map(([shade, hex]) => {
+    const rgb = [1, 3, 5].map(offset => parseInt(hex.slice(offset, offset + 2), 16)).join(' ')
+    return [shade, `rgb(var(--skin-${name}-${shade}, ${rgb}) / <alpha-value>)`]
+  }))
+}
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{vue,js,ts,jsx,tsx}'],
@@ -5,8 +14,16 @@ export default {
   theme: {
     extend: {
       colors: {
+        white: 'rgb(var(--skin-white, 255 255 255) / <alpha-value>)',
+        gray: skinPalette('gray', colors.gray),
+        ...Object.fromEntries([
+          'red', 'orange', 'amber', 'yellow', 'lime', 'green', 'emerald', 'teal', 'cyan',
+          'sky', 'blue', 'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose'
+        ].map(name => [name, skinPalette('tone', colors[name])])),
+        ...Object.fromEntries(['slate', 'zinc', 'neutral', 'stone']
+          .map(name => [name, skinPalette('gray', colors[name])])),
         // 主色调 - Teal/Cyan 青色系
-        primary: {
+        primary: skinPalette('primary', {
           50: '#f0fdfa',
           100: '#ccfbf1',
           200: '#99f6e4',
@@ -18,9 +35,9 @@ export default {
           800: '#115e59',
           900: '#134e4a',
           950: '#042f2e'
-        },
+        }),
         // 辅助色 - 深蓝灰
-        accent: {
+        accent: skinPalette('gray', {
           50: '#f8fafc',
           100: '#f1f5f9',
           200: '#e2e8f0',
@@ -32,9 +49,9 @@ export default {
           800: '#1e293b',
           900: '#0f172a',
           950: '#020617'
-        },
+        }),
         // 深色模式背景
-        dark: {
+        dark: skinPalette('dark', {
           50: '#f8fafc',
           100: '#f1f5f9',
           200: '#e2e8f0',
@@ -46,7 +63,7 @@ export default {
           800: '#1e293b',
           900: '#0f172a',
           950: '#020617'
-        }
+        })
       },
       fontFamily: {
         sans: [
@@ -126,7 +143,14 @@ export default {
         xs: '2px'
       },
       borderRadius: {
-        '4xl': '2rem'
+        sm: 'var(--skin-radius, 0.125rem)',
+        DEFAULT: 'var(--skin-radius, 0.25rem)',
+        md: 'var(--skin-radius, 0.375rem)',
+        lg: 'var(--skin-radius, 0.5rem)',
+        xl: 'var(--skin-radius, 0.75rem)',
+        '2xl': 'var(--skin-radius, 1rem)',
+        '3xl': 'var(--skin-radius, 1.5rem)',
+        '4xl': 'var(--skin-radius, 2rem)'
       }
     }
   },

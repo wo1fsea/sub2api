@@ -1,7 +1,10 @@
-import { describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { enableAutoUnmount, mount } from '@vue/test-utils'
 
 import ModelDistributionChart from '../ModelDistributionChart.vue'
+import { setSkin } from '@/composables/useSkin'
+
+enableAutoUnmount(afterEach)
 
 const messages: Record<string, string> = {
   'admin.dashboard.modelDistribution': 'Model Distribution',
@@ -48,6 +51,8 @@ vi.mock('vue-chartjs', () => ({
 }))
 
 describe('ModelDistributionChart', () => {
+  beforeEach(() => setSkin('original'))
+  afterEach(() => vi.restoreAllMocks())
   const modelStats = [
     {
       model: 'model-a',
@@ -197,5 +202,49 @@ describe('ModelDistributionChart', () => {
     expect(rows[3].text()).toContain('4')
     expect(rows[3].text()).toContain('400')
     expect(rows[3].text()).toContain('$10.00')
+  })
+
+  it('switches the visual palette without changing chart data', async () => {
+    let nextPattern = 0
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => ({
+      fillRect: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), stroke: vi.fn(),
+      createPattern: () => ({ hatch: nextPattern++ })
+    }) as unknown as CanvasRenderingContext2D)
+    const wrapper = mount(ModelDistributionChart, { props: { modelStats } })
+    const original = JSON.parse(wrapper.get('.chart-data').text())
+    setSkin('clash')
+    await wrapper.vm.$nextTick()
+    const custom = JSON.parse(wrapper.get('.chart-data').text())
+    expect(custom.datasets[0].backgroundColor[0]).toEqual({ hatch: 0 })
+    expect(custom.datasets[0].backgroundColor[1]).toEqual({ hatch: 1 })
+    expect(wrapper.findAll('.skin-chart-swatch')).toHaveLength(2)
+    expect(custom.datasets[0].borderWidth).toBe(1)
+    expect(custom.datasets[0].data).toEqual(original.datasets[0].data)
+    setSkin('original')
+    await wrapper.vm.$nextTick()
+    expect(JSON.parse(wrapper.get('.chart-data').text()).datasets[0].backgroundColor[0]).toBe('#3b82f6')
+    wrapper.unmount()
+  })
+
+  it('uses the next hatch for unranked spend instead of repeating a ranked marker', async () => {
+    let nextPattern = 0
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => ({
+      fillRect: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), stroke: vi.fn(),
+      createPattern: () => ({ hatch: nextPattern++ })
+    }) as unknown as CanvasRenderingContext2D)
+    setSkin('clash')
+    const wrapper = mount(ModelDistributionChart, {
+      props: {
+        modelStats, enableRankingView: true,
+        rankingItems: [{ user_id: 1, username: 'preview', email: 'preview@example.invalid', actual_cost: 2, requests: 20, tokens: 200 }],
+        rankingTotalActualCost: 3
+      }
+    })
+    await wrapper.findAll('button').find(button => button.text() === 'User Spending Ranking')!.trigger('click')
+    const data = JSON.parse(wrapper.get('.chart-data').text())
+    expect(data.datasets[0].data).toEqual([2, 1])
+    expect(data.datasets[0].backgroundColor).toEqual([{ hatch: 0 }, { hatch: 1 }])
+    expect(wrapper.findAll('.skin-chart-swatch')).toHaveLength(2)
+    wrapper.unmount()
   })
 })

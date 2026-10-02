@@ -77,7 +77,7 @@ const orderId = String(route.query.order_id || '')
 const method = String(route.query.method || 'alipay')
 const amount = String(route.query.amount || '')
 
-const methodColor = computed(() => METHOD_COLORS[method] || DEFAULT_METHOD_COLOR)
+const methodColor = computed(() => `var(--skin-ink, ${METHOD_COLORS[method] || DEFAULT_METHOD_COLOR})`)
 
 const error = ref('')
 const success = ref(false)

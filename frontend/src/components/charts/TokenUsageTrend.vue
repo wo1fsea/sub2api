@@ -35,6 +35,7 @@ import {
 import { Line } from 'vue-chartjs'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import type { TrendDataPoint } from '@/types'
+import { useChartTheme } from '@/composables/useChartTheme'
 
 ChartJS.register(
   CategoryScale,
@@ -48,17 +49,22 @@ ChartJS.register(
 )
 
 const { t } = useI18n()
+const { skin, isDark: isDarkMode, chartMuted } = useChartTheme()
 
 const props = defineProps<{
   trendData: TrendDataPoint[]
   loading?: boolean
 }>()
 
-const isDarkMode = computed(() => {
-  return document.documentElement.classList.contains('dark')
-})
-
-const chartColors = computed(() => ({
+const chartColors = computed(() => skin.value === 'clash' ? {
+  text: chartMuted.value,
+  grid: isDarkMode.value ? '#4e4e4e' : '#dcdcdc',
+  input: isDarkMode.value ? '#dddddd' : '#555555',
+  output: isDarkMode.value ? '#aaaaaa' : '#999999',
+  cacheCreation: isDarkMode.value ? '#c6c6c6' : '#737373',
+  cacheRead: isDarkMode.value ? '#919191' : '#a6a6a6',
+  cacheHitRate: isDarkMode.value ? '#f4f4f4' : '#383838'
+} : {
   text: isDarkMode.value ? '#e5e7eb' : '#374151',
   grid: isDarkMode.value ? '#374151' : '#e5e7eb',
   input: '#3b82f6',
@@ -66,7 +72,7 @@ const chartColors = computed(() => ({
   cacheCreation: '#f59e0b',
   cacheRead: '#06b6d4',
   cacheHitRate: '#8b5cf6'
-}))
+})
 
 const chartData = computed(() => {
   if (!props.trendData?.length) return null
@@ -119,7 +125,9 @@ const chartData = computed(() => {
         tension: 0.3,
         yAxisID: 'yPercent'
       }
-    ]
+    ].map((dataset, index) => skin.value === 'clash' && index < 4 ? {
+      ...dataset, fill: false, borderDash: [[], [6, 3], [2, 3], [8, 3, 2, 3]][index]
+    } : dataset)
   }
 })
 
@@ -194,7 +202,7 @@ const lineOptions = computed(() => ({
         drawOnChartArea: false
       },
       ticks: {
-        color: chartColors.value.cacheHitRate,
+        color: skin.value === 'clash' ? chartMuted.value : chartColors.value.cacheHitRate,
         font: {
           size: 10
         },

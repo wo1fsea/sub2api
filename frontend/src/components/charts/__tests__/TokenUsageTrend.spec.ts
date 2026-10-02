@@ -1,7 +1,10 @@
-import { describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { enableAutoUnmount, mount } from '@vue/test-utils'
 
 import TokenUsageTrend from '../TokenUsageTrend.vue'
+import { setSkin } from '@/composables/useSkin'
+
+enableAutoUnmount(afterEach)
 
 const messages: Record<string, string> = {
   'admin.dashboard.tokenUsageTrend': 'Token Usage Trend',
@@ -26,6 +29,32 @@ vi.mock('vue-chartjs', () => ({
 }))
 
 describe('TokenUsageTrend', () => {
+  beforeEach(() => {
+    document.documentElement.classList.remove('dark')
+    setSkin('original')
+  })
+  afterEach(() => {
+    document.documentElement.classList.remove('dark')
+    setSkin('original')
+  })
+
+  it('uses one secondary text tone for every axis and legend, with original rollback', async () => {
+    setSkin('clash')
+    const wrapper = mount(TokenUsageTrend, { props: { trendData: [] } })
+    const options = () => (wrapper.vm as any).$?.setupState.lineOptions
+    const textColors = () => [
+      options().plugins.legend.labels.color,
+      ...Object.values(options().scales).map((axis: any) => axis.ticks.color)
+    ]
+    expect(textColors()).toEqual(Array(4).fill('#4a4a4a'))
+    document.documentElement.classList.add('dark')
+    await vi.waitFor(() => expect(textColors()).toEqual(Array(4).fill('#bcbcbc')))
+    setSkin('original')
+    await wrapper.vm.$nextTick()
+    expect(options().scales.yPercent.ticks.color).toBe('#8b5cf6')
+    expect(options().plugins.legend.labels.color).toBe('#e5e7eb')
+  })
+
   it('calculates cache hit rate against all prompt tokens', () => {
     const wrapper = mount(TokenUsageTrend, {
       props: {
