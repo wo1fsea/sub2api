@@ -1,24 +1,28 @@
 {
   "status": "source-checks-passed-not-production-approved",
-  "recordedDate": "2026-10-02",
-  "backendTree": "d710cce7f11532ce28de896cf30402a68c92deac",
-  "frontendTree": "903fbb153deb8129c6b03f3c32abfe1720b49f4a",
+  "recordedDate": "2026-10-03",
+  "backendTree": "ce88118a2e6bc792697f2e438ebde6a6819381e0",
+  "frontendTree": "726521f30a19999fe56eaf1e3a1cbf47928080b4",
   "toolchain": "go1.27.0",
-  "backendUnit": { "passed": true, "packagesPassed": 57, "testsPassed": 21856, "testsSkipped": 18 },
-  "backendIntegration": { "passed": true, "packagesPassed": 51, "testsPassed": 13565, "testsSkipped": 16 },
-  "auditDependencyIntegration": { "passed": true, "testsPassed": 214, "testsSkipped": 0 },
+  "backendUnit": { "passed": true, "packagesPassed": 57, "testsPassed": 21859, "testsSkipped": 18 },
+  "backendIntegration": { "passed": true, "packagesPassed": 51, "testsPassed": 13567, "testsSkipped": 16 },
   "backendLint": { "version": "2.13.0", "issues": 0 },
-  "focusedHeapAndDeadlineRegressions": { "passed": true, "repetitions": 20 },
   "frontend": {
-    "validatedSource": "f8e8556c8ac47794dd7d9e15488b9f9c78b14793",
-    "unchangedTreeReused": true,
-    "testsPassed": 2604,
+    "validatedSource": "ff9cd00c6b5e5b2e8f5996e0ffa30852a7230b05",
+    "unchangedTreeReused": false,
+    "testsPassed": 2605,
     "typecheck": "passed",
     "lint": "passed",
     "productionBuild": "passed",
-    "syntheticDesktopMobileBrowser": "passed"
+    "browser": {
+      "viewport": "1280x720",
+      "visual": "paper and ink, grayscale diagonal hatches, light/dark, flat metric grid, readable model table, home, date menu and unsaved user dialog inspected",
+      "functional": "keyboard skin switch, original fallback, persisted appearance, independent dark mode and navigation passed; legacy migration and cross-tab behavior covered by unit tests",
+      "numeric": "no page overflow or clipped metric values; dashboard body has exactly two text tones in each mode",
+      "limitation": "Embedded browser viewport override did not change its observed 1280px width. Current 983px/mobile visual checks are not claimed; previous release responsive checks are historical evidence only."
+    }
   },
   "realGatewayCallsTested": false,
   "productionDeploymentPerformed": false,
-  "note": "Optional real-provider/plugin/audit cases can skip without credentials. Audit dependencies were separately tested with zero skips. Exact-image smoke/restore and live readiness/drain are separate gates. Raw bounded reports remain ignored and private."
+  "note": "Fresh full unit/integration/lint checks include upstream billing regressions. Optional provider/plugin/audit cases can skip without credentials. VERSION is aligned to the published tag rather than its stale embedded VERSION; exact binary version is checked during image smoke. Real candidate and entry calls, restored-current-data compatibility and deployment remain separate checks."
 }
