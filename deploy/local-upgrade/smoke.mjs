@@ -57,8 +57,9 @@ const [image] = JSON.parse(docker(['image', 'inspect', manifest.imageId], true))
 assert.equal(image.Config.Labels['org.opencontainers.image.revision'], manifest.commit)
 assert.equal(image.Config.Labels['org.opencontainers.image.version'], manifest.version)
 assert.equal(`${image.Os}/${image.Architecture}`, manifest.platform)
-assert(docker(['run', '--rm', '--network', 'none', manifest.imageId, '/app/sub2api', '-version'], true)
-  .includes(manifest.version))
+const versionOutput = docker(['run', '--rm', '--network', 'none', manifest.imageId, '/app/sub2api', '-version'], true)
+assert(versionOutput.includes(manifest.version))
+assert(versionOutput.includes(manifest.commit))
 const checks = ['image identity', 'offline version']
 
 try {
@@ -86,9 +87,13 @@ try {
   assert.equal((await request('/api/v1/auth/me')).status, 401)
   checks.push('synthetic admin login', 'authenticated session', 'unauthenticated rejection')
 
-  const version = await request('/api/v1/admin/system/version', { headers })
-  assert.equal(version.status, 200)
-  assert.equal((await version.json()).data.version, manifest.version)
+  const compliance = await request('/api/v1/admin/compliance', { headers })
+  assert.equal(compliance.status, 200)
+  assert.equal((await compliance.json()).data.required, true)
+  const protectedAdmin = await request('/api/v1/admin/system/version', { headers })
+  assert.equal(protectedAdmin.status, 423)
+  assert.equal((await protectedAdmin.json()).code, 'ADMIN_COMPLIANCE_ACK_REQUIRED')
+  checks.push('admin compliance gate enforced without accepting terms')
   const page = await request('/login')
   assert.equal(page.status, 200)
   const html = await page.text()
@@ -99,7 +104,7 @@ try {
     assert.equal(response.status, 200)
     assert((await response.arrayBuffer()).byteLength > 100)
   }
-  checks.push('serving version', 'embedded HTML/JS/CSS')
+  checks.push('embedded HTML/JS/CSS')
 
   // This proves empty-rehearsal restart behavior, not production migration compatibility.
   docker([...compose, 'restart', 'app'])

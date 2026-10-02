@@ -101,7 +101,7 @@ await writeFile(join(output, 'manifest.json'), `${JSON.stringify({
   productionDeploymentPerformed: false,
   releaseGates: ['backend full unit suite memory assertion', 'backend integration and lint',
     'production backup restore drill', 'old database migration rehearsal',
-    'mixed-version compatibility', 'real gateway readiness', 'stable entry and draining rehearsal']
+    'mixed-version compatibility', 'real gateway readiness and admin workflow', 'stable entry and draining rehearsal']
 }, null, 2)}\n`)
 const files = ['image.tar', 'source.tar.gz', 'README.md', 'manifest.json', 'smoke.mjs', 'smoke-compose.yaml']
 const checksums = []
