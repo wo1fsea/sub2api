@@ -2,6 +2,49 @@
 
 This package is a Linux ARM64 release candidate combining upstream `v0.2.12` with our grayscale Clash skin and an opt-in mixed-version scheduler compatibility mode (`0.2.12-clash.2`). It is not approval to deploy. Packaging never changes the running service, production database, secrets, or traffic route. The Cursor experiment is excluded.
 
+## Current Local Switch Policy
+
+On 2026-10-02 the owner explicitly authorized a simpler local switch: use the
+current Codex API key/model, prove the new instance completes a real upstream
+response, then switch the entry without waiting for full formal acceptance or
+application drain. Client reconnects are acceptable; lossless replay/resumption
+is not guaranteed. Keep the old instance as a rollback target. This supersedes
+the full-acceptance requirement for this local activation, not the data backup,
+new-before-old ordering, prohibition on blind POST replay, or secret protection.
+
+`local-release.mjs` implements separate prepare/verify/activate/rollback/status
+operations for the observed local deployment. It never stops the old instance
+or recreates PostgreSQL/Redis. Prepare uses a fresh protected backup, separate
+candidate app data, the existing shared dependencies, legacy scheduler mode,
+bounded resources, and a stable proxy initially pointing to old. Candidate
+refresh/cleanup/monitor aggregation are disabled while the old process owns
+those roles. Activation first changes the proxy runtime map, then updates only
+Tailscale HTTPS 443 to `127.0.0.1:18380`; HTTPS 8443 is preserved. It verifies a
+second real stream through the original Codex URL and restores the old route
+if activation verification fails. Local direct clients on `18080` still use old;
+new local clients should use `18380`. Secrets/state stay in the private deployment
+directory, never in this fork. Do not use `compose down` on that release project
+as a rollback procedure; use the rollback command while both instances remain.
+
+```sh
+node --test deploy/local-upgrade/live-gateway.test.mjs
+node deploy/local-upgrade/local-release.mjs prepare /absolute/path/to/manifest.json /absolute/path/to/fresh/backup
+node deploy/local-upgrade/local-release.mjs verify
+node deploy/local-upgrade/local-release.mjs activate
+node deploy/local-upgrade/local-release.mjs status
+# On an authorized rollback, after checking old upstream availability:
+node deploy/local-upgrade/local-release.mjs rollback
+```
+
+Real probes send one short Responses request each, using the configured model
+and process `SUB2API_API_KEY`, with output capped at 128 tokens and no automatic
+retry. They require HTTP 200, SSE, actual output and a completed terminal event;
+HTML 200, failed/incomplete events and wrong instance markers fail the check.
+The JSON probe record contains timing/token counts only, not the key or response
+text. No acknowledgement of legal terms or default Codex configuration change
+is performed. The older full formal procedure below remains a reference for
+later production-grade releases and old-instance retirement.
+
 The exact `.2` package and post-build evidence are recorded in [the delivery record](LOCAL_DELIVERY_CLASH_2.md). A later deployment-tool/documentation commit is not the source revision embedded in the existing image.
 
 ## Package Contents

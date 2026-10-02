@@ -1,6 +1,6 @@
 # Local Candidate 0.2.12-clash.2
 
-Status: **candidate, not approved for production**. Production remains on `0.2.4`.
+Status: **candidate, awaiting the authorized minimal live gate**. Production remains on `0.2.4`.
 This is the durable delivery record for the already-built image, not the current
 branch HEAD. Later documentation and deployment-tool commits do not relabel it.
 The `.1` candidate is superseded.
@@ -77,7 +77,18 @@ The legacy resource instance is a continuity bridge, not a public setup site;
 do not publish its port or route a whole prefix to it. Replace this bridge with
 a qualified static archive later if maintaining an old executable is undesirable.
 
-## Still Blocking Production
+## Current Local Activation Gate
+
+On 2026-10-02 the owner authorized testing with the current Codex API key/model
+and switching directly once the candidate completes a real upstream response.
+Full formal acceptance, ten-minute observation and drain are not activation
+blockers for this local release. Disconnect/reconnect is accepted, but POSTs are
+not replayed and lossless stream resumption is not promised. The old instance
+stays alive for rollback and background-role ownership. Fresh protected backup,
+the rehearsed compatibility restrictions and post-switch verification remain.
+See [the current switch policy](LOCAL_UPGRADE.md#current-local-switch-policy).
+
+## Additional Qualification Before Old Retirement
 
 1. Authorized real account/key, model and cumulative budget; real streaming,
    multi-turn/tool behavior, billing, existing client/session and real browser checks.
