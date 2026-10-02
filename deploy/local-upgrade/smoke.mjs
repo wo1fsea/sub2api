@@ -42,14 +42,15 @@ async function request(path, options = {}) {
 }
 
 async function ready() {
-  for (let round = 0; round < 90; round++) {
+  const deadline = Date.now() + 90_000
+  while (Date.now() < deadline) {
     try {
       const response = await request('/health')
       if (response.ok && (await response.json()).status === 'ok') return
     } catch { /* Candidate startup is asynchronous. */ }
     await delay(1000)
   }
-  throw new Error('Isolated candidate did not become healthy within the smoke-test budget')
+  throw new Error('Candidate loopback endpoint did not become reachable within the smoke-test budget')
 }
 
 const [image] = JSON.parse(docker(['image', 'inspect', manifest.imageId], true))

@@ -75,7 +75,7 @@ services:
     logging: *bounded-logs
 networks:
   default:
-    internal: true
+    driver: bridge
 volumes:
   app-data:
   pg-data:
