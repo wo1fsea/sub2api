@@ -10,10 +10,10 @@
       {{ t('payment.admin.noData') }}
     </div>
     <div v-else class="space-y-3">
-      <div v-for="method in methods" :key="method.type" class="space-y-1">
+      <div v-for="(method, index) in methods" :key="method.type" class="space-y-1">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
-            <span :class="['inline-block h-3 w-3 rounded-full', colorMap[method.type] || 'bg-gray-400']"></span>
+            <span :class="skin === 'neubrutalism' ? 'skin-chart-swatch' : ['inline-block h-3 w-3 rounded-full', colorMap[method.type] || 'bg-gray-400']" :style="skin === 'neubrutalism' ? distributionSwatches[index % distributionSwatches.length] : undefined" aria-hidden="true"></span>
             <span class="text-sm text-gray-700 dark:text-gray-300">
               {{ t('payment.methods.' + method.type, method.type) }}
             </span>
@@ -31,8 +31,8 @@
           <span class="w-10 text-xs text-gray-500 dark:text-gray-400">{{ currency }}</span>
           <div class="h-2 flex-1 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-700">
             <div
-              :class="['h-full rounded-full transition-all', barColorMap[method.type] || 'bg-gray-400']"
-              :style="{ width: barWidth(currency, amount) + '%' }"
+              :class="['h-full rounded-full transition-all', skin === 'original' ? barColorMap[method.type] || 'bg-gray-400' : 'skin-chart-bar']"
+              :style="{ width: barWidth(currency, amount) + '%', ...(skin === 'neubrutalism' ? distributionSwatches[index % distributionSwatches.length] : {}) }"
             ></div>
           </div>
         </div>
@@ -45,8 +45,10 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { CurrencyAmounts, PaymentMethodStats } from '@/types/payment'
+import { useChartTheme } from '@/composables/useChartTheme'
 
 const { t } = useI18n()
+const { skin, distributionSwatches } = useChartTheme()
 
 const props = defineProps<{
   methods: PaymentMethodStats[]

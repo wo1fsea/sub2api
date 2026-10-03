@@ -34,10 +34,12 @@ import {
 import { Line } from 'vue-chartjs'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import type { DailyPaymentStats } from '@/types/payment'
+import { useChartTheme } from '@/composables/useChartTheme'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
 
 const { t } = useI18n()
+const { skin, chartMuted, chartGrid, lineStyle, lineLegend, tooltipTheme } = useChartTheme()
 
 const props = defineProps<{
   data: DailyPaymentStats[]
@@ -65,6 +67,7 @@ const chartData = computed(() => {
           borderColor,
           backgroundColor,
           fill: true,
+          ...lineStyle(index),
           tension: 0.3,
           pointRadius: 3,
           pointHoverRadius: 5,
@@ -76,6 +79,7 @@ const chartData = computed(() => {
         borderColor: 'rgb(16, 185, 129)',
         backgroundColor: 'rgba(16, 185, 129, 0.1)',
         fill: false,
+        ...lineStyle(currencies.length),
         tension: 0.3,
         pointRadius: 3,
         pointHoverRadius: 5,
@@ -85,7 +89,7 @@ const chartData = computed(() => {
   }
 })
 
-const chartOptions = {
+const chartOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
   interaction: { mode: 'index' as const, intersect: false },
@@ -94,18 +98,23 @@ const chartOptions = {
       type: 'linear' as const,
       display: true,
       position: 'left' as const,
-      title: { display: true, text: t('payment.admin.revenue') },
+      title: { display: true, text: t('payment.admin.revenue'), color: skin.value === 'neubrutalism' ? chartMuted.value : undefined },
+      ticks: { color: skin.value === 'neubrutalism' ? chartMuted.value : undefined },
+      grid: { color: skin.value === 'neubrutalism' ? chartGrid.value : undefined },
     },
     y1: {
       type: 'linear' as const,
       display: true,
       position: 'right' as const,
-      title: { display: true, text: t('payment.admin.orderCount') },
+      title: { display: true, text: t('payment.admin.orderCount'), color: skin.value === 'neubrutalism' ? chartMuted.value : undefined },
+      ticks: { color: skin.value === 'neubrutalism' ? chartMuted.value : undefined },
       grid: { drawOnChartArea: false },
-    }
+    },
+    x: { ticks: { color: skin.value === 'neubrutalism' ? chartMuted.value : undefined }, grid: { color: skin.value === 'neubrutalism' ? chartGrid.value : undefined } }
   },
   plugins: {
-    legend: { position: 'top' as const },
+    legend: { position: 'top' as const, labels: { color: skin.value === 'neubrutalism' ? chartMuted.value : undefined, ...lineLegend.value } },
+    tooltip: { ...tooltipTheme.value }
   }
-}
+}))
 </script>

@@ -469,6 +469,7 @@ import EndpointDistributionChart from '@/components/charts/EndpointDistributionC
 import Icon from '@/components/icons/Icon.vue'
 import { adminAPI } from '@/api/admin'
 import type { Account, AccountUsageStatsResponse } from '@/types'
+import { useChartTheme } from '@/composables/useChartTheme'
 
 ChartJS.register(
   CategoryScale,
@@ -496,14 +497,12 @@ const loading = ref(false)
 const stats = ref<AccountUsageStatsResponse | null>(null)
 
 // Dark mode detection
-const isDarkMode = computed(() => {
-  return document.documentElement.classList.contains('dark')
-})
+const { skin, isDark: isDarkMode, chartMuted, chartGrid, lineStyle, lineLegend, tooltipTheme } = useChartTheme()
 
 // Chart colors
 const chartColors = computed(() => ({
-  text: isDarkMode.value ? '#e5e7eb' : '#374151',
-  grid: isDarkMode.value ? '#374151' : '#e5e7eb'
+  text: skin.value === 'neubrutalism' ? chartMuted.value : isDarkMode.value ? '#e5e7eb' : '#374151',
+  grid: skin.value === 'neubrutalism' ? chartGrid.value : isDarkMode.value ? '#374151' : '#e5e7eb'
 }))
 
 // Line chart data
@@ -519,6 +518,7 @@ const trendChartData = computed(() => {
         borderColor: '#3b82f6',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
         fill: true,
+        ...lineStyle(0),
         tension: 0.3,
         yAxisID: 'y'
       },
@@ -530,6 +530,7 @@ const trendChartData = computed(() => {
         fill: false,
         tension: 0.3,
         borderDash: [5, 5],
+        ...lineStyle(1),
         yAxisID: 'y'
       },
       {
@@ -539,7 +540,8 @@ const trendChartData = computed(() => {
         backgroundColor: 'rgba(249, 115, 22, 0.1)',
         fill: false,
         tension: 0.3,
-        yAxisID: 'y1'
+        yAxisID: 'y1',
+        ...lineStyle(2)
       }
     ]
   }
@@ -560,6 +562,7 @@ const lineChartOptions = computed(() => ({
         color: chartColors.value.text,
         usePointStyle: true,
         pointStyle: 'circle',
+        ...lineLegend.value,
         padding: 15,
         font: {
           size: 11
@@ -567,6 +570,7 @@ const lineChartOptions = computed(() => ({
       }
     },
     tooltip: {
+      ...tooltipTheme.value,
       callbacks: {
         label: (context: any) => {
           const label = context.dataset.label || ''
@@ -601,7 +605,7 @@ const lineChartOptions = computed(() => ({
         color: chartColors.value.grid
       },
       ticks: {
-        color: '#3b82f6',
+        color: skin.value === 'neubrutalism' ? chartMuted.value : '#3b82f6',
         font: {
           size: 10
         },
@@ -610,7 +614,7 @@ const lineChartOptions = computed(() => ({
       title: {
         display: true,
         text: t('usage.accountBilled') + ' (USD)',
-        color: '#3b82f6',
+        color: skin.value === 'neubrutalism' ? chartMuted.value : '#3b82f6',
         font: {
           size: 11
         }
@@ -624,7 +628,7 @@ const lineChartOptions = computed(() => ({
         drawOnChartArea: false
       },
       ticks: {
-        color: '#f97316',
+        color: skin.value === 'neubrutalism' ? chartMuted.value : '#f97316',
         font: {
           size: 10
         },
@@ -633,7 +637,7 @@ const lineChartOptions = computed(() => ({
       title: {
         display: true,
         text: t('admin.accounts.stats.requests'),
-        color: '#f97316',
+        color: skin.value === 'neubrutalism' ? chartMuted.value : '#f97316',
         font: {
           size: 11
         }

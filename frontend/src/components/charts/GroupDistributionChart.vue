@@ -1,6 +1,6 @@
 <template>
-  <div class="card p-4">
-    <div class="mb-4 flex items-center justify-between gap-3">
+  <div class="skin-model-chart card p-4">
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
       <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
         {{ t('admin.dashboard.groupDistribution') }}
       </h3>
@@ -33,7 +33,7 @@
     <div v-if="loading" class="flex h-48 items-center justify-center">
       <LoadingSpinner />
     </div>
-    <div v-else-if="displayGroupStats.length > 0 && chartData" class="flex flex-col items-center gap-4 sm:flex-row sm:gap-6">
+    <div v-else-if="displayGroupStats.length > 0 && chartData" class="skin-model-chart-content flex flex-col items-center gap-4 sm:flex-row sm:gap-6">
       <div class="h-48 w-48 shrink-0">
         <Doughnut :data="chartData" :options="doughnutOptions" />
       </div>
@@ -50,7 +50,7 @@
             </tr>
           </thead>
           <tbody>
-            <template v-for="group in displayGroupStats" :key="group.group_id">
+            <template v-for="(group, index) in displayGroupStats" :key="group.group_id">
               <tr
                 class="border-t border-gray-100 transition-colors dark:border-dark-700"
                 :class="enableBreakdown && group.group_id > 0 ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-700/40' : ''"
@@ -62,6 +62,7 @@
                   :title="group.group_name || String(group.group_id)"
                 >
                   <span class="inline-flex items-center gap-1">
+                    <span v-if="skin === 'neubrutalism'" class="skin-chart-swatch" :style="distributionSwatches[index % distributionSwatches.length]" aria-hidden="true"></span>
                     <svg v-if="enableBreakdown && group.group_id > 0 && expandedKey === `group-${group.group_id}`" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     <svg v-else-if="enableBreakdown && group.group_id > 0" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                     {{ group.group_name || t('admin.dashboard.noGroup') }}
@@ -121,7 +122,7 @@ import { useChartTheme } from '@/composables/useChartTheme'
 ChartJS.register(ArcElement, Tooltip, Legend)
 
 const { t } = useI18n()
-const { skin, distributionColors } = useChartTheme()
+const { skin, distributionFills, distributionSwatches, chartInk, tooltipTheme } = useChartTheme()
 
 type DistributionMetric = 'tokens' | 'actual_cost'
 
@@ -189,7 +190,7 @@ const originalChartColors = [
   '#6366f1',
   '#84cc16'
 ]
-const chartColors = computed(() => skin.value === 'original' ? originalChartColors : distributionColors.value)
+const chartColors = computed(() => skin.value === 'original' ? originalChartColors : distributionFills.value)
 
 const displayGroupStats = computed(() => {
   if (!props.groupStats?.length) return []
@@ -206,8 +207,9 @@ const chartData = computed(() => {
     datasets: [
       {
         data: displayGroupStats.value.map((g) => toFiniteNumber(props.metric === 'actual_cost' ? g.actual_cost : g.total_tokens)),
-        backgroundColor: chartColors.value.slice(0, displayGroupStats.value.length),
-        borderWidth: 0
+        backgroundColor: displayGroupStats.value.map((_, index) => chartColors.value[index % chartColors.value.length]),
+        borderColor: skin.value === 'neubrutalism' ? chartInk.value : undefined,
+        borderWidth: skin.value === 'neubrutalism' ? 1 : 0
       }
     ]
   }
@@ -221,6 +223,7 @@ const doughnutOptions = computed(() => ({
       display: false
     },
     tooltip: {
+      ...tooltipTheme.value,
       callbacks: {
         label: (context: any) => {
           const value = context.raw as number

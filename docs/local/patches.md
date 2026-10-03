@@ -4,7 +4,7 @@ This ledger tracks our intentionally small fork. Production approval is separate
 
 ## Upstream Baseline
 
-Current target: `v0.2.13` (`3040209f205472038c1ba745a1bedd2edd9053b1`), merged on branch `codex/feat/restrained-neubrutalism`. Runtime/package version is `0.2.13`, with separate immutable source/image identity. The custom appearance is now [Restrained Neubrutalism](../NEUBRUTALISM_SKIN.md), preserving hatch charts and migrating old `clash` preferences. `release-next.mjs` retains the currently serving `.2` instance and adds a separately validated entry. No new database migrations occur in this incremental upstream release. The following baseline details describe the previous delivery.
+Current target: `v0.2.13` (`3040209f205472038c1ba745a1bedd2edd9053b1`), merged on branch `codex/feat/restrained-neubrutalism`. Runtime/package version is `0.2.13`, with separate immutable source/image identity. The custom appearance is [Restrained Neubrutalism](../NEUBRUTALISM_SKIN.md), preserving hatch charts and migrating old `clash` preferences. The current frontend refresh uses `refresh-current.mjs`, retaining the serving green `0.2.13` instance and reusing its stable ingress; `release-next.mjs` documents the previous initial delivery. The backend tree is unchanged and zero new migrations are expected. The following baseline details describe historical deliveries.
 
 - Previous skin base: `bdb42e22f81fcb633ff0a060961211dd2bcb515b`.
 - Running production source: `5de5e2bed035d43591a2e10e51f420ef6a84eb98` (`0.2.4`); do not confuse it with the development base.
@@ -17,6 +17,8 @@ Current target: `v0.2.13` (`3040209f205472038c1ba745a1bedd2edd9053b1`), merged o
 
 | Change | Commit or location | Verification and retirement condition |
 | --- | --- | --- |
+| Shared bounded hatch cache and chart coverage | `useChartTheme.ts`, chart consumers, scoped data-bar CSS | Twelve patterns per mode/document; original fallback; 2612 frontend tests including cache recovery, category/order, currency width and axes. Chart preview covers both appearances and mobile fit. |
+| Existing-ingress frontend hot refresh | `refresh-current.mjs`, `refresh-routing.mjs`, `test-refresh-proxy.mjs` | Pinned previous image, inactive candidate, master-worker reload with green retained, separate old-resource map and real before/after calls. Fixture SSE/reload/rollback evidence is separate from app readiness. |
 | Restrained Neubrutalism, OpenJev paper/ink, sparse lime, hatch charts, two-tone dashboard text | `frontend/src/styles/neubrutalism-skin.css`; `docs/NEUBRUTALISM_SKIN.md` | Frontend tests, typecheck, build, lint and visual checks. Keep while this custom appearance is wanted; compare upstream shell changes on every merge. |
 | TypeSafe quota test fixture and assertions | `0d45c5146`; `frontend/src/api/__tests__/settings.authSourceDefaults.spec.ts` | Full frontend suite: 2604 passed. No business-logic change. Remove this local difference when upstream has equivalent six-platform coverage. |
 | Exact local pnpm and bounded build resources | `Dockerfile`, `PNPM_VERSION`, `NODE_BUILD_OPTIONS`, `GO_BUILD_PARALLELISM`, `GO_BUILD_MEMORY_LIMIT` | Default pnpm remains major 9; local build sets 9.15.9, explicit Node heap, and Go compile limits. No runtime behavior change. Retire when upstream provides equivalent toolchain/resource inputs. |

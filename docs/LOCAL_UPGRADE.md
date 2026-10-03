@@ -2,7 +2,25 @@
 
 This package combines upstream `v0.2.13` with **Restrained Neubrutalism**, our OpenJev-inspired appearance with grayscale hatch charts. The application version is exactly `0.2.13`; the source SHA and image ID identify our local build separately. Do not suppress legitimate future upstream updates. Packaging alone never changes the running service, production database, secrets, or entry. The Cursor experiment is excluded.
 
-## Current release: v0.2.13
+## Current frontend refresh: v0.2.13 hatches
+
+Use `refresh-current.mjs` for this refresh, retaining the same upstream version. It pins the existing `sub2api-green-v0213` image/container and the stable ingress at `18480`; the new candidate is `sub2api-blue-hatches` at loopback `18582`. It shares the existing DB/Redis, restores installed config into a separate app volume, and disables duplicate background roles. `sub2api` on `18080` remains the background owner. Backend Git tree must match the qualified `0.2.13` tree; zero new migrations are expected.
+
+After source qualification/package/exact-image smoke, take a fresh backup using `SUB2API_BACKUP_APP=sub2api-green-v0213`. Rehearse it against the exact new manifest. Run `test-assets.mjs` with `SUB2API_OLD_ASSET_IMAGE=sha256:145ba95c309d12c854d802075272c3358f125a0b8f11ef9bcf248f49a7c07e6c`. Run the pinned master-worker reload drill `test-refresh-proxy.mjs MANIFEST`; this tests proxy protocol behavior with a fixture, independently of app qualification.
+
+```sh
+node deploy/local-upgrade/refresh-current.mjs prepare MANIFEST BACKUP ASSET_REPORT RESTORE_REPORT PROXY_REPORT
+node deploy/local-upgrade/refresh-current.mjs verify
+node deploy/local-upgrade/refresh-current.mjs activate
+node deploy/local-upgrade/refresh-current.mjs status
+node deploy/local-upgrade/refresh-current.mjs rollback
+```
+
+Verify first completes a real current-Codex Responses call on the candidate. It installs an inactive blue backend and current-green static-resource map using a graceful HAProxy SIGUSR2 reload, preserving the green active route and old workers. The single-file-bound config is written in place to retain its inode. The map unions earlier legacy chunks with current-green chunks, using GET/HEAD only. Asset digests are checked before cutover and again afterward. Verification can resume after an interrupted inactive-backend installation or asset check; green stays active. An interrupted activation requires rollback to green before another verification.
+
+Activate changes runtime and persisted maps to blue, then completes a real call through the original HTTPS address. Failure restores green. The Tailscale configuration, ingress container/start time, old app, background owner and HTTPS 8443 route are unchanged. State/private Compose live under `sub2api-local/releases/hatches-0.2.13`; ingress files remain in `releases/v0.2.13/ingress`. Keep both apps for rollback and old-browser lazy chunks. Never stop the old owner or restore shared DB as a traffic rollback. See the delivery record for actual activation evidence.
+
+## Previous release: v0.2.13 initial delivery
 
 `release-next.mjs` upgrades the observed `0.2.12-clash.2` deployment. It starts the new candidate at loopback `18482` and a separate HAProxy at `18480`, initially pointing to the previous healthy entry at `18380`. It does not restart that entry. The new release inherits existing JWT/TOTP configuration, shares DB/Redis, disables duplicate refresh/cleanup/aggregation, and retains legacy scheduler compatibility. The `0.2.4` instance still owns background roles; it must remain running until a separate role handover is implemented.
 
@@ -21,7 +39,7 @@ node deploy/local-upgrade/release-next.mjs rollback
 
 Verify requires the current configured Codex key/model to complete one short real Responses stream on the candidate. Activate checks all mapped old static assets, moves only Tailscale HTTPS 443 to `18480`, then repeats a real stream through the original HTTPS URL. HTTPS 8443 remains on `7777`. A failure restores the previous entry. No automatic POST replay, formal acceptance delay or lossless continuation of an interrupted stream is claimed. Old instances remain available for reconnects/rollback. Hermes clients on direct `18080` remain on their prior entry.
 
-The sections below document the previous `.2` release and the longer reference procedure; use `release-next.mjs` for this release, not the old hard-coded prepare command.
+`release-next.mjs` and the sections below document historical initial/.2 delivery. Use `refresh-current.mjs` for the current refresh; do not reuse the old hard-coded prepare/status/rollback commands.
 
 ## Current Local Switch Policy
 

@@ -75,6 +75,12 @@
   --skin-tone-900: var(--skin-gray-800);
 }
 
+/* Data bars reuse one CSS tile; zero-width bars have no border/min-width. */
+[data-skin='neubrutalism'] .skin-usage-bar {
+  background-color: var(--skin-surface) !important;
+  background-image: repeating-linear-gradient(135deg, var(--skin-muted) 0 0.7071px, transparent 0.7071px 4.2426px) !important;
+}
+
 [data-skin='neubrutalism'] body {
   background: var(--skin-bg);
   color: var(--skin-ink);
@@ -431,6 +437,24 @@
 }
 
 /* Measure the card, not the viewport: two dashboard columns can be narrow. */
+[data-skin='neubrutalism'] .skin-chart-bar {
+  border: 1px solid var(--skin-line);
+}
+
+[data-skin='neubrutalism'] .skin-chart-line {
+  display: inline-block;
+  width: 22px;
+  border-top: 2px solid var(--skin-ink);
+}
+
+[data-skin='neubrutalism'] .skin-chart-line-dashed {
+  border-top-style: dashed;
+}
+
+[data-skin='neubrutalism'] .skin-chart-line-dotted {
+  border-top-style: dotted;
+}
+
 [data-skin='neubrutalism'] .skin-model-chart {
   container-type: inline-size;
 }

@@ -10,6 +10,7 @@ import { formatHistoryLabel, sumNumbers } from '../utils/opsFormatters'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { formatNumber } from '@/utils/format'
+import { useChartTheme } from '@/composables/useChartTheme'
 
 ChartJS.register(Title, Tooltip, Legend, LineElement, LinearScale, PointElement, CategoryScale, Filler)
 
@@ -43,14 +44,14 @@ watch(
   }
 )
 
-const isDarkMode = computed(() => document.documentElement.classList.contains('dark'))
+const { skin, isDark: isDarkMode, chartMuted, chartGrid, lineStyle, lineLegend, tooltipTheme } = useChartTheme()
 const colors = computed(() => ({
   blue: '#3b82f6',
   blueAlpha: '#3b82f620',
   green: '#10b981',
   greenAlpha: '#10b98120',
-  grid: isDarkMode.value ? '#374151' : '#f3f4f6',
-  text: isDarkMode.value ? '#9ca3af' : '#6b7280'
+  grid: skin.value === 'neubrutalism' ? chartGrid.value : isDarkMode.value ? '#374151' : '#f3f4f6',
+  text: skin.value === 'neubrutalism' ? chartMuted.value : isDarkMode.value ? '#9ca3af' : '#6b7280'
 }))
 
 const totalRequests = computed(() => sumNumbers(props.points.map((p) => p.request_count)))
@@ -66,6 +67,7 @@ const chartData = computed(() => {
         borderColor: colors.value.blue,
         backgroundColor: colors.value.blueAlpha,
         fill: true,
+        ...lineStyle(0),
         tension: 0.4,
         pointRadius: 0,
         pointHitRadius: 10
@@ -76,6 +78,7 @@ const chartData = computed(() => {
         borderColor: colors.value.green,
         backgroundColor: colors.value.greenAlpha,
         fill: true,
+        ...lineStyle(1),
         tension: 0.4,
         pointRadius: 0,
         pointHitRadius: 10,
@@ -101,7 +104,7 @@ const options = computed(() => {
       legend: {
         position: 'top' as const,
         align: 'end' as const,
-        labels: { color: c.text, usePointStyle: true, boxWidth: 6, font: { size: 10 } }
+        labels: { color: c.text, usePointStyle: true, boxWidth: 6, font: { size: 10 }, ...lineLegend.value }
       },
       tooltip: {
         backgroundColor: isDarkMode.value ? '#1f2937' : '#ffffff',
@@ -111,6 +114,7 @@ const options = computed(() => {
         borderWidth: 1,
         padding: 10,
         displayColors: true,
+        ...tooltipTheme.value,
         callbacks: {
           label: (context: any) => {
             let label = context.dataset.label || ''
@@ -150,7 +154,7 @@ const options = computed(() => {
         display: true,
         position: 'right' as const,
         grid: { display: false },
-        ticks: { color: c.green, font: { size: 10 } }
+        ticks: { color: skin.value === 'neubrutalism' ? chartMuted.value : c.green, font: { size: 10 } }
       }
     }
   }

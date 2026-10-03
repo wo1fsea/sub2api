@@ -89,6 +89,17 @@ const fixtures = new Map([
   ['/api/v1/admin/accounts', emptyPage],
   ['/api/v1/admin/proxies', emptyPage]
 ])
+fixtures.set('/api/v1/admin/dashboard/user-breakdown', { users: [] })
+fixtures.set('/api/v1/admin/accounts/1/stats', {
+  account_id: 1, account_name: 'Synthetic account', days: 30,
+  summary: { total_cost: 12, total_user_cost: 18, total_standard_cost: 24, total_requests: 600, total_tokens: 240000,
+    avg_daily_cost: .4, avg_daily_user_cost: .6, avg_daily_requests: 20, avg_daily_tokens: 8000, avg_duration_ms: 1200,
+    actual_days_used: 30, days: 30,
+    highest_cost_day: { date: '2026-10-02', label: '10/02', cost: 5, user_cost: 7, requests: 200 },
+    highest_request_day: { date: '2026-10-02', label: '10/02', cost: 5, user_cost: 7, requests: 200 } },
+  history: [1, 2, 3, 4, 5, 6].map(day => ({ label: `10/0${day}`, date: `2026-10-0${day}`, ...sampleUsage(`2026-10-0${day}`, day), user_cost: day })),
+  models: [], endpoints: [], upstream_endpoints: [], endpoint_paths: []
+})
 
 const previewPlugin = {
   name: 'isolated-skin-preview',
@@ -100,6 +111,12 @@ const previewPlugin = {
   configureServer(server) {
     server.middlewares.use((req, res, next) => {
       const path = new URL(req.url, `http://127.0.0.1:${port}`).pathname
+      if (path === '/__skin/charts') {
+        server.transformIndexHtml(path, '<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>图表样式预览</title></head><body><div id="app"></div><script type="module" src="/scripts/chart-skin-preview.ts"></script></body></html>')
+          .then(html => { res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(html) })
+          .catch(error => { res.statusCode = 500; res.end('Preview could not render'); console.error(error.message) })
+        return
+      }
       if (!/^\/(api|v1|setup)(\/|$)/.test(path)) return next()
       res.setHeader('Content-Type', 'application/json; charset=utf-8')
       res.setHeader('Cache-Control', 'no-store')

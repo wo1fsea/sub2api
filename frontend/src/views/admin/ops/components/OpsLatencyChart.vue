@@ -7,6 +7,7 @@ import type { OpsLatencyHistogramResponse } from '@/api/admin/ops'
 import type { ChartState } from '../types'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import { useChartTheme } from '@/composables/useChartTheme'
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend)
 
@@ -18,11 +19,11 @@ interface Props {
 const props = defineProps<Props>()
 const { t } = useI18n()
 
-const isDarkMode = computed(() => document.documentElement.classList.contains('dark'))
+const { skin, isDark: isDarkMode, distributionFills, chartInk, chartMuted, chartGrid, tooltipTheme } = useChartTheme()
 const colors = computed(() => ({
   blue: '#3b82f6',
-  grid: isDarkMode.value ? '#374151' : '#f3f4f6',
-  text: isDarkMode.value ? '#9ca3af' : '#6b7280'
+  grid: skin.value === 'neubrutalism' ? chartGrid.value : isDarkMode.value ? '#374151' : '#f3f4f6',
+  text: skin.value === 'neubrutalism' ? chartMuted.value : isDarkMode.value ? '#9ca3af' : '#6b7280'
 }))
 
 const hasData = computed(() => (props.latencyData?.total_requests ?? 0) > 0)
@@ -42,8 +43,10 @@ const chartData = computed(() => {
       {
         label: t('admin.ops.requests'),
         data: props.latencyData.buckets.map((b) => b.count),
-        backgroundColor: c.blue,
-        borderRadius: 4,
+        backgroundColor: skin.value === 'neubrutalism' ? distributionFills.value[0] : c.blue,
+        borderColor: skin.value === 'neubrutalism' ? chartInk.value : undefined,
+        borderWidth: skin.value === 'neubrutalism' ? 1 : 0,
+        borderRadius: skin.value === 'neubrutalism' ? 0 : 4,
         barPercentage: 0.6
       }
     ]
@@ -56,7 +59,8 @@ const options = computed(() => {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { display: false }
+      legend: { display: false },
+      tooltip: { ...tooltipTheme.value }
     },
     scales: {
       x: {

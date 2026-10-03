@@ -258,7 +258,7 @@ import { useChartTheme } from '@/composables/useChartTheme'
 ChartJS.register(ArcElement, Tooltip, Legend)
 
 const { t } = useI18n()
-const { skin, distributionFills, distributionSwatches, chartInk } = useChartTheme()
+const { skin, distributionFills, distributionSwatches, chartInk, tooltipTheme } = useChartTheme()
 
 type DistributionMetric = 'tokens' | 'actual_cost'
 type ModelSource = 'requested' | 'upstream' | 'mapping'
@@ -453,6 +453,7 @@ const doughnutOptions = computed(() => ({
       display: false
     },
     tooltip: {
+      ...tooltipTheme.value,
       callbacks: {
         label: (context: any) => {
           const value = context.raw as number
@@ -476,6 +477,7 @@ const rankingDoughnutOptions = computed(() => ({
       display: false
     },
     tooltip: {
+      ...tooltipTheme.value,
       callbacks: {
         label: (context: any) => {
           const value = context.raw as number

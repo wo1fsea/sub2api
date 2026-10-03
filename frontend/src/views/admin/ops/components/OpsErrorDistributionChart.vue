@@ -7,6 +7,7 @@ import type { OpsErrorDistributionResponse } from '@/api/admin/ops'
 import type { ChartState } from '../types'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import { useChartTheme } from '@/composables/useChartTheme'
 
 ChartJS.register(ArcElement, Tooltip, Legend)
 
@@ -21,7 +22,7 @@ const emit = defineEmits<{
 }>()
 const { t } = useI18n()
 
-const isDarkMode = computed(() => document.documentElement.classList.contains('dark'))
+const { skin, isDark: isDarkMode, distributionFills, distributionSwatches, chartInk, tooltipTheme } = useChartTheme()
 const colors = computed(() => ({
   blue: '#3b82f6',
   red: '#ef4444',
@@ -46,6 +47,7 @@ interface ErrorCategory {
   label: string
   count: number
   color: string
+  hatch: number
 }
 
 const categories = computed<ErrorCategory[]>(() => {
@@ -68,10 +70,10 @@ const categories = computed<ErrorCategory[]>(() => {
   }
 
   const out: ErrorCategory[] = []
-  if (upstream > 0) out.push({ label: t('admin.ops.upstream'), count: upstream, color: colors.value.orange })
-  if (client > 0) out.push({ label: t('admin.ops.client'), count: client, color: colors.value.blue })
-  if (system > 0) out.push({ label: t('admin.ops.system'), count: system, color: colors.value.red })
-  if (other > 0) out.push({ label: t('admin.ops.other'), count: other, color: colors.value.gray })
+  if (upstream > 0) out.push({ label: t('admin.ops.upstream'), count: upstream, color: colors.value.orange, hatch: 0 })
+  if (client > 0) out.push({ label: t('admin.ops.client'), count: client, color: colors.value.blue, hatch: 1 })
+  if (system > 0) out.push({ label: t('admin.ops.system'), count: system, color: colors.value.red, hatch: 2 })
+  if (other > 0) out.push({ label: t('admin.ops.other'), count: other, color: colors.value.gray, hatch: 3 })
   return out
 })
 
@@ -87,8 +89,9 @@ const chartData = computed(() => {
     datasets: [
       {
         data: categories.value.map((c) => c.count),
-        backgroundColor: categories.value.map((c) => c.color),
-        borderWidth: 0
+        backgroundColor: categories.value.map((c) => skin.value === 'neubrutalism' ? distributionFills.value[c.hatch] : c.color),
+        borderColor: skin.value === 'neubrutalism' ? chartInk.value : undefined,
+        borderWidth: skin.value === 'neubrutalism' ? 1 : 0
       }
     ]
   }
@@ -102,7 +105,8 @@ const options = computed(() => ({
     tooltip: {
       backgroundColor: isDarkMode.value ? '#1f2937' : '#ffffff',
       titleColor: isDarkMode.value ? '#f3f4f6' : '#111827',
-      bodyColor: isDarkMode.value ? '#d1d5db' : '#4b5563'
+      bodyColor: isDarkMode.value ? '#d1d5db' : '#4b5563',
+      ...tooltipTheme.value
     }
   }
 }))
@@ -136,16 +140,16 @@ const options = computed(() => ({
 
     <div class="relative min-h-0 flex-1">
       <div v-if="state === 'ready' && chartData" class="flex h-full flex-col">
-        <div class="flex-1">
+        <div class="relative min-h-0 flex-1">
           <Doughnut :data="chartData" :options="{ ...options, cutout: '65%' }" />
         </div>
-        <div class="mt-4 flex flex-col items-center gap-2">
+        <div class="mt-4 flex shrink-0 flex-col items-center gap-2">
           <div v-if="topReason" class="text-xs font-bold text-gray-900 dark:text-white">
-            {{ t('admin.ops.top') }}: <span :style="{ color: topReason.color }">{{ topReason.label }}</span>
+            {{ t('admin.ops.top') }}: <span :style="{ color: skin === 'neubrutalism' ? chartInk : topReason.color }">{{ topReason.label }}</span>
           </div>
           <div class="flex flex-wrap justify-center gap-3">
             <div v-for="item in categories" :key="item.label" class="flex items-center gap-1.5 text-xs">
-              <span class="h-2 w-2 rounded-full" :style="{ backgroundColor: item.color }"></span>
+              <span :class="skin === 'neubrutalism' ? 'skin-chart-swatch' : 'h-2 w-2 rounded-full'" :style="skin === 'neubrutalism' ? distributionSwatches[item.hatch] : { backgroundColor: item.color }" aria-hidden="true"></span>
               <span class="text-gray-500 dark:text-gray-400">{{ item.label }} {{ item.count }}</span>
             </div>
           </div>

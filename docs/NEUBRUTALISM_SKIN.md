@@ -4,7 +4,9 @@ Our single custom appearance follows the default homepage at https://openjev.com
 
 The displayed Chinese name is **克制的新粗野主义**. `neubrutalism` and `original` are the two supported skin IDs. `sub2api.skin` defaults to `neubrutalism`; an existing `clash` preference is migrated automatically, including storage events from an older tab. An unknown ID falls back to original. Light/dark mode remains an independent preference. Original mode retains the upstream appearance.
 
-Grayscale chart/icon behavior is preserved. Model-distribution and spending-ranking doughnuts use twelve diagonal hatch patterns and matching legend swatches. Trends use gray lines and dash styles. Provider, status and payment utility colors resolve to neutral tokens; error/warning badges use dashed borders while their labels retain the meaning. Fixed-color SVGs and canvases are rendered in grayscale. User-uploaded images and third-party embedded payment/captcha content are not rewritten.
+Grayscale chart/icon behavior is preserved. Model, group, endpoint, user and Ops-error doughnuts use twelve diagonal hatch patterns and matching legend swatches. Latency histograms and payment bars use diagonal fills; Ops, monitor, revenue and account trends use gray lines and dash styles without solid areas. Account, subscription, key and channel-error data bars use a scoped CSS diagonal tile. Labels, values, currency ratios and axes retain their original meaning. Provider, status and payment utility colors resolve to neutral tokens; error/warning badges use dashed borders while their labels retain the meaning. Fixed-color SVGs and canvases are rendered in grayscale. User-uploaded images and third-party embedded payment/captcha content are not rewritten.
+
+`useChartTheme` caches twelve CanvasPatterns per mode in a Document-keyed WeakMap: at most two palettes, reused across charts, theme round trips and remounts. Failed allocations fall back to neutral colors and are not cached, allowing recovery. CSS swatches match the canvas tiles. The cache lasts for the current document, not across a full page reload. Usage bars reuse one stylesheet rule; it adds no border or minimum width, so zero remains empty. Original appearance keeps the upstream colors.
 
 Dashboard text has only two tones: primary ink and secondary `#4a4a4a`; dark mode uses `#f4f4f4` and `#bcbcbc`. Both levels exceed 7:1 contrast on their surfaces. The slightly warm paper is intentional; utility colors and chart pixels remain neutral.
 
@@ -23,6 +25,8 @@ The shared shell, inputs, buttons, tables, login, compact home, key usage and da
 ## Isolated verification
 
 From `frontend`, run `node scripts/preview-skin.mjs --port 18382` and open `http://127.0.0.1:18382/admin/dashboard`. The loopback-only preview uses synthetic data, disables backend proxies and rejects writes with 405. It does not read production credentials and cannot prove real gateway availability.
+
+`/__skin/charts` mounts synthetic fixtures for distribution, user, Ops, payment, account and usage-bar components. It is a preview-only entry excluded from the production build. See [chart QA](CHART_SKIN_QA.md) for current scope and evidence boundaries.
 
 Verification covers desktop, the user's 983x895 viewport, 390px/320px mobile, independent dark mode, original fallback, legacy preference migration, cross-tab synchronization, keyboard activation, hatch detail, two text tones, date menus and an unsaved user dialog. Review screenshots separately from dimensions and color measurements. Unit tests, typecheck, lint and production build complement browser checks.
 

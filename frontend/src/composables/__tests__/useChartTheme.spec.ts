@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
-import { useChartTheme } from '../useChartTheme'
-import { setSkin } from '../useSkin'
+let useChartTheme: typeof import('../useChartTheme').useChartTheme
+let setSkin: typeof import('../useSkin').setSkin
 
 const Probe = defineComponent({
-  setup: useChartTheme,
+  setup: () => useChartTheme(),
   template: '<div>{{ skin }}|{{ isDark }}|{{ distributionColors.join(",") }}</div>'
 })
 
@@ -19,7 +19,10 @@ function expectGrayscale(colors: string[]) {
 }
 
 describe('shared chart theme', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    vi.resetModules()
+    ;({ useChartTheme } = await import('../useChartTheme'))
+    ;({ setSkin } = await import('../useSkin'))
     document.documentElement.classList.remove('dark')
     setSkin('neubrutalism')
   })
@@ -91,6 +94,20 @@ describe('shared chart theme', () => {
       expect(wrapper.vm.distributionFills).not.toBe(lightPatterns)
       expect(contexts[12].fillStyle).toBe('#222222')
       expect(contexts[12].strokeStyle).toBe('#bcbcbc')
+      const second = mount(Probe)
+      expect(second.vm.distributionFills).toBe(wrapper.vm.distributionFills)
+      expect(contexts).toHaveLength(24)
+      document.documentElement.classList.remove('dark')
+      await vi.waitFor(() => expect(wrapper.vm.isDark).toBe(false))
+      expect(wrapper.vm.distributionFills).toBe(lightPatterns)
+      expect(second.vm.distributionFills).toBe(lightPatterns)
+      expect(contexts).toHaveLength(24)
+      wrapper.unmount()
+      const remounted = mount(Probe)
+      expect(remounted.vm.distributionFills).toBe(lightPatterns)
+      expect(contexts).toHaveLength(24)
+      second.unmount()
+      remounted.unmount()
     } finally {
       wrapper.unmount()
     }
@@ -100,6 +117,33 @@ describe('shared chart theme', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
     const wrapper = mount(Probe)
     expect(wrapper.vm.distributionFills).toEqual(wrapper.vm.distributionColors)
+    wrapper.unmount()
+  })
+
+  it('does not cache a failed pattern allocation and lets a later chart recover', () => {
+    const context = { fillRect: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), stroke: vi.fn(),
+      createPattern: vi.fn().mockReturnValue(null) }
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as unknown as CanvasRenderingContext2D)
+    const first = mount(Probe)
+    expect(first.vm.distributionFills).toEqual(first.vm.distributionColors)
+    context.createPattern.mockReturnValue({ hatch: true })
+    const second = mount(Probe)
+    expect(second.vm.distributionFills.every(value => typeof value !== 'string')).toBe(true)
+    first.unmount()
+    second.unmount()
+  })
+
+  it('keeps neutral trend styles and tooltip contrast reactive, with an original fallback', async () => {
+    const wrapper = mount(Probe)
+    expect(wrapper.vm.lineStyle(0)).toMatchObject({ borderColor: '#181818', fill: false, borderDash: [] })
+    expect(wrapper.vm.lineStyle(1).borderDash).toEqual([7, 4])
+    document.documentElement.classList.add('dark')
+    await vi.waitFor(() => expect(wrapper.vm.isDark).toBe(true))
+    expect(wrapper.vm.lineStyle(0).borderColor).toBe('#f4f4f4')
+    expect(wrapper.vm.tooltipTheme).toMatchObject({ backgroundColor: '#222222', bodyColor: '#bcbcbc' })
+    setSkin('original')
+    expect(wrapper.vm.lineStyle(0)).toEqual({})
+    expect(wrapper.vm.tooltipTheme).toEqual({})
     wrapper.unmount()
   })
 })

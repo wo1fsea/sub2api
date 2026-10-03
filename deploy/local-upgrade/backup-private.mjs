@@ -50,13 +50,19 @@ async function archive(name, args, maxBytes) {
 }
 
 const appName = process.env.SUB2API_BACKUP_APP || 'sub2api'
-assert(['sub2api', 'sub2api-green-clash2'].includes(appName), 'Resolve the current known application before backing it up')
+const knownApps = {
+  sub2api: 'sha256:ccf47a1c62e355f51f896e489f8253e119fe4101b103cd701ba458cc6c6f0f77',
+  'sub2api-green-clash2': 'sha256:da20743ebb5610646c8a2898f0cd0c6850bda10d2ed20dbebd75242731563214',
+  'sub2api-green-v0213': 'sha256:145ba95c309d12c854d802075272c3358f125a0b8f11ef9bcf248f49a7c07e6c'
+}
+assert(Object.hasOwn(knownApps, appName), 'Resolve the current known application before backing it up')
 const containers = JSON.parse(docker(['inspect', appName, 'sub2api-postgres', 'sub2api-redis']))
 for (const container of containers) {
   assert.equal(container.State.Running, true)
   assert.equal(container.State.Health.Status, 'healthy')
 }
 const [app, postgres, redis] = containers
+assert.equal(app.Image, knownApps[appName], 'The selected backup application image changed')
 assert(app.Mounts.some(m => m.Type === 'volume' && m.Destination === '/app/data'))
 assert.equal(postgres.Config.Labels['com.docker.compose.project'], 'sub2api')
 assert.equal(redis.Config.Labels['com.docker.compose.project'], 'sub2api')

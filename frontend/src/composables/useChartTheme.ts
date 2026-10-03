@@ -17,6 +17,11 @@ const hatches = [
   { size: 16, width: 3, reverse: true }
 ]
 
+// Two palettes per document, shared across chart mounts and theme round trips.
+// Failed canvas allocations are not cached, so a later chart can recover.
+const patternCache = new WeakMap<Document, Map<boolean, Array<CanvasPattern | string>>>()
+const lineDashes = [[], [7, 4], [2, 3], [10, 3, 2, 3]]
+
 export function useChartTheme() {
   const { skin } = useSkin()
   const isDark = ref(document.documentElement.classList.contains('dark'))
@@ -29,27 +34,61 @@ export function useChartTheme() {
   const chartInk = computed(() => isDark.value ? '#f4f4f4' : '#181818')
   const chartMuted = computed(() => isDark.value ? '#bcbcbc' : '#4a4a4a')
   const chartSurface = computed(() => isDark.value ? '#222222' : '#fdfdfd')
-  const distributionFills = computed(() => hatches.map(({ size, width, reverse }, index) => {
-    const tile = document.createElement('canvas')
-    tile.width = tile.height = size
-    const context = tile.getContext('2d')
-    if (!context) return distributionColors.value[index]
-    context.fillStyle = chartSurface.value
-    context.fillRect(0, 0, size, size)
-    context.strokeStyle = chartMuted.value
-    context.lineWidth = width
-    context.beginPath()
-    // Include neighboring diagonals so repeating tile edges join without gaps.
-    for (let offset = -size; offset <= size; offset += size) {
-      context.moveTo(offset, reverse ? 0 : size)
-      context.lineTo(offset + size, reverse ? size : 0)
+  const chartGrid = computed(() => isDark.value ? '#444444' : '#deded8')
+  const distributionFills = computed(() => {
+    const cached = patternCache.get(document)?.get(isDark.value)
+    if (cached) return cached
+    let complete = true
+    const fills = hatches.map(({ size, width, reverse }, index) => {
+      const tile = document.createElement('canvas')
+      tile.width = tile.height = size
+      const context = tile.getContext('2d')
+      if (!context) {
+        complete = false
+        return distributionColors.value[index]
+      }
+      context.fillStyle = chartSurface.value
+      context.fillRect(0, 0, size, size)
+      context.strokeStyle = chartMuted.value
+      context.lineWidth = width
+      context.beginPath()
+      // Include neighboring diagonals so repeating tile edges join without gaps.
+      for (let offset = -size; offset <= size; offset += size) {
+        context.moveTo(offset, reverse ? 0 : size)
+        context.lineTo(offset + size, reverse ? size : 0)
+      }
+      context.stroke()
+      const pattern = context.createPattern(tile, 'repeat')
+      if (!pattern) complete = false
+      return pattern || distributionColors.value[index]
+    })
+    if (complete) {
+      const palettes = patternCache.get(document) || new Map()
+      palettes.set(isDark.value, fills)
+      patternCache.set(document, palettes)
     }
-    context.stroke()
-    return context.createPattern(tile, 'repeat') || distributionColors.value[index]
-  }))
+    return fills
+  })
   const distributionSwatches = computed(() => hatches.map(({ size, width, reverse }) => ({
     backgroundColor: chartSurface.value,
     backgroundImage: `repeating-linear-gradient(${reverse ? 45 : 135}deg, ${chartMuted.value} 0 ${width / Math.SQRT2}px, transparent ${width / Math.SQRT2}px ${size / Math.SQRT2}px)`
   })))
-  return { skin, isDark, distributionColors, distributionFills, distributionSwatches, chartInk, chartMuted }
+  // Override appearance only; preserve points, axes, labels and data semantics.
+  const lineStyle = (index: number) => skin.value === 'neubrutalism' ? {
+    borderColor: index % 2 ? chartMuted.value : chartInk.value,
+    backgroundColor: index % 2 ? chartMuted.value : chartInk.value,
+    pointBackgroundColor: index % 2 ? chartMuted.value : chartInk.value,
+    borderDash: lineDashes[index % lineDashes.length],
+    fill: false as const
+  } : {}
+  const lineLegend = computed(() => skin.value === 'neubrutalism' ? {
+    usePointStyle: false, boxWidth: 22, boxHeight: 2
+  } : {})
+  const tooltipTheme = computed(() => skin.value === 'neubrutalism' ? {
+    backgroundColor: chartSurface.value, titleColor: chartInk.value,
+    bodyColor: chartMuted.value, borderColor: chartInk.value, borderWidth: 1,
+    cornerRadius: 0
+  } : {})
+  return { skin, isDark, distributionColors, distributionFills, distributionSwatches,
+    chartInk, chartMuted, chartSurface, chartGrid, lineStyle, lineLegend, tooltipTheme }
 }

@@ -22,12 +22,12 @@
     <!-- Charts Grid -->
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
       <!-- Model Distribution Chart -->
-      <div class="card relative overflow-hidden p-4">
+      <div class="skin-model-chart card relative overflow-hidden p-4">
         <div v-if="loading" class="absolute inset-0 z-10 flex items-center justify-center bg-white/50 backdrop-blur-sm dark:bg-dark-800/50">
           <LoadingSpinner size="md" />
         </div>
         <h3 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">{{ t('dashboard.modelDistribution') }}</h3>
-        <div class="flex flex-col items-center gap-4 sm:flex-row sm:gap-6">
+        <div class="skin-model-chart-content flex flex-col items-center gap-4 sm:flex-row sm:gap-6">
           <div class="h-48 w-48 shrink-0">
             <Doughnut v-if="modelData" :data="modelData" :options="doughnutOptions" />
             <div v-else class="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400">{{ t('dashboard.noDataAvailable') }}</div>
@@ -44,8 +44,8 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="model in models" :key="model.model" class="border-t border-gray-100 dark:border-dark-700">
-                  <td class="max-w-[100px] truncate py-1.5 font-medium text-gray-900 dark:text-white" :title="model.model">{{ model.model }}</td>
+                <tr v-for="(model, index) in models" :key="model.model" class="border-t border-gray-100 dark:border-dark-700">
+                  <td class="max-w-[100px] truncate py-1.5 font-medium text-gray-900 dark:text-white" :title="model.model"><span class="inline-flex items-center gap-1"><span v-if="skin === 'neubrutalism'" class="skin-chart-swatch" :style="distributionSwatches[index % distributionSwatches.length]" aria-hidden="true"></span>{{ model.model }}</span></td>
                   <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">{{ formatNumber(model.requests) }}</td>
                   <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">{{ formatTokens(model.total_tokens) }}</td>
                   <td class="py-1.5 text-right text-green-600 dark:text-green-400">${{ formatCost(model.actual_cost) }}</td>
@@ -73,31 +73,38 @@ import { Doughnut } from 'vue-chartjs'
 import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
 import type { TrendDataPoint, ModelStat } from '@/types'
 import { formatCostFixed as formatCost, formatNumberLocaleString as formatNumber, formatTokensK as formatTokens } from '@/utils/format'
+import { useChartTheme } from '@/composables/useChartTheme'
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Title, Tooltip, Legend, Filler } from 'chart.js'
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Title, Tooltip, Legend, Filler)
 
 const props = defineProps<{ loading: boolean, startDate: string, endDate: string, granularity: string, trend: TrendDataPoint[], models: ModelStat[] }>()
 defineEmits(['update:startDate', 'update:endDate', 'update:granularity', 'dateRangeChange', 'granularityChange', 'refresh'])
 const { t } = useI18n()
+const { skin, distributionFills, distributionSwatches, chartInk, tooltipTheme } = useChartTheme()
+const originalColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16']
 
 const modelData = computed(() => !props.models?.length ? null : {
   labels: props.models.map((m: ModelStat) => m.model),
   datasets: [{
     data: props.models.map((m: ModelStat) => m.total_tokens),
-    backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16']
+    backgroundColor: props.models.map((_, index) => skin.value === 'neubrutalism'
+      ? distributionFills.value[index % distributionFills.value.length] : originalColors[index % originalColors.length]),
+    borderColor: skin.value === 'neubrutalism' ? chartInk.value : undefined,
+    borderWidth: skin.value === 'neubrutalism' ? 1 : 2
   }]
 })
 
-const doughnutOptions = {
+const doughnutOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
     legend: { display: false },
     tooltip: {
+      ...tooltipTheme.value,
       callbacks: {
         label: (context: any) => `${context.label}: ${formatTokens(context.parsed)} tokens`
       }
     }
   }
-}
+}))
 </script>

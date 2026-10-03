@@ -238,7 +238,7 @@
                 <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
                   <div
                     :class="[
-                      'h-full rounded-full transition-all',
+                      'skin-usage-bar h-full rounded-full transition-all',
                       row.quota_used >= row.quota ? 'bg-red-500' :
                       row.quota_used >= row.quota * 0.8 ? 'bg-yellow-500' :
                       'bg-primary-500'
@@ -268,7 +268,7 @@
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
                   <div
                     :class="[
-                      'h-full rounded-full transition-all',
+                      'skin-usage-bar h-full rounded-full transition-all',
                       row.usage_5h >= row.rate_limit_5h ? 'bg-red-500' :
                       row.usage_5h >= row.rate_limit_5h * 0.8 ? 'bg-yellow-500' :
                       'bg-emerald-500'
@@ -296,7 +296,7 @@
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
                   <div
                     :class="[
-                      'h-full rounded-full transition-all',
+                      'skin-usage-bar h-full rounded-full transition-all',
                       row.usage_1d >= row.rate_limit_1d ? 'bg-red-500' :
                       row.usage_1d >= row.rate_limit_1d * 0.8 ? 'bg-yellow-500' :
                       'bg-emerald-500'
@@ -324,7 +324,7 @@
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
                   <div
                     :class="[
-                      'h-full rounded-full transition-all',
+                      'skin-usage-bar h-full rounded-full transition-all',
                       row.usage_7d >= row.rate_limit_7d ? 'bg-red-500' :
                       row.usage_7d >= row.rate_limit_7d * 0.8 ? 'bg-yellow-500' :
                       'bg-emerald-500'
@@ -792,7 +792,7 @@
                 <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
                   <div
                     :class="[
-                      'h-full rounded-full transition-all',
+                      'skin-usage-bar h-full rounded-full transition-all',
                       selectedKey.usage_5h >= selectedKey.rate_limit_5h ? 'bg-red-500' :
                       selectedKey.usage_5h >= selectedKey.rate_limit_5h * 0.8 ? 'bg-yellow-500' :
                       'bg-green-500'
@@ -838,7 +838,7 @@
                 <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
                   <div
                     :class="[
-                      'h-full rounded-full transition-all',
+                      'skin-usage-bar h-full rounded-full transition-all',
                       selectedKey.usage_1d >= selectedKey.rate_limit_1d ? 'bg-red-500' :
                       selectedKey.usage_1d >= selectedKey.rate_limit_1d * 0.8 ? 'bg-yellow-500' :
                       'bg-green-500'
@@ -884,7 +884,7 @@
                 <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
                   <div
                     :class="[
-                      'h-full rounded-full transition-all',
+                      'skin-usage-bar h-full rounded-full transition-all',
                       selectedKey.usage_7d >= selectedKey.rate_limit_7d ? 'bg-red-500' :
                       selectedKey.usage_7d >= selectedKey.rate_limit_7d * 0.8 ? 'bg-yellow-500' :
                       'bg-green-500'

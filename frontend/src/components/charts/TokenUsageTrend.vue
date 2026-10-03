@@ -49,7 +49,7 @@ ChartJS.register(
 )
 
 const { t } = useI18n()
-const { skin, isDark: isDarkMode, chartMuted } = useChartTheme()
+const { skin, isDark: isDarkMode, chartMuted, lineLegend, tooltipTheme } = useChartTheme()
 
 const props = defineProps<{
   trendData: TrendDataPoint[]
@@ -145,6 +145,7 @@ const lineOptions = computed(() => ({
         color: chartColors.value.text,
         usePointStyle: true,
         pointStyle: 'circle',
+        ...lineLegend.value,
         padding: 15,
         font: {
           size: 11
@@ -152,6 +153,7 @@ const lineOptions = computed(() => ({
       }
     },
     tooltip: {
+      ...tooltipTheme.value,
       callbacks: {
         label: (context: any) => {
           if (context.dataset.yAxisID === 'yPercent') {

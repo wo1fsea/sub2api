@@ -351,7 +351,7 @@
                 </span>
                 <span class="h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-700">
                   <i
-                    class="block h-full rounded-full"
+                    class="skin-usage-bar block h-full rounded-full"
                     :class="row.ignored ? 'bg-gray-400 dark:bg-gray-500' : 'bg-gradient-to-r from-red-400 to-red-500'"
                     :style="{ width: `${Math.max(2, row.rate * 100)}%` }"
                   ></i>
