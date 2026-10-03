@@ -41,6 +41,11 @@ assert.equal(run('git', ['rev-parse', 'HEAD:backend'], true), validation.backend
 assert.equal(run('git', ['rev-parse', 'HEAD:frontend'], true), validation.frontendTree,
   'Frontend changed since source qualification; re-run and record its checks')
 assert.equal(validation.status, 'source-checks-passed-not-production-approved')
+if (inputs.buildResources.viteNodeOptions) {
+  const frontendPackage = JSON.parse(await readFile(join(root, 'frontend/package.json'), 'utf8'))
+  assert.equal(frontendPackage.scripts.build, 'pnpm run check:i18n && vue-tsc -b && vite build',
+    'Update the direct build stages if upstream changes its required checks')
+}
 const date = run('git', ['show', '-s', '--format=%cI', commit], true)
 const image = `sub2api-local:${inputs.version}-${commit.slice(0, 12)}`
 const name = `sub2api_${inputs.version}_${inputs.platform.replace('/', '_')}_${commit.slice(0, 12)}`
@@ -72,6 +77,7 @@ try {
   '--build-arg', `VERSION=${inputs.version}`, '--build-arg', `COMMIT=${commit}`, '--build-arg', `DATE=${date}`,
   '--build-arg', `PNPM_VERSION=${inputs.pnpmVersion}`,
   '--build-arg', `NODE_BUILD_OPTIONS=${inputs.buildResources.nodeOptions}`,
+  '--build-arg', `VITE_BUILD_OPTIONS=${inputs.buildResources.viteNodeOptions || ''}`,
   '--build-arg', `GO_BUILD_PARALLELISM=${inputs.buildResources.goParallelism}`,
   '--build-arg', `GO_BUILD_MEMORY_LIMIT=${inputs.buildResources.goMemoryLimit}`,
   '--build-arg', 'GOPROXY=https://proxy.golang.org,direct', '--build-arg', 'GOSUMDB=sum.golang.org',

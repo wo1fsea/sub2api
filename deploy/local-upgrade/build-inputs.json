@@ -9,6 +9,7 @@
     "cpuQuota": 100000,
     "maxParallelism": 1,
     "nodeOptions": "--max-old-space-size=2048",
+    "viteNodeOptions": "--max-old-space-size=1664",
     "goParallelism": 2,
     "goMemoryLimit": "768MiB"
   },

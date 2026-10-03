@@ -43,7 +43,14 @@ RUN --mount=type=cache,id=sub2api-pnpm-store,target=/root/.local/share/pnpm/stor
 # Copy only that subtree to keep the build dependency minimal.
 COPY frontend/ ./
 COPY docs/legal/ /app/docs/legal/
-RUN NODE_OPTIONS="${NODE_BUILD_OPTIONS}" pnpm run build
+ARG VITE_BUILD_OPTIONS=
+# Local bounded builds run the same three checks without resident pnpm wrappers.
+# Keep type checking's larger heap separate from Rollup's allocation budget.
+RUN if [ -n "${VITE_BUILD_OPTIONS}" ]; then \
+      NODE_OPTIONS="${NODE_BUILD_OPTIONS}" node node_modules/vitest/vitest.mjs run src/i18n/__tests__/localeKeyCompleteness.spec.ts && \
+      NODE_OPTIONS="${NODE_BUILD_OPTIONS}" node node_modules/vue-tsc/bin/vue-tsc.js -b && \
+      NODE_OPTIONS="${VITE_BUILD_OPTIONS}" node node_modules/vite/bin/vite.js build; \
+    else NODE_OPTIONS="${NODE_BUILD_OPTIONS}" pnpm run build; fi
 
 # -----------------------------------------------------------------------------
 # Stage 2: Backend Builder
@@ -54,10 +61,6 @@ RUN NODE_OPTIONS="${NODE_BUILD_OPTIONS}" pnpm run build
 # build (emulated networking here was dropping module fetches with EOF).
 FROM --platform=${BUILDPLATFORM} ${GOLANG_IMAGE} AS backend-builder
 
-# Build arguments for version info (set by CI)
-ARG VERSION=
-ARG COMMIT=docker
-ARG DATE
 ARG GOPROXY
 ARG GOSUMDB
 ARG GO_BUILD_PARALLELISM=2
@@ -86,6 +89,11 @@ COPY backend/ ./
 
 # Copy frontend dist from previous stage (must be after backend copy to avoid being overwritten)
 COPY --from=frontend-builder /app/backend/internal/web/dist ./internal/web/dist
+
+# Version metadata should invalidate compilation, not dependency installation.
+ARG VERSION=
+ARG COMMIT=docker
+ARG DATE
 
 # Build the binary (BuildType=release for CI builds, embed frontend)
 # Version precedence: build arg VERSION > exact git tag > cmd/server/VERSION
