@@ -191,7 +191,8 @@ try {
       security_opt: ['no-new-privileges:true'], ports: ['127.0.0.1:18582:8080'], volumes: ['candidate-data:/app/data'],
       networks: ['production'], logging: { driver: 'json-file', options: { 'max-size': '5m', 'max-file': '2' } }
     } }, networks: { production: { external: true, name: 'sub2api_sub2api-network' } }, volumes: { 'candidate-data': {} } }
-    if (existing) assert.equal(await readFile(composePath, 'utf8'), JSON.stringify(config))
+    if (existing) assert((await readFile(composePath, 'utf8')) === JSON.stringify(config),
+      'Private configuration changed during prepare; sensitive details suppressed')
     else await writeFile(composePath, JSON.stringify(config), { flag: 'wx', mode: 0o600 })
     state = existing || { phase: 'preparing', activeSlot: 'green', candidateCommit: manifest.commit, candidateImageId: manifest.imageId,
       version: manifest.version, previousId, previousImage, previousStartedAt: previous.State.StartedAt,
