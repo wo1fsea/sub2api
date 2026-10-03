@@ -193,8 +193,8 @@ function downloadChart() {
         data-testid="throughput-chart-toolbar"
         class="flex w-full min-w-0 flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400 sm:w-auto sm:justify-end"
       >
-        <span class="flex shrink-0 items-center gap-1"><span class="h-2 w-2 rounded-full bg-blue-500"></span>QPS</span>
-        <span class="flex shrink-0 items-center gap-1"><span class="h-2 w-2 rounded-full bg-green-500"></span>{{ t('admin.ops.tpsK') }}</span>
+        <span class="flex shrink-0 items-center gap-1"><span :class="skin === 'neubrutalism' ? 'skin-chart-line' : 'h-2 w-2 rounded-full bg-blue-500'"></span>QPS</span>
+        <span class="flex shrink-0 items-center gap-1"><span :class="skin === 'neubrutalism' ? 'skin-chart-line skin-chart-line-dashed' : 'h-2 w-2 rounded-full bg-green-500'"></span>{{ t('admin.ops.tpsK') }}</span>
         <template v-if="!props.fullscreen">
           <button
             type="button"

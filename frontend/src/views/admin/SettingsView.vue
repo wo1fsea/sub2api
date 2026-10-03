@@ -6211,7 +6211,7 @@
                         style="height: 6px"
                       >
                         <div
-                          class="h-full rounded-full transition-all"
+                          class="skin-usage-bar h-full rounded-full transition-all"
                           :class="
                             quotaPercentage(provider) > 90
                               ? 'bg-red-500'

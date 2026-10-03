@@ -194,7 +194,7 @@
                   <span class="font-mono text-red-500">{{ t('dashboard.platformQuota.disabled') }}</span>
                 </div>
                 <div class="h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-700">
-                  <div class="h-full w-full rounded-full bg-red-500" />
+                  <div class="skin-usage-bar h-full w-full rounded-full bg-red-500" />
                 </div>
               </template>
               <!-- limit>0：正常用量进度条 -->
