@@ -1,5 +1,7 @@
 # Local delivery: 0.2.13
 
+Historical initial delivery. The current blue hatch refresh and current status/rollback commands are recorded in [the latest delivery](LOCAL_DELIVERY_HATCHES_0.2.13.md). The identities and green activation below refer to the earlier release.
+
 The original HTTPS entry was activated at **2026-10-03 01:27:43 Asia/Shanghai** (`2026-10-02T17:27:43.021Z`). It now serves upstream `v0.2.13` with **Restrained Neubrutalism**, preserving grayscale diagonal chart hatches and icons. The displayed application version is exactly `0.2.13`. A forced update check returned current/latest `0.2.13`, `has_update:false`, with no warning. Future legitimate upstream update notifications remain enabled.
 
 ## Immutable application identity
