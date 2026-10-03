@@ -2,27 +2,27 @@
   "status": "source-checks-passed-not-production-approved",
   "recordedDate": "2026-10-03",
   "backendTree": "ce88118a2e6bc792697f2e438ebde6a6819381e0",
-  "frontendTree": "726521f30a19999fe56eaf1e3a1cbf47928080b4",
+  "frontendTree": "4f691c4ee6b3f2ed205b3d203de34e0969ed43c8",
   "toolchain": "go1.27.0",
   "backendUnit": { "passed": true, "packagesPassed": 57, "testsPassed": 21859, "testsSkipped": 18 },
   "backendIntegration": { "passed": true, "packagesPassed": 51, "testsPassed": 13567, "testsSkipped": 16 },
   "backendLint": { "version": "2.13.0", "issues": 0 },
   "frontend": {
-    "validatedSource": "ff9cd00c6b5e5b2e8f5996e0ffa30852a7230b05",
+    "validatedSource": "d363f7273e68105f30ab1572802e76e1e6b1b139",
     "unchangedTreeReused": false,
-    "testsPassed": 2605,
+    "testsPassed": 2612,
     "typecheck": "passed",
     "lint": "passed",
     "productionBuild": "passed",
     "browser": {
-      "viewport": "1280x720",
-      "visual": "paper and ink, grayscale diagonal hatches, light/dark, flat metric grid, readable model table, home, date menu and unsaved user dialog inspected",
-      "functional": "keyboard skin switch, original fallback, persisted appearance, independent dark mode and navigation passed; legacy migration and cross-tab behavior covered by unit tests",
-      "numeric": "no page overflow or clipped metric values; dashboard body has exactly two text tones in each mode",
-      "limitation": "Embedded browser viewport override did not change its observed 1280px width. Current 983px/mobile visual checks are not claimed; previous release responsive checks are historical evidence only."
+      "viewport": "Chrome actual 1415x814, 983x895, 390x844 and 320x844",
+      "visual": "matching grayscale hatches on distribution/user/Ops/latency/payment charts; neutral dash trends, account dual axes, light/dark and original fallback; scoped usage bars",
+      "functional": "source/metric, more than twelve categories, empty/loading returns, user refresh, Ops detail events, account modal open/load/close, appearance and mode round trips passed; cache recovery/reuse covered by unit tests",
+      "numeric": "no settled page overflow; narrow distribution tables scroll internally; zero/45/100/120 percent and remaining-15 usage widths preserved with no minimum-width border",
+      "limitation": "Synthetic preview is not live gateway evidence. Download/zoom gestures and all tooltip hovers were not newly browser-verified. Screenshots reviewed separately; logs/screenshots remain ignored."
     }
   },
   "realGatewayCallsTested": false,
   "productionDeploymentPerformed": false,
-  "note": "Fresh full unit/integration/lint checks include upstream billing regressions. Optional provider/plugin/audit cases can skip without credentials. VERSION is aligned to the published tag rather than its stale embedded VERSION; exact binary version is checked during image smoke. Real candidate and entry calls, restored-current-data compatibility and deployment remain separate checks."
+  "note": "Fresh frontend suite/type/lint/build validate the exact frontend tree. The unchanged backend tree reuses the prior full unit/integration/lint qualification including upstream billing regressions; conditional provider/plugin/audit skips do not certify real providers. VERSION remains aligned to the published tag. Exact-image smoke, current-data restore, real candidate/entry calls and deployment are separate evidence."
 }
