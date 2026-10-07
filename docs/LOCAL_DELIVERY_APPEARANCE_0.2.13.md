@@ -38,4 +38,18 @@ GitHub 失败检查为前端 Security Scan：`source-map-js` GHSA-68fv-2mgg-jv7q
 
 ## 本轮发布状态
 
-尚未切换生产。最终镜像、包、切换采样、API 及自动恢复结果将在执行后追加。
+已于 2026-10-07 18:17（Asia/Shanghai）完成正式入口热切换，18:18 完成旧生产应用资源清理。
+
+- 发布源码提交：`3e364ac542d0463133adaebd6c1e01cc11fdfdd7`。
+- 正式镜像：`sha256:581ca60710bbd7762645d0cbd5355da832edf0ee2a30639b9a6b37826968e966`，标签 `sub2api-local:0.2.13-3e364ac542d0`。
+- linux/arm64 离线包：`release/sub2api_0.2.13_linux_arm64_3e364ac542d0.tar.gz`；包本身及包内 7 项 SHA256 校验均通过。
+- 发布提交的 [GitHub CI](https://github.com/wo1fsea/sub2api/actions/runs/37605312148) 全部通过；[Security Scan](https://github.com/wo1fsea/sub2api/actions/runs/37605312180) 前后端均通过。
+- 精确最终镜像的独立数据库烟雾、真实数据副本恢复与双版本交互、旧新资源演练均通过。副本恢复无新增迁移，业务投影未变；现有管理员主题保存、公开与 SSR 配置同步、非法值拒绝、普通用户 403、会话复用及重启已验证。
+- 最新上线前备份：`/Users/clawbotbot/Projects/sub2api-upgrade-private/backup-KKJxTN`（18:09 完成，prepare 时不足 30 分钟）；私有数据不进入 Git 或离线源码包。
+- 候选真实 Responses：当前 Codex 配置的 `gpt-6-astra`，HTTP 200、`response.completed`、输出 `OK`，3.147 秒；最终正式 HTTPS 请求 3.794 秒，清理前复查 2.545 秒，均无自动重试。
+- 18:16:40 至 18:20:07 连续采样：18480、正式 HTTPS、18080 各 205 次健康成功，合计 615 次、0 失败；切换前管理员 token 复用 41 次、0 失败。该采样不证明正在生成的同一条流可以续接。
+- 旧指纹资源已保存 551 项、21,535,278 字节（约 20.5 MiB），全部经入口按摘要读取验证。入口容器未重建，候选服务期间重建固定新应用，始终只有一个后台任务执行者。
+- 新发布清单哈希 `d7feed7d2c8ff42a06b65c60716f99379b37dee892a28820e3015567a9fa9c34` 已固定在启动恢复状态；手动 boot 及系统 launchd 的随后自动执行均成功，镜像摘要匹配，最后退出码为 0。没有进行整机冷重启。
+- 正式登录页浏览器验证：`neubrutalism`、`#d4ff3f`、新 SVG Logo、无水平溢出；截图保存在 `frontend/tmp/appearance-production-0.2.13.jpg`（本机验证附件，未入 Git）。
+
+已删除旧生产应用镜像 `84a75cafee9d…`、停止后的 `sub2api-appearance-candidate` 及其应用卷、`c040d8e3ce3a` / `a9ecdfb7dab5` / `0664d577d416` 三个中间应用镜像，以及本次 `sub2api-release-20261007` 构建工人和其状态缓存。当前 Docker 仅保留一个 Sub2API 应用镜像；业务 PostgreSQL、Redis、当前应用卷、入口、旧页面资源缓存和备份保持可用。删除的应用镜像仍可从已留存离线包恢复；没有执行全局 prune，也未清理其他项目资源。
