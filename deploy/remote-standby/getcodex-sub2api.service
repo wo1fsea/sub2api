@@ -1,0 +1,17 @@
+[Unit]
+Description=GetCodex Sub2API standby stack
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/sub2api
+ExecStart=/usr/bin/docker compose -p getcodex-sub2api --env-file /dev/null -f /etc/sub2api/compose-private.json up -d --wait --wait-timeout 120
+ExecStop=/usr/bin/docker compose -p getcodex-sub2api --env-file /dev/null -f /etc/sub2api/compose-private.json stop --timeout 45
+TimeoutStartSec=180
+TimeoutStopSec=180
+
+[Install]
+WantedBy=multi-user.target

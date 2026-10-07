@@ -21,7 +21,7 @@ print(json.dumps({'provider':c['model_provider'],'model':c['model'],'baseUrl':p[
 
 export async function liveGateway(baseUrl, expectedSlot, { config = currentCodex(), timeoutMs = 90_000 } = {}) {
   const base = new URL(baseUrl)
-  assert(['127.0.0.1', 'openclaw-macmini-ts.tailff52e6.ts.net'].includes(base.hostname), 'Do not send the key to another host')
+  assert(['127.0.0.1', 'openclaw-macmini-ts.tailff52e6.ts.net', 'getcodex.pro'].includes(base.hostname), 'Do not send the key to another host')
   if (base.hostname !== '127.0.0.1') assert.equal(base.protocol, 'https:')
   const started = Date.now()
   const response = await fetch(`${baseUrl.replace(/\/$/, '')}/responses`, {
