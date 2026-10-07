@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { readFile, mkdtemp, writeFile, stat } from 'node:fs/promises'
 import { writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 
@@ -117,11 +117,26 @@ function request(service, path, token, body) {
   const status = Number([...result.stderr.matchAll(/HTTP\/1\.1 (\d+)/g)].at(-1)?.[1])
   return { status, body: result.stdout }
 }
-function putSettings(service, token, body) {
+async function putSettings(service, token, body) {
   // BusyBox wget cannot PUT. Keep the full isolated settings payload on stdin.
   const json = JSON.stringify(body)
   const wire = `PUT /api/v1/admin/settings HTTP/1.0\r\nHost: localhost\r\nAuthorization: Bearer ${token}\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(json)}\r\nConnection: close\r\n\r\n${json}`
-  const result = docker(['exec', '-i', id(service), 'nc', '-w', '5', '127.0.0.1', '8080'], wire, 10000)
+  const child = spawn('docker', ['exec', '-i', id(service), 'nc', '-w', '5', '127.0.0.1', '8080'], { stdio: ['pipe', 'pipe', 'pipe'] })
+  let result = ''
+  const timer = setTimeout(() => child.kill('SIGTERM'), 10000)
+  try {
+    child.stdout.setEncoding('utf8')
+    child.stdout.on('data', chunk => { result += chunk; if (result.length > 1 << 20) child.kill('SIGTERM') })
+    child.stderr.resume()
+    const complete = new Promise((resolve, reject) => {
+      child.once('error', reject)
+      child.once('close', code => code === 0 ? resolve() : reject(new Error('Isolated PUT transport failed')))
+    })
+    // Keep stdin open until the server closes its response. Ending it early
+    // makes BusyBox nc close the socket and cancels Go's request context.
+    child.stdin.write(wire)
+    await complete
+  } finally { clearTimeout(timer); child.stdin.destroy(); if (child.exitCode === null) child.kill('SIGTERM') }
   const boundary = result.indexOf('\r\n\r\n')
   assert(boundary > 0, 'Missing isolated PUT response headers')
   return { status: Number(result.slice(0, boundary).match(/^HTTP\/1\.[01] (\d+)/)?.[1]), body: result.slice(boundary + 4) }
@@ -225,7 +240,12 @@ try {
     'business projections unchanged', 'old session valid in both versions', 'existing compliance preserved', 'both admin read workflows')
   const initialSettings = JSON.parse(request('green', '/api/v1/admin/settings', token).body).data
   const sharedAppearance = { skin: 'neubrutalism', mode: 'dark', accent_color: '#112233' }
-  const changed = putSettings('green', token, { ...initialSettings, site_appearance: sharedAppearance })
+  const changed = await putSettings('green', token, { ...initialSettings, site_appearance: sharedAppearance })
+  if (changed.status !== 200) {
+    await writeFile(join(directory, 'appearance-save-response-private.json'), JSON.stringify(changed), { mode: 0o600 })
+    const logs = spawnSync('docker', ['logs', '--tail', '120', id('green')], { encoding: 'utf8', timeout: 10000, maxBuffer: 1 << 20 })
+    await writeFile(join(directory, 'appearance-save-logs-private.txt'), (logs.stdout || '') + (logs.stderr || ''), { mode: 0o600 })
+  }
   assert.equal(changed.status, 200, 'Recovered admin appearance save failed')
   const changedSettings = JSON.parse(request('green', '/api/v1/admin/settings', token).body).data
   assert.deepEqual(changedSettings.site_appearance, sharedAppearance)
@@ -233,10 +253,10 @@ try {
     'Appearance save changed other visible settings')
   assert.deepEqual(JSON.parse(request('green', '/api/v1/settings/public').body).data.site_appearance, sharedAppearance)
   assert(request('green', '/login').body.includes('"accent_color":"#112233"'), 'SSR appearance did not refresh')
-  assert.equal(putSettings('green', token, { site_appearance: null }).status, 400)
-  assert.equal(putSettings('green', token, { site_appearance: { ...sharedAppearance, accent_color: 'red;bad' } }).status, 400)
+  assert.equal((await putSettings('green', token, { site_appearance: null })).status, 400)
+  assert.equal((await putSettings('green', token, { site_appearance: { ...sharedAppearance, accent_color: 'red;bad' } })).status, 400)
   assert.deepEqual(JSON.parse(request('green', '/api/v1/admin/settings', token).body).data, changedSettings)
-  assert.equal(putSettings('green', token, initialSettings).status, 200)
+  assert.equal((await putSettings('green', token, initialSettings)).status, 200)
   assert.deepEqual(JSON.parse(request('green', '/api/v1/settings/public').body).data.site_appearance, initialSettings.site_appearance)
   report.checks.push('existing admin shared appearance roundtrip', 'public and SSR appearance refresh',
     'other visible settings unchanged', 'invalid and null appearance reject without writes')
