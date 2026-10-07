@@ -117,6 +117,15 @@ function request(service, path, token, body) {
   const status = Number([...result.stderr.matchAll(/HTTP\/1\.1 (\d+)/g)].at(-1)?.[1])
   return { status, body: result.stdout }
 }
+function putSettings(service, token, body) {
+  // BusyBox wget cannot PUT. Keep the full isolated settings payload on stdin.
+  const json = JSON.stringify(body)
+  const wire = `PUT /api/v1/admin/settings HTTP/1.0\r\nHost: localhost\r\nAuthorization: Bearer ${token}\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(json)}\r\nConnection: close\r\n\r\n${json}`
+  const result = docker(['exec', '-i', id(service), 'nc', '-w', '5', '127.0.0.1', '8080'], wire, 10000)
+  const boundary = result.indexOf('\r\n\r\n')
+  assert(boundary > 0, 'Missing isolated PUT response headers')
+  return { status: Number(result.slice(0, boundary).match(/^HTTP\/1\.[01] (\d+)/)?.[1]), body: result.slice(boundary + 4) }
+}
 async function ready(service) {
   const deadline = Date.now() + 90_000
   while (Date.now() < deadline) {
@@ -214,6 +223,23 @@ try {
   }
   report.checks.push(`${expectedNewMigrations} expected new migrations`, 'existing migration checksums unchanged',
     'business projections unchanged', 'old session valid in both versions', 'existing compliance preserved', 'both admin read workflows')
+  const initialSettings = JSON.parse(request('green', '/api/v1/admin/settings', token).body).data
+  const sharedAppearance = { skin: 'neubrutalism', mode: 'dark', accent_color: '#112233' }
+  const changed = putSettings('green', token, { ...initialSettings, site_appearance: sharedAppearance })
+  assert.equal(changed.status, 200, 'Recovered admin appearance save failed')
+  const changedSettings = JSON.parse(request('green', '/api/v1/admin/settings', token).body).data
+  assert.deepEqual(changedSettings.site_appearance, sharedAppearance)
+  assert.deepEqual({ ...changedSettings, site_appearance: initialSettings.site_appearance }, initialSettings,
+    'Appearance save changed other visible settings')
+  assert.deepEqual(JSON.parse(request('green', '/api/v1/settings/public').body).data.site_appearance, sharedAppearance)
+  assert(request('green', '/login').body.includes('"accent_color":"#112233"'), 'SSR appearance did not refresh')
+  assert.equal(putSettings('green', token, { site_appearance: null }).status, 400)
+  assert.equal(putSettings('green', token, { site_appearance: { ...sharedAppearance, accent_color: 'red;bad' } }).status, 400)
+  assert.deepEqual(JSON.parse(request('green', '/api/v1/admin/settings', token).body).data, changedSettings)
+  assert.equal(putSettings('green', token, initialSettings).status, 200)
+  assert.deepEqual(JSON.parse(request('green', '/api/v1/settings/public').body).data.site_appearance, initialSettings.site_appearance)
+  report.checks.push('existing admin shared appearance roundtrip', 'public and SSR appearance refresh',
+    'other visible settings unchanged', 'invalid and null appearance reject without writes')
   const groupId = Number(sql("SELECT id FROM groups WHERE platform='openai' AND deleted_at IS NULL ORDER BY id LIMIT 1;"))
   assert(groupId > 0)
   for (const writer of ['blue', 'green']) {

@@ -87,6 +87,13 @@ try {
   assert.equal((await request('/api/v1/auth/me')).status, 401)
   checks.push('synthetic admin login', 'authenticated session', 'unauthenticated rejection')
 
+  // Empty databases deliberately default to registration disabled. Enable it
+  // only in this process's isolated synthetic database to exercise user auth.
+  const syntheticDb = docker([...compose, 'ps', '--quiet', 'postgres'], true)
+  const [dbContainer] = JSON.parse(docker(['inspect', syntheticDb], true))
+  assert.equal(dbContainer.Config.Labels['com.docker.compose.project'], project)
+  docker(['exec', syntheticDb, 'psql', '-X', '-U', 'smoke', '-d', 'smoke', '-v', 'ON_ERROR_STOP=1', '-c',
+    "INSERT INTO settings(key,value) VALUES('registration_enabled','true') ON CONFLICT(key) DO UPDATE SET value=excluded.value"], true)
   const registration = await request('/api/v1/auth/register', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: 'user-smoke@example.invalid', password: env.SUB2API_SMOKE_ADMIN_PASSWORD })
