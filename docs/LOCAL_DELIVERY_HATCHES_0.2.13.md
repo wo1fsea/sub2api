@@ -1,6 +1,36 @@
 # Local delivery: cached hatches, 0.2.13
 
-Activated at **2026-10-03 13:33:02 Asia/Shanghai** (`2026-10-03T05:33:02.380Z`). The original HTTPS entry now serves the cached-hatch refresh from **blue**, with the previous green instance retained. Version/current/latest remain `0.2.13`, `has_update:false`; future legitimate update notifications remain enabled.
+## Current deployment: recovery and legacy retirement, 2026-10-07
+
+Recovered and retired the old applications at **2026-10-07 15:04:26 Asia/Shanghai**. The application image and embedded source remain the exact cached-hatch release below; this repair changes deployment and recovery scripts, not the application or upstream version.
+
+The HTTPS entry again targets `127.0.0.1:18480`, now owned by `sub2api-current-ingress`. Its only application backend is `sub2api-current-app`, version `0.2.13`, direct loopback `18583`. Existing Hermes clients keep `18080`: `sub2api-current-compat` forwards that port to the new ingress. Ports 8443 and 9444 retain their previous targets. The original `sub2api`, both older green applications, `sub2api-blue-hatches`, and all three previous ingress/static containers are stopped with Docker restart policy `no`; their images and data volumes remain recoverable.
+
+The new app is the sole token-refresh, usage-cleanup and channel-monitor-v2 background owner. Enabled environment flags, token-refresh/cleanup startup messages and a successful monitor aggregation were verified. Legacy scheduler snapshot compatibility is disabled after retiring all older application writers. No shared-database restore or new application migration was performed. Scheduled tests, active monitors and scheduled backups were not enabled by this repair.
+
+Old-page compatibility now uses a read-only, secret-free Caddy service on an internal network. All **439** historical JS/CSS files were copied, hashed and verified through the new ingress, totaling **17,294,450 bytes**. Historical assets route only for exact GET/HEAD paths; API requests continue to the new app. The current entry CSS contains the neubrutalism and diagonal-gradient markers.
+
+Fresh real Responses calls with the current configured key/model completed through the direct candidate, recovered ingress and original HTTPS entry. The final handover HTTPS call returned HTTP 200, `blue`, actual `OK`, and a completed stream in **3210ms** with **3124ms** first-token latency. No automatic retries or POST replay were used. The first transition had **354/354** successful sampled health checks across HTTPS and loopback. A version-envelope assertion initially halted background handover safely; the guard was corrected and regression-tested before completing retirement.
+
+System LaunchDaemon `/Library/LaunchDaemons/net.clawbotbot.sub2api-recovery.plist` runs at system load and every 60 seconds. Its root-owned dispatcher under `/Library/Application Support/Sub2API Recovery` drops privileges before running Colima, Docker or deployment code. It can start Colima and the pinned DB/Redis/current services; it refuses unexpected images, roles or an active retired owner. Current services use `always` restart policy and bounded Docker logs (two 5MB files per service). A crash-left operation lock is safely reclaimed after checking its former process owner.
+
+The macOS Tailscale app requires GUI bootstrap IPC. Local recovery works independently of login; the dispatcher uses the owner's GUI context for route reconciliation when that context exists. Before login it leaves the already-persisted `443 -> 18480` configuration intact and records `routePending:true`. Thus local recovery does not depend on the older login-only Colima agent, while Tailscale control-plane availability before login is not newly proven.
+
+A controlled drill temporarily routed HTTPS directly to the same healthy new app, then stopped the ingress. The system service restored the ingress at **15:14:17** and restored HTTPS to `18480`, with a successful full recovery record at **15:14:19**. The **177** HTTPS health samples collected during the shutdown interval all passed; these are samples, not proof that every connection or the entire drill interval was uninterrupted. The app, database and Colima were not restarted for this drill, and the Mac itself was not rebooted. A cold boot remains untested. The new recovery/gateway tests passed **14/14**.
+
+Private desired Compose, asset cache, bounded latest recovery result and rollback records live under `/Users/clawbotbot/Projects/sub2api-local/current-0.2.13`; the fresh DB/Redis/old-app backup is under `/Users/clawbotbot/Projects/sub2api-upgrade-private/backup-9nyol8`. Credentials and runtime artifacts remain outside Git and the Vault.
+
+```sh
+cd /Users/clawbotbot/Projects/sub2api-neubrutalism
+node deploy/local-upgrade/service-recovery.mjs status
+sudo launchctl kickstart system/net.clawbotbot.sub2api-recovery
+```
+
+Before planned maintenance or a future upgrade, unload this recovery daemon so it cannot restore the pinned current topology during the operation; reinstall/reload it only after qualifying the replacement. Do not replay the historical `refresh-current.mjs`, `release-next.mjs` or `local-release.mjs` activation/rollback plans after retirement. Traffic rollback must not restore the shared database or start a second background owner.
+
+## Historical delivery: 2026-10-03
+
+The sections below describe the original October 3 delivery and are superseded by the current topology above. Activated at **2026-10-03 13:33:02 Asia/Shanghai** (`2026-10-03T05:33:02.380Z`). At that time the original HTTPS entry served the cached-hatch refresh from **blue**, with the previous green instance retained. Version/current/latest were `0.2.13`, `has_update:false`; future legitimate update notifications remained enabled.
 
 ## Immutable identity
 
