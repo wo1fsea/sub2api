@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { desiredCompose, roleEnvironment, routing, names, image, assertCurrent, assertVersion, retired, acquireLock } from './service-recovery.mjs'
+import { desiredCompose, roleEnvironment, routing, names, image, assertCurrent, assertVersion, retired, retiredStatus, acquireLock } from './service-recovery.mjs'
 
 test('background ownership moves to the new app without mutating its seed', () => {
   const seed = { JWT_SECRET: 'private-fixture', TOKEN_REFRESH_ENABLED: 'false', USAGE_CLEANUP_ENABLED: 'false', CHANNEL_MONITOR_V2_DISABLE_AGGREGATOR: '1' }
@@ -55,6 +55,12 @@ test('admin version uses the live API envelope and rejects another version', () 
   assert.doesNotThrow(() => assertVersion({ code: 0, data: { version: '0.2.13' } }))
   assert.throws(() => assertVersion({ data: { version: '0.2.4' } }))
   assert.throws(() => assertVersion({ data: { version: { version: '0.2.13' } } }))
+})
+
+test('removed retired containers are valid, but a resurrected owner still blocks recovery', () => {
+  assert.deepEqual(retiredStatus('sub2api', undefined), { name: 'sub2api', present: false, running: false })
+  assert.equal(retiredStatus('sub2api', { State: { Running: false }, HostConfig: { RestartPolicy: { Name: 'no' } } }).present, true)
+  assert.throws(() => retiredStatus('sub2api', { State: { Running: true } }), /unexpectedly started/)
 })
 
 test('a crash-left lock does not permanently block boot recovery', async () => {

@@ -4,7 +4,7 @@
 
 Recovered and retired the old applications at **2026-10-07 15:04:26 Asia/Shanghai**. The application image and embedded source remain the exact cached-hatch release below; this repair changes deployment and recovery scripts, not the application or upstream version.
 
-The HTTPS entry again targets `127.0.0.1:18480`, now owned by `sub2api-current-ingress`. Its only application backend is `sub2api-current-app`, version `0.2.13`, direct loopback `18583`. Existing Hermes clients keep `18080`: `sub2api-current-compat` forwards that port to the new ingress. Ports 8443 and 9444 retain their previous targets. The original `sub2api`, both older green applications, `sub2api-blue-hatches`, and all three previous ingress/static containers are stopped with Docker restart policy `no`; their images and data volumes remain recoverable.
+The HTTPS entry again targets `127.0.0.1:18480`, now owned by `sub2api-current-ingress`. Its only application backend is `sub2api-current-app`, version `0.2.13`, direct loopback `18583`. Existing Hermes clients keep `18080`: `sub2api-current-compat` forwards that port to the new ingress. Ports 8443 and 9444 retain their previous targets. The original `sub2api`, both older green applications, `sub2api-blue-hatches`, and all three previous ingress/static containers were stopped during handover, then removed after user acceptance as recorded below.
 
 The new app is the sole token-refresh, usage-cleanup and channel-monitor-v2 background owner. Enabled environment flags, token-refresh/cleanup startup messages and a successful monitor aggregation were verified. Legacy scheduler snapshot compatibility is disabled after retiring all older application writers. No shared-database restore or new application migration was performed. Scheduled tests, active monitors and scheduled backups were not enabled by this repair.
 
@@ -27,6 +27,14 @@ sudo launchctl kickstart system/net.clawbotbot.sub2api-recovery
 ```
 
 Before planned maintenance or a future upgrade, unload this recovery daemon so it cannot restore the pinned current topology during the operation; reinstall/reload it only after qualifying the replacement. Do not replay the historical `refresh-current.mjs`, `release-next.mjs` or `local-release.mjs` activation/rollback plans after retirement. Traffic rollback must not restore the shared database or start a second background owner.
+
+### Cleanup after user acceptance, 2026-10-07
+
+At **15:43:49 Asia/Shanghai**, explicit user authorization to clean the accepted old deployment was completed with `deploy/local-upgrade/cleanup-retired.mjs`. Removed **7** retired application/proxy/static containers, **4** old application-only volumes, **7** obsolete image tags and their unused image data, and the unused `sub2api-release-clash2_assets` network. Removed the stopped `sub2api-release-20261002` Buildx worker and its **8.654GB** cache volume. Current application/proxy images, shared DB/Redis and their volumes, the immutable release packages, upgrade backups and unrelated projects remain intact. No global Docker prune was used.
+
+Moved the three old private release directories and a copy of the original Compose/inventory into `/Users/clawbotbot/Projects/sub2api-upgrade-private/retired-2026-10-07T07-43-45-821Z`. The active base `sub2api-local/compose.yaml` now defines only PostgreSQL/Redis and their volumes: the original application and `app-data` definition were removed to prevent accidental resurrection. These configuration records remain recoverable; deleted Docker application volumes and build cache cannot be restored in place. Business data remains in the unchanged shared database, and the existing upgrade backup remains available.
+
+Recovery and status now accept missing retired containers while still rejecting a resurrected running owner. The system daemon successfully ran after removal with `ok:true`, `routePending:false`, and version `0.2.13`. All **439** historical cached resources still matched their recorded hashes. The cleanup/recovery/gateway tests passed **17/17**, and a fresh real HTTPS Responses probe completed successfully. Current application and database/Redis container IDs and start times were unchanged throughout cleanup. The Docker filesystem had **22GiB available** after cleanup; macOS sparse VM disk compaction was not performed.
 
 ## Historical delivery: 2026-10-03
 

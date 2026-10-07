@@ -34,6 +34,15 @@ function command(binary, args, input, timeout = 60_000) {
 }
 const docker = (args, input) => command('/opt/homebrew/bin/docker', args, input)
 const inspect = name => JSON.parse(docker(['inspect', name]))[0]
+function optionalRetired() {
+  const existing = new Set(docker(['ps', '-a', '--format', '{{.Names}}']).split('\n'))
+  return retired.map(name => ({ name, container: existing.has(name) ? inspect(name) : undefined }))
+}
+export function retiredStatus(name, container) {
+  if (!container) return { name, present: false, running: false }
+  assert.equal(container.State.Running, false, 'A retired application was unexpectedly started')
+  return { name, present: true, running: false, health: container.State.Health?.Status, restart: container.HostConfig.RestartPolicy.Name }
+}
 const environment = container => Object.fromEntries(container.Config.Env.map(item => {
   const i = item.indexOf('='); return [item.slice(0, i), item.slice(i + 1)]
 }))
@@ -302,7 +311,7 @@ async function boot(manageRoute = true) {
   assert.equal(state.phase, 'active-old-retired', 'Recovery is disabled until retirement finishes')
   const available = spawnSync('/opt/homebrew/bin/docker', ['info', '--format', '{{.ServerVersion}}'], { encoding: 'utf8', timeout: 10_000 })
   if (available.status !== 0) command('/opt/homebrew/bin/colima', ['start'], undefined, 180_000)
-  for (const name of retired) assert.equal(inspect(name).State.Running, false, 'Do not start a duplicate background owner')
+  for (const { name, container } of optionalRetired()) retiredStatus(name, container)
   for (const dependency of state.dependencies) {
     const container = inspect(dependency.name)
     assert.equal(container.Image, dependency.image)
@@ -331,7 +340,7 @@ async function boot(manageRoute = true) {
   await ready(direct, undefined, restoreStopped)
   await ready(entry, 'blue', restoreStopped)
   if (manageRoute) await setEntry()
-  for (const name of retired) assert.equal(inspect(name).State.Running, false, 'A retired application was unexpectedly started')
+  for (const { name, container } of optionalRetired()) retiredStatus(name, container)
   return { ok: true, checkedAt: new Date().toISOString(), version: '0.2.13', image, entry,
     backgroundOwner: names.app, routePending: !manageRoute }
 }
@@ -354,9 +363,9 @@ async function main() {
     if (action === 'status') {
       const state = JSON.parse(await readFile(statePath, 'utf8'))
       console.log(JSON.stringify({ phase: state.phase, backgroundOwner: state.backgroundOwner, serve: serve(),
-        containers: [...Object.values(names), ...retired].map(name => {
+        containers: [...Object.values(names).map(name => {
           const c = inspect(name); return { name, running: c.State.Running, health: c.State.Health?.Status, restart: c.HostConfig.RestartPolicy.Name }
-        }) }, null, 2))
+        }), ...optionalRetired().map(({ name, container }) => retiredStatus(name, container))] }, null, 2))
     }
   } catch (error) {
     if (action.startsWith('boot') && error.code !== 'EEXIST') await save(join(directory, 'boot-status.json'), { ok: false, checkedAt: new Date().toISOString(), error: error.message })
