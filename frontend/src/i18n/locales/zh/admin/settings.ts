@@ -625,6 +625,12 @@ export default {
         testNoResults: '无搜索结果',
       },
       site: {
+        appearanceTitle: '站点主题',
+        appearanceDescription: '仅管理员可修改。保存后，登录页及所有用户统一使用此皮肤、明暗模式和强调色；强调色用于新粗野主义皮肤。',
+        appearanceSkin: '皮肤',
+        appearanceOriginal: '原版',
+        appearanceMode: '明暗模式',
+        appearanceAccent: '强调色',
         title: '站点设置',
         description: '自定义站点品牌',
         backendMode: 'Backend 模式',

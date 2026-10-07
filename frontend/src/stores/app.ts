@@ -13,6 +13,7 @@ import {
   type ReleaseInfo
 } from '@/api/admin/system'
 import { getPublicSettings as fetchPublicSettingsAPI } from '@/api/auth'
+import { applySiteAppearance } from '@/composables/useSkin'
 
 export const useAppStore = defineStore('app', () => {
   // ==================== State ====================
@@ -290,6 +291,7 @@ export const useAppStore = defineStore('app', () => {
    * Apply settings to store state (internal helper to avoid code duplication)
    */
   function applySettings(config: PublicSettings): void {
+    applySiteAppearance(config.site_appearance)
     if (typeof window !== 'undefined') {
       window.__APP_CONFIG__ = { ...config }
     }

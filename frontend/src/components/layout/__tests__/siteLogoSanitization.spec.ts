@@ -10,23 +10,22 @@ const homeViewSource = readFileSync(resolve(dir, '../../../views/HomeView.vue'),
 const keyUsageViewSource = readFileSync(resolve(dir, '../../../views/KeyUsageView.vue'), 'utf8')
 
 describe('site_logo sanitization', () => {
-  it('AppSidebar imports sanitizeUrl and applies it to siteLogo', () => {
-    expect(sidebarSource).toContain("import { sanitizeUrl } from '@/utils/url'")
-    expect(sidebarSource).toContain('sanitizeUrl(appStore.siteLogo')
+  it('AppSidebar imports resolveBrandLogo and applies it to siteLogo', () => {
+    expect(sidebarSource).toContain("import { resolveBrandLogo } from '@/utils/branding'")
+    expect(sidebarSource).toContain('resolveBrandLogo(appStore.siteLogo')
   })
 
-  it('HomeView applies sanitizeUrl to siteLogo', () => {
-    expect(homeViewSource).toContain('sanitizeUrl(appStore.cachedPublicSettings?.site_logo || appStore.siteLogo')
+  it('HomeView applies resolveBrandLogo to siteLogo', () => {
+    expect(homeViewSource).toContain('resolveBrandLogo(appStore.cachedPublicSettings?.site_logo || appStore.siteLogo')
   })
 
-  it('KeyUsageView applies sanitizeUrl to siteLogo', () => {
-    expect(keyUsageViewSource).toContain('sanitizeUrl(appStore.cachedPublicSettings?.site_logo || appStore.siteLogo')
+  it('KeyUsageView applies resolveBrandLogo to siteLogo', () => {
+    expect(keyUsageViewSource).toContain('resolveBrandLogo(appStore.cachedPublicSettings?.site_logo || appStore.siteLogo')
   })
 
-  it('all three pass allowRelative and allowDataUrl options', () => {
+  it('all three share the same logo resolver', () => {
     for (const src of [sidebarSource, homeViewSource, keyUsageViewSource]) {
-      expect(src).toContain('allowRelative: true')
-      expect(src).toContain('allowDataUrl: true')
+      expect(src).toContain("import { resolveBrandLogo } from '@/utils/branding'")
     }
   })
 })

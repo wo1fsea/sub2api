@@ -1,51 +1,46 @@
-import { readonly, ref } from 'vue'
+import { computed, readonly, ref } from 'vue'
+import type { SiteAppearance } from '@/types'
 
-export type Skin = 'original' | 'neubrutalism'
-export const SKIN_STORAGE_KEY = 'sub2api.skin'
-const currentSkin = ref<Skin>('neubrutalism')
-
-function normalizeSkin(value: string | null): Skin {
-  // Preserve preferences from the first release; the old name is only an input alias.
-  if (value === null || value === 'neubrutalism' || value === 'clash') return 'neubrutalism'
-  return 'original'
+export type Skin = SiteAppearance['skin']
+export const DEFAULT_SITE_APPEARANCE: SiteAppearance = {
+  skin: 'neubrutalism', mode: 'light', accent_color: '#d4ff3f'
 }
+const currentAppearance = ref<SiteAppearance>({ ...DEFAULT_SITE_APPEARANCE })
+const currentSkin = computed(() => currentAppearance.value.skin)
+const isDark = computed(() => currentAppearance.value.mode === 'dark')
 
-function applySkin(skin: Skin) {
-  currentSkin.value = skin
-  document.documentElement.dataset.skin = skin
-}
-
-export function setSkin(skin: Skin) {
-  applySkin(normalizeSkin(skin))
-  try {
-    localStorage.setItem(SKIN_STORAGE_KEY, currentSkin.value)
-  } catch {
-    // The active skin still works when browser storage is unavailable.
+export function normalizeSiteAppearance(value?: Partial<SiteAppearance> | null): SiteAppearance {
+  return {
+    skin: value?.skin === 'original' ? 'original' : 'neubrutalism',
+    mode: value?.mode === 'dark' ? 'dark' : 'light',
+    accent_color: /^#[\da-f]{6}$/i.test(value?.accent_color || '')
+      ? value!.accent_color! : DEFAULT_SITE_APPEARANCE.accent_color
   }
 }
 
-function syncSkin(event: StorageEvent) {
-  if (event.storageArea && event.storageArea !== localStorage) return
-  if (event.key === SKIN_STORAGE_KEY || event.key === null) {
-    applySkin(normalizeSkin(event.newValue))
-  }
+// Choose readable text even when an administrator selects a dark accent.
+export function accentInk(color: string): string {
+  const channels = [1, 3, 5].map(offset => parseInt(color.slice(offset, offset + 2), 16) / 255)
+  const [r, g, b] = channels.map(v => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)
+  const luminance = r * 0.2126 + g * 0.7152 + b * 0.0722
+  return luminance > 0.179 ? '#000000' : '#ffffff'
 }
 
-export function initSkin() {
-  let savedSkin: string | null = null
-  try {
-    savedSkin = localStorage.getItem(SKIN_STORAGE_KEY)
-  } catch {
-    // Use the default skin without blocking bootstrap.
-  }
-  applySkin(normalizeSkin(savedSkin))
-  if (savedSkin === 'clash') {
-    try { localStorage.setItem(SKIN_STORAGE_KEY, 'neubrutalism') } catch { /* Storage may be unavailable. */ }
-  }
-  window.removeEventListener('storage', syncSkin)
-  window.addEventListener('storage', syncSkin)
+// Server settings are authoritative; local preferences cannot persist another theme.
+export function applySiteAppearance(value?: Partial<SiteAppearance> | null): void {
+  const appearance = normalizeSiteAppearance(value)
+  currentAppearance.value = appearance
+  const root = document.documentElement
+  root.dataset.skin = appearance.skin
+  root.classList.toggle('dark', appearance.mode === 'dark')
+  root.style.setProperty('--site-accent-color', appearance.accent_color)
+  root.style.setProperty('--site-accent-ink', accentInk(appearance.accent_color))
+}
+
+export function initSkin(): void {
+  applySiteAppearance(window.__APP_CONFIG__?.site_appearance)
 }
 
 export function useSkin() {
-  return { skin: readonly(currentSkin), setSkin }
+  return { skin: readonly(currentSkin), isDark: readonly(isDark), appearance: readonly(currentAppearance) }
 }

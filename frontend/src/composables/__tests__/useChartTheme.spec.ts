@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
 let useChartTheme: typeof import('../useChartTheme').useChartTheme
-let setSkin: typeof import('../useSkin').setSkin
+let applySiteAppearance: typeof import('../useSkin').applySiteAppearance
+const setSkin = (skin: 'original' | 'neubrutalism') => applySiteAppearance({ skin, mode: document.documentElement.classList.contains('dark') ? 'dark' : 'light' })
 
 const Probe = defineComponent({
   setup: () => useChartTheme(),
@@ -22,7 +23,7 @@ describe('shared chart theme', () => {
   beforeEach(async () => {
     vi.resetModules()
     ;({ useChartTheme } = await import('../useChartTheme'))
-    ;({ setSkin } = await import('../useSkin'))
+    ;({ applySiteAppearance } = await import('../useSkin'))
     document.documentElement.classList.remove('dark')
     setSkin('neubrutalism')
   })

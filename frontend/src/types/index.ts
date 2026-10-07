@@ -208,7 +208,14 @@ export interface LoginAgreementDocument {
   content_md: string
 }
 
+export interface SiteAppearance {
+  skin: 'original' | 'neubrutalism'
+  mode: 'light' | 'dark'
+  accent_color: string
+}
+
 export interface PublicSettings {
+  site_appearance?: SiteAppearance
   registration_enabled: boolean
   email_verify_enabled: boolean
   force_email_on_third_party_signup: boolean

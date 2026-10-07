@@ -7,6 +7,7 @@ import enSettings from "@/i18n/locales/en/admin/settings";
 import zhCommon from "@/i18n/locales/zh/common";
 import zhSettings from "@/i18n/locales/zh/admin/settings";
 import SettingsView from "../SettingsView.vue";
+vi.mock('vue-router', () => ({ useRoute: () => ({ hash: '' }) }));
 
 const {
   getSettings,
@@ -763,6 +764,21 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({ compact_home_enabled: true }),
     );
+  });
+
+  it('saves the administrator appearance as one site-wide setting', async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    await wrapper.get('[data-testid="site-appearance-skin"]').setValue('neubrutalism');
+    await wrapper.get('[data-testid="site-appearance-mode"]').setValue('dark');
+    await wrapper.get('[data-testid="site-appearance-accent"]').setValue('#112233');
+    await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
+    expect(updateSettings).toHaveBeenCalledWith(expect.objectContaining({ site_appearance: {
+      skin: 'neubrutalism', mode: 'dark', accent_color: '#112233'
+    } }));
+    expect(fetchPublicSettings).toHaveBeenCalledWith(true);
+    wrapper.unmount();
   });
 
   it("renders panel rate limit card and saves settings", async () => {

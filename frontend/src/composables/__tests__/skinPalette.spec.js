@@ -32,7 +32,7 @@ describe('grayscale skin palette', () => {
     const root = postcss.parse(source)
     let checked = 0
     root.walkDecls(/^--skin-/, declaration => {
-      if (['--skin-lime', '--skin-radius'].includes(declaration.prop)) return
+      if (['--skin-lime', '--skin-radius', '--skin-full-radius'].includes(declaration.prop)) return
       if (declaration.value.startsWith('var(')) return
       const channels = declaration.value.startsWith('#')
         ? [1, 3, 5].map(offset => parseInt(declaration.value.slice(offset, offset + 2), 16))

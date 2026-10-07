@@ -47,6 +47,7 @@ function mountHome(settings: Record<string, unknown> = {}) {
   return mount(HomeView, {
     global: {
       stubs: {
+        SkinSwitcher: true,
         RouterLink: RouterLinkStub,
         LocaleSwitcher: { template: '<div data-testid="locale-switcher" />' },
         Icon: { template: '<span data-testid="icon" />' },

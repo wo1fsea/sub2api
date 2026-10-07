@@ -177,6 +177,7 @@ describe('KeyUsageView daily detail', () => {
     const wrapper = mount(KeyUsageView, {
       global: {
         stubs: {
+          SkinSwitcher: true,
           RouterLink: { template: '<a><slot /></a>' },
           LocaleSwitcher: true,
           Icon: true,
@@ -221,6 +222,7 @@ describe('KeyUsageView daily detail', () => {
     const wrapper = mount(KeyUsageView, {
       global: {
         stubs: {
+          SkinSwitcher: true,
           RouterLink: { template: '<a><slot /></a>' },
           LocaleSwitcher: true,
           Icon: true,
@@ -275,6 +277,7 @@ describe('KeyUsageView subscription feature flag', () => {
     const wrapper = mount(KeyUsageView, {
       global: {
         stubs: {
+          SkinSwitcher: true,
           RouterLink: { template: '<a><slot /></a>' },
           LocaleSwitcher: true,
           Icon: true,

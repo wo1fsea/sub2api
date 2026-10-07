@@ -339,6 +339,18 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeySiteName] = settings.SiteName
 	updates[SettingKeySiteLogo] = settings.SiteLogo
 	updates[SettingKeySiteSubtitle] = settings.SiteSubtitle
+	appearance := settings.SiteAppearance
+	if appearance == (SiteAppearance{}) {
+		appearance = DefaultSiteAppearance()
+	}
+	if err := appearance.Validate(); err != nil {
+		return nil, err
+	}
+	appearanceJSON, err := json.Marshal(appearance)
+	if err != nil {
+		return nil, err
+	}
+	updates[SettingKeySiteAppearance] = string(appearanceJSON)
 	updates[SettingKeyAPIBaseURL] = settings.APIBaseURL
 	updates[SettingKeyContactInfo] = settings.ContactInfo
 	updates[SettingKeyDocURL] = settings.DocURL

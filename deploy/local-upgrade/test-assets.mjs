@@ -33,7 +33,7 @@ function docker(args, input) {
   return r.stdout.trim()
 }
 const inspect = id => JSON.parse(docker(['inspect', id]))[0]
-const productionBefore = inspect('sub2api')
+const productionBefore = inspect('sub2api-current-app')
 const image = JSON.parse(docker(['image', 'inspect', candidate.imageId]))[0]
 assert.equal(image.Config.Labels['org.opencontainers.image.revision'], candidate.commit)
 assert.equal(image.Config.Labels['org.opencontainers.image.version'], candidate.version)

@@ -1,0 +1,240 @@
+/* Shared coverage for independent overlays and scoped upstream components. */
+:root[data-skin='neubrutalism'] [class*='shadow-']:not(:is(.btn, .skin-primary-action, .skin-dialog-panel, .skin-tooltip, .skin-toast, .select-dropdown-portal, .pulse-tooltip, .matrix-floating-tooltip)) {
+  box-shadow: none;
+}
+:root[data-skin='neubrutalism'] :is([class*='bg-gradient-'], .markdown-body th, .model-icon-fallback):not(.skin-usage-bar):not(.skin-chart-swatch) {
+  background-image: none !important;
+  background-color: var(--skin-neutral);
+  color: var(--skin-ink);
+}
+
+.skin-score-segment { display: none; }
+:root[data-skin='neubrutalism'] .score-legend { display: flex; }
+:root[data-skin='neubrutalism'] .skin-score-segment { display: block; flex: 1; height: 100%; }
+:root[data-skin='neubrutalism'] .skin-tooltip :is(.text-white, .text-gray-300) { color: var(--skin-ink); }
+:root[data-skin='neubrutalism'] .skin-tooltip > .rotate-45 { background: var(--skin-surface); border-right: 1px solid var(--skin-line); border-bottom: 1px solid var(--skin-line); }
+
+:root[data-skin='neubrutalism'] [class*='bg-gradient-'] :is(.text-white, [class*='dark:text-white']) {
+  color: var(--skin-ink);
+}
+
+:root[data-skin='neubrutalism'] :is(.animate-spin, .loading-spinner) {
+  border-radius: 50% !important;
+}
+
+:root[data-skin='neubrutalism'] :is(.skin-dialog-overlay, .modal-overlay) {
+  background: rgb(0 0 0 / 0.55) !important;
+  backdrop-filter: none;
+}
+
+:root[data-skin='neubrutalism'] :is(.skin-dialog-panel, .select-dropdown-portal, .pulse-tooltip, .matrix-floating-tooltip, .skin-tooltip, .skin-toast) {
+  background: var(--skin-surface) !important;
+  color: var(--skin-ink);
+  border: 1px solid var(--skin-line) !important;
+  border-radius: 0;
+  box-shadow: 4px 4px 0 var(--skin-line) !important;
+}
+
+:root[data-skin='neubrutalism'] :is(.skin-dialog-header, .skin-dialog-footer) {
+  background: var(--skin-surface) !important;
+  border-color: var(--skin-line);
+}
+
+:root[data-skin='neubrutalism'] .skin-dialog-panel :is(h2, h3) {
+  color: var(--skin-ink);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+:root[data-skin='neubrutalism'] :is(.skin-dialog-panel, .skin-toast) :is(.text-gray-400, .text-gray-500, .text-gray-600) {
+  color: var(--skin-muted);
+}
+
+:root[data-skin='neubrutalism'] :is(.skin-dialog-panel, .skin-toast, .skin-tooltip, .matrix-scroll)::-webkit-scrollbar-thumb {
+  background: var(--skin-muted);
+  border-radius: 0;
+}
+
+:root[data-skin='neubrutalism'] :is(.skin-dialog-accent, .skin-notice-icon) {
+  color: var(--skin-ink);
+  background: var(--skin-neutral) !important;
+  border: 1px solid var(--skin-line);
+  box-shadow: none;
+}
+
+:root[data-skin='neubrutalism'] .skin-dialog-rule {
+  background: var(--skin-line) !important;
+}
+
+:root[data-skin='neubrutalism'] .skin-primary-action {
+  background: var(--skin-lime) !important;
+  color: var(--site-accent-ink, #181818) !important;
+  border: 1px solid var(--skin-line);
+  box-shadow: 3px 3px 0 var(--skin-line) !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 700;
+  transform: none;
+}
+
+:root[data-skin='neubrutalism'] .skin-primary-action:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 var(--skin-line) !important;
+}
+
+:root[data-skin='neubrutalism'] .skin-primary-action:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--skin-line) !important;
+}
+
+/* Driver bypasses BaseDialog and ships its own important, fixed-color CSS. */
+:root[data-skin='neubrutalism'] .driver-popover.theme-tour-popover {
+  background: var(--skin-surface) !important;
+  color: var(--skin-ink) !important;
+  border: 1px solid var(--skin-line) !important;
+  border-radius: 0 !important;
+  box-shadow: 4px 4px 0 var(--skin-line) !important;
+}
+
+:root[data-skin='neubrutalism'] .theme-tour-popover :is(.driver-popover-title, .driver-popover-title-text, .driver-popover-description) {
+  color: var(--skin-ink) !important;
+}
+
+:root[data-skin='neubrutalism'] .theme-tour-popover .driver-popover-title {
+  font-weight: 800;
+  filter: grayscale(1);
+}
+
+:root[data-skin='neubrutalism'] .theme-tour-popover .driver-popover-footer {
+  flex-wrap: wrap;
+  gap: 12px;
+  background: var(--skin-neutral) !important;
+  border-top-color: var(--skin-line) !important;
+}
+
+:root[data-skin='neubrutalism'] .theme-tour-popover :is(.driver-popover-progress-text, .shortcut-item) {
+  color: var(--skin-muted) !important;
+}
+
+:root[data-skin='neubrutalism'] .theme-tour-popover .footer-shortcuts {
+  border-color: var(--skin-line-soft) !important;
+}
+
+:root[data-skin='neubrutalism'] .theme-tour-popover :is(button, .shortcut-item kbd) {
+  background: var(--skin-surface) !important;
+  color: var(--skin-ink) !important;
+  border: 1px solid var(--skin-line) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+:root[data-skin='neubrutalism'] .driver-popover.theme-tour-popover .driver-popover-next-btn {
+  background: var(--skin-lime) !important;
+  color: var(--site-accent-ink, #181818) !important;
+  box-shadow: 2px 2px 0 var(--skin-line) !important;
+  font-weight: 700 !important;
+}
+
+:root[data-skin='neubrutalism'] .theme-tour-popover button:disabled {
+  opacity: 0.5;
+}
+
+:root[data-skin='neubrutalism'] .theme-tour-popover .driver-popover-close-btn {
+  border: 0 !important;
+  padding: 0 !important;
+}
+
+:root[data-skin='neubrutalism'] .driver-active-element {
+  outline: 2px solid var(--skin-ink) !important;
+  outline-offset: 2px;
+  border-radius: 0 !important;
+}
+
+:root[data-skin='neubrutalism'] .theme-tour-popover .driver-popover-arrow-side-left { border-left-color: var(--skin-line) !important; }
+:root[data-skin='neubrutalism'] .theme-tour-popover .driver-popover-arrow-side-right { border-right-color: var(--skin-line) !important; }
+:root[data-skin='neubrutalism'] .theme-tour-popover .driver-popover-arrow-side-top { border-top-color: var(--skin-line) !important; }
+:root[data-skin='neubrutalism'] .theme-tour-popover .driver-popover-arrow-side-bottom { border-bottom-color: var(--skin-line) !important; }
+
+:root[data-skin='neubrutalism'] :is(.settings-tabs-shell, .settings-tab-active) {
+  background: var(--skin-surface);
+  border-color: var(--skin-line);
+  box-shadow: none;
+}
+
+:root[data-skin='neubrutalism'] :is(.settings-tab, .settings-tab-icon) {
+  color: var(--skin-ink);
+}
+
+:root[data-skin='neubrutalism'] .settings-tab::before {
+  background: var(--skin-neutral);
+}
+
+:root[data-skin='neubrutalism'] .settings-tab-active::after {
+  background: var(--skin-lime);
+  border-radius: 0;
+}
+
+:root[data-skin='neubrutalism'] .terminal-window {
+  max-width: 100%;
+  background: var(--skin-surface);
+  border: 1px solid var(--skin-line);
+  border-radius: 0;
+  box-shadow: 4px 4px 0 var(--skin-line);
+  transform: none;
+}
+
+:root[data-skin='neubrutalism'] .terminal-header {
+  background: var(--skin-neutral);
+  border-color: var(--skin-line);
+}
+
+:root[data-skin='neubrutalism'] .terminal-buttons span {
+  background: var(--skin-surface);
+  border: 1px solid var(--skin-line);
+  border-radius: 0;
+}
+
+:root[data-skin='neubrutalism'] .terminal-body { color: var(--skin-ink); }
+:root[data-skin='neubrutalism'] :is(.code-prompt, .code-cmd, .code-flag, .code-url, .code-response) { color: var(--skin-ink); }
+:root[data-skin='neubrutalism'] :is(.terminal-title, .code-comment) { color: var(--skin-muted); }
+:root[data-skin='neubrutalism'] .code-success { background: var(--skin-neutral); color: var(--skin-ink); border-radius: 0; }
+:root[data-skin='neubrutalism'] .terminal-body .cursor { background: var(--skin-lime); }
+:root[data-skin='neubrutalism'] .navigation-progress-bar { background: var(--skin-lime); }
+:root[data-skin='neubrutalism'] .skeleton { background: var(--skin-neutral); border-radius: 0; }
+:root[data-skin='neubrutalism'] .toc-sidebar { box-shadow: none; border-right: 1px solid var(--skin-line); }
+:root[data-skin='neubrutalism'] .copy-btn { color: var(--skin-ink); background: var(--skin-surface); border-color: var(--skin-line); border-radius: 0; }
+:root[data-skin='neubrutalism'] .sidebar-section-title::after { background: var(--skin-line-soft); }
+
+:root[data-skin='neubrutalism'] .aliyun-captcha-button {
+  color: var(--skin-ink);
+  background: var(--skin-surface);
+  border-color: var(--skin-line);
+  border-radius: 0;
+}
+
+:root[data-skin='neubrutalism'] .aliyun-captcha-button--verified { border-style: dashed; }
+:root[data-skin='neubrutalism'] :is(.pulse-tooltip-line, .matrix-floating-tooltip-line) { color: var(--skin-muted); }
+:root[data-skin='neubrutalism'] :is(.pulse-tooltip-title, .matrix-floating-tooltip-title) { color: var(--skin-ink); }
+:root[data-skin='neubrutalism'] .pulse-cell.has-data:is(:hover, :focus-visible) { outline-color: var(--skin-ink); }
+
+/* Health scores retain order through hatch density rather than solid color. */
+:root[data-skin='neubrutalism'] :is([class*='health-score'], .health-healthy, .health-warning, .health-critical) {
+  background-color: var(--skin-surface);
+  background-image: repeating-linear-gradient(135deg, var(--skin-muted) 0 1px, transparent 1px var(--health-gap, 6px));
+  box-shadow: inset 0 0 0 1px var(--skin-line-soft);
+  border-radius: 0;
+}
+:root[data-skin='neubrutalism'] :is(.health-score0, .health-score1) { --health-gap: 2px; }
+:root[data-skin='neubrutalism'] :is(.health-score2, .health-score3, .health-critical) { --health-gap: 3px; }
+:root[data-skin='neubrutalism'] :is(.health-score4, .health-score5) { --health-gap: 4px; }
+:root[data-skin='neubrutalism'] :is(.health-score6, .health-score7, .health-warning) { --health-gap: 6px; }
+:root[data-skin='neubrutalism'] :is(.health-score8, .health-score9) { --health-gap: 8px; }
+:root[data-skin='neubrutalism'] :is(.health-score10, .health-healthy) { --health-gap: 10px; }
+:root[data-skin='neubrutalism'] .health-unknown { background: var(--skin-neutral); border: 1px dashed var(--skin-line-soft); border-radius: 0; }
+:root[data-skin='neubrutalism'] .score-legend { background: none; }
+
+@media (max-width: 480px) {
+  :root[data-skin='neubrutalism'] .theme-tour-popover .footer-shortcuts { display: none !important; }
+  :root[data-skin='neubrutalism'] .theme-tour-popover :is(.driver-popover-title, .driver-popover-footer) { padding-left: 16px !important; padding-right: 16px !important; }
+  :root[data-skin='neubrutalism'] .theme-tour-popover .driver-popover-description { padding-left: 16px !important; padding-right: 16px !important; }
+  :root[data-skin='neubrutalism'] .skin-toast { min-width: 0; max-width: calc(100vw - 32px); }
+}

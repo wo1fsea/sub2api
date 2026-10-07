@@ -11,7 +11,8 @@ import OpsErrorDistributionChart from '@/views/admin/ops/components/OpsErrorDist
 import OpsThroughputTrendChart from '@/views/admin/ops/components/OpsThroughputTrendChart.vue'
 import OpsErrorTrendChart from '@/views/admin/ops/components/OpsErrorTrendChart.vue'
 import OpsSwitchRateTrendChart from '@/views/admin/ops/components/OpsSwitchRateTrendChart.vue'
-import { setSkin } from '@/composables/useSkin'
+import { applySiteAppearance } from '@/composables/useSkin'
+const setSkin = (skin: 'original' | 'neubrutalism') => applySiteAppearance({ skin, mode: document.documentElement.classList.contains('dark') ? 'dark' : 'light' })
 
 vi.mock('vue-i18n', async (importOriginal) => ({
   ...await importOriginal<typeof import('vue-i18n')>(),

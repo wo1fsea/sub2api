@@ -132,7 +132,7 @@
       <div class="mt-4 flex flex-col gap-2" :aria-label="t('channelMonitorV2.matrix.legendAria')">
         <div class="flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
           <span class="shrink-0">{{ t('channelMonitorV2.matrix.bad') }}</span>
-          <div class="score-legend h-2.5 flex-1 overflow-hidden rounded-full"></div>
+          <div class="score-legend h-2.5 flex-1 overflow-hidden rounded-full"><span v-for="score in 11" :key="score" class="skin-score-segment" :class="`health-score${score - 1}`"></span></div>
           <span class="shrink-0">{{ t('channelMonitorV2.matrix.good') }}</span>
         </div>
         <div class="flex flex-wrap gap-4 text-[11px] text-gray-500 dark:text-gray-400">

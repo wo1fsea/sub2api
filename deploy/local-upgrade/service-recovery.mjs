@@ -137,14 +137,25 @@ export function desiredCompose(seed) {
   }, networks: { production: { external: true, name: 'sub2api_sub2api-network' }, assets: { internal: true } }, volumes: { 'current-data': {} } }
 }
 
-export function assertCurrent(container) {
-  assert.equal(container.Image, image, 'The current application image changed')
+export function assertCurrent(container, expectedImage = image) {
+  assert.equal(container.Image, expectedImage, 'The current application image changed')
   assert.equal(container.Config.Labels['com.docker.compose.project'], project)
   const env = environment(container)
   assert.equal(env.TOKEN_REFRESH_ENABLED, 'true')
   assert.equal(env.USAGE_CLEANUP_ENABLED, 'true')
   assert.equal(env.CHANNEL_MONITOR_V2_DISABLE_AGGREGATOR, '0')
   assert.equal(env.GATEWAY_SCHEDULING_LEGACY_SNAPSHOT_COMPAT, 'false')
+}
+
+export function releasePin(state, manifest, metadata) {
+  assert.equal(manifest.version, '0.2.13')
+  assert.match(manifest.imageId, /^sha256:[a-f0-9]{64}$/)
+  assert.match(manifest.commit, /^[a-f0-9]{40}$/)
+  assert.equal(state.image, manifest.imageId)
+  assert.equal(metadata.Id, manifest.imageId)
+  assert.equal(metadata.Config.Labels['org.opencontainers.image.revision'], manifest.commit)
+  assert.equal(metadata.Config.Labels['org.opencontainers.image.version'], manifest.version)
+  return manifest.imageId
 }
 
 export function assertVersion(payload) {
@@ -311,6 +322,16 @@ async function boot(manageRoute = true) {
   assert.equal(state.phase, 'active-old-retired', 'Recovery is disabled until retirement finishes')
   const available = spawnSync('/opt/homebrew/bin/docker', ['info', '--format', '{{.ServerVersion}}'], { encoding: 'utf8', timeout: 10_000 })
   if (available.status !== 0) command('/opt/homebrew/bin/colima', ['start'], undefined, 180_000)
+  let activeImage = image
+  if (state.releaseManifest) {
+    assert.match(state.releaseManifest, /^\/Users\/clawbotbot\/Projects\/sub2api-neubrutalism\/release\/sub2api_0\.2\.13_linux_arm64_[a-f0-9]{12}\/manifest\.json$/)
+    const bytes = await readFile(state.releaseManifest)
+    assert.equal(sha(bytes), state.releaseManifestSha256, 'Active release manifest changed')
+    const manifest = JSON.parse(bytes)
+    activeImage = releasePin(state, manifest, JSON.parse(docker(['image', 'inspect', manifest.imageId]))[0])
+    const config = JSON.parse(await readFile(composePath, 'utf8'))
+    assert.equal(config.services.app.image, activeImage, 'Recovery compose pin differs from release')
+  }
   for (const { name, container } of optionalRetired()) retiredStatus(name, container)
   for (const dependency of state.dependencies) {
     const container = inspect(dependency.name)
@@ -322,15 +343,15 @@ async function boot(manageRoute = true) {
     if (!found) docker([...compose, 'up', '-d', '--no-deps', service])
     else {
       const container = inspect(name)
-      const desired = { app: image, ingress: proxyImage, assets: caddyImage, compat: caddyImage }
+      const desired = { app: activeImage, ingress: proxyImage, assets: caddyImage, compat: caddyImage }
       assert.equal(container.Image, desired[service], 'Recovery will not replace an unexpected image')
       assert.equal(container.Config.Labels['com.docker.compose.project'], project)
       assert.equal(container.HostConfig.RestartPolicy.Name, 'always')
-      if (service === 'app') assertCurrent(container)
+      if (service === 'app') assertCurrent(container, activeImage)
       if (!container.State.Running) docker(['start', name])
     }
   }
-  assertCurrent(inspect(names.app))
+  assertCurrent(inspect(names.app), activeImage)
   assert.equal(await readFile(join(directory, 'haproxy.cfg'), 'utf8'), routing(`${names.app}:8080`))
   // A manual stop may finish after the initial inspection; retry only starts
   // this already-validated set rather than accepting a false healthy snapshot.
@@ -341,7 +362,7 @@ async function boot(manageRoute = true) {
   await ready(entry, 'blue', restoreStopped)
   if (manageRoute) await setEntry()
   for (const { name, container } of optionalRetired()) retiredStatus(name, container)
-  return { ok: true, checkedAt: new Date().toISOString(), version: '0.2.13', image, entry,
+  return { ok: true, checkedAt: new Date().toISOString(), version: '0.2.13', image: activeImage, entry,
     backgroundOwner: names.app, routePending: !manageRoute }
 }
 

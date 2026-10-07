@@ -2,18 +2,20 @@ import { createServer } from 'vite'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 
-const { values } = parseArgs({ options: { port: { type: 'string', default: '18381' } } })
+const { values } = parseArgs({ options: { port: { type: 'string', default: '18381' }, role: { type: 'string', default: 'admin' } } })
 const port = Number(values.port)
 if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('Invalid preview port')
 const root = fileURLToPath(new URL('../', import.meta.url))
 const timestamp = '2026-10-02T08:00:00Z'
+let webSearchFixture = { enabled: false, providers: [] }
 const user = {
-  id: 1, username: 'Preview Admin', email: 'preview@example.invalid', role: 'admin',
+  id: 1, username: 'Preview Admin', email: 'preview@example.invalid', role: values.role === 'user' ? 'user' : 'admin',
   balance: 128.5, frozen_balance: 0, concurrency: 4, status: 'active', allowed_groups: [],
   balance_notify_enabled: false, balance_notify_threshold: null, balance_notify_extra_emails: [],
   subscriptions: [], created_at: timestamp, updated_at: timestamp, run_mode: 'standard'
 }
 const settings = {
+  site_appearance: { skin: 'neubrutalism', mode: 'light', accent_color: '#d4ff3f' },
   site_name: 'Sub2API', site_logo: '', site_subtitle: 'AI API Gateway', api_base_url: '',
   contact_info: '', doc_url: '', home_content: '', compact_home_enabled: true,
   registration_enabled: false, email_verify_enabled: false, password_reset_enabled: false,
@@ -111,8 +113,9 @@ const previewPlugin = {
   configureServer(server) {
     server.middlewares.use((req, res, next) => {
       const path = new URL(req.url, `http://127.0.0.1:${port}`).pathname
-      if (path === '/__skin/charts') {
-        server.transformIndexHtml(path, '<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>图表样式预览</title></head><body><div id="app"></div><script type="module" src="/scripts/chart-skin-preview.ts"></script></body></html>')
+      if (path === '/__skin/charts' || path === '/__skin/components') {
+        const entry = path.endsWith('components') ? 'component-skin-preview' : 'chart-skin-preview'
+        server.transformIndexHtml(path, `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>样式预览</title></head><body><div id="app"></div><script type="module" src="/scripts/${entry}.ts"></script></body></html>`)
           .then(html => { res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(html) })
           .catch(error => { res.statusCode = 500; res.end('Preview could not render'); console.error(error.message) })
         return
@@ -120,12 +123,42 @@ const previewPlugin = {
       if (!/^\/(api|v1|setup)(\/|$)/.test(path)) return next()
       res.setHeader('Content-Type', 'application/json; charset=utf-8')
       res.setHeader('Cache-Control', 'no-store')
+      const previewRole = req.headers.authorization === 'Bearer synthetic-user-preview' ? 'user' : user.role
+      if (path.startsWith('/api/v1/admin/') && previewRole !== 'admin') {
+        res.statusCode = 403
+        res.end(JSON.stringify({ code: 403, message: 'Administrator required' }))
+        return
+      }
+      if (path === '/api/v1/admin/settings/web-search-emulation' && ['GET', 'PUT'].includes(req.method) && previewRole === 'admin') {
+        if (req.method === 'GET') { res.end(JSON.stringify({ code: 0, data: webSearchFixture })); return }
+        let body = ''
+        req.on('data', chunk => { body += chunk; if (body.length > 262144) req.destroy() })
+        req.on('end', () => {
+          try { webSearchFixture = JSON.parse(body); res.end(JSON.stringify({ code: 0, data: webSearchFixture })) }
+          catch { res.statusCode = 400; res.end(JSON.stringify({ code: 400 })) }
+        })
+        return
+      }
+      // Only this in-memory fixture can change; production forwarding stays disabled.
+      if (req.method === 'PUT' && path === '/api/v1/admin/settings' && user.role === 'admin') {
+        let body = ''
+        req.on('data', chunk => { body += chunk; if (body.length > 262144) req.destroy() })
+        req.on('end', () => {
+          try {
+            const appearance = JSON.parse(body).site_appearance
+            if (!['original', 'neubrutalism'].includes(appearance?.skin) || !['light', 'dark'].includes(appearance?.mode) || !/^#[\da-f]{6}$/i.test(appearance?.accent_color)) throw new Error('Invalid appearance')
+            settings.site_appearance = appearance
+            res.end(JSON.stringify({ code: 0, data: settings }))
+          } catch { res.statusCode = 400; res.end(JSON.stringify({ code: 400, message: 'Invalid synthetic appearance' })) }
+        })
+        return
+      }
       if (req.method !== 'GET' && req.method !== 'HEAD') {
         res.statusCode = 405
         res.end(JSON.stringify({ code: 405, message: 'Read-only synthetic preview', data: null }))
         return
       }
-      const data = fixtures.get(path)
+      const data = path === '/api/v1/auth/me' && previewRole === 'user' ? { ...user, role: 'user' } : fixtures.get(path)
       res.statusCode = data === undefined ? 404 : 200
       res.end(JSON.stringify({ code: data === undefined ? 404 : 0,
         message: data === undefined ? 'No preview fixture for this endpoint' : 'Synthetic preview', data: data ?? null }))
@@ -136,12 +169,12 @@ const previewPlugin = {
     handler(html) {
       const script = `<script>window.__APP_CONFIG__=${JSON.stringify(settings)};
         if(location.pathname==='/login'){localStorage.removeItem('auth_token');localStorage.removeItem('auth_user');}
-        else{localStorage.setItem('auth_token','synthetic-preview-only');localStorage.setItem('auth_user',${JSON.stringify(JSON.stringify(user))});}
+        else{const u=${JSON.stringify(user)};if(new URLSearchParams(location.search).get('role')==='user')u.role='user';localStorage.setItem('auth_token',u.role==='user'?'synthetic-user-preview':'synthetic-preview-only');localStorage.setItem('auth_user',JSON.stringify(u));}
         localStorage.setItem('ops_monitoring_enabled_cached','false');
         localStorage.setItem('admin_guide_1_admin_v4_interactive','true');
         if(!localStorage.getItem('sub2api_locale'))localStorage.setItem('sub2api_locale','zh');</script>`
       return html.replace('</head>', `${script}<style>body{padding-top:30px}.sidebar{top:30px!important}.skin-app-header{top:30px!important}</style></head>`).replace('<body>',
-        '<body><div style="height:30px;padding:6px 16px;background:#171813;color:#fffefa;font:12px/1.5 system-ui;position:fixed;top:0;left:0;right:0;z-index:60">本地演示 / Synthetic data / Read-only</div>')
+        '<body><div style="height:30px;padding:6px 16px;background:#171813;color:#fffefa;font:12px/1.5 system-ui;position:fixed;top:0;left:0;right:0;z-index:60">本地演示 / Synthetic data / 主题设置仅存于演示内存</div>')
     }
   }
 }
@@ -151,7 +184,7 @@ const server = await createServer({ root, plugins: [previewPlugin], server: {
   host: '127.0.0.1', port, strictPort: true
 } })
 await server.listen()
-console.log(`Read-only skin preview: http://127.0.0.1:${port}/admin/dashboard`)
+console.log(`Isolated skin preview (appearance writes are in memory only): http://127.0.0.1:${port}/admin/dashboard`)
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.once(signal, async () => { await server.close(); process.exit(0) })
 }

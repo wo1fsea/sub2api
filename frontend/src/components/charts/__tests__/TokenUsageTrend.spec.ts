@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, mount } from '@vue/test-utils'
 
 import TokenUsageTrend from '../TokenUsageTrend.vue'
-import { setSkin } from '@/composables/useSkin'
+import { applySiteAppearance } from '@/composables/useSkin'
+const setSkin = (skin: 'original' | 'neubrutalism') => applySiteAppearance({ skin, mode: document.documentElement.classList.contains('dark') ? 'dark' : 'light' })
 
 enableAutoUnmount(afterEach)
 

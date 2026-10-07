@@ -9,6 +9,7 @@ import AnnouncementPopup from '@/components/common/AnnouncementPopup.vue'
 import { useAppStore, useAuthStore, useSubscriptionStore, useAnnouncementStore, useAdminComplianceStore, useAdminSettingsStore } from '@/stores'
 import { getSetupStatus } from '@/api/setup'
 import { updateFavicon } from '@/utils/branding'
+import { useSkin } from '@/composables/useSkin'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 
@@ -20,6 +21,12 @@ const subscriptionStore = useSubscriptionStore()
 const announcementStore = useAnnouncementStore()
 const adminComplianceStore = useAdminComplianceStore()
 const adminSettingsStore = useAdminSettingsStore()
+const { appearance } = useSkin()
+let appearancePoll: ReturnType<typeof setInterval> | undefined
+
+function refreshAppearance() {
+  if (document.visibilityState === 'visible') void appStore.fetchPublicSettings(true)
+}
 
 function updateDocumentTitle() {
   const customMenuItems = [
@@ -33,12 +40,8 @@ function updateDocumentTitle() {
 
 // Watch for site settings changes and update favicon/title
 watch(
-  () => appStore.siteLogo,
-  (newLogo) => {
-    if (newLogo) {
-      updateFavicon(newLogo)
-    }
-  },
+  [() => appStore.siteLogo, () => appearance.value],
+  ([newLogo]) => updateFavicon(newLogo),
   { immediate: true }
 )
 
@@ -135,11 +138,17 @@ router.afterEach(() => {
 })
 
 onBeforeUnmount(() => {
+  clearInterval(appearancePoll)
+  document.removeEventListener('visibilitychange', refreshAppearance)
+  window.removeEventListener('focus', refreshAppearance)
   document.removeEventListener('visibilitychange', onVisibilityChange)
   window.removeEventListener('admin-compliance-required', onAdminComplianceRequired)
 })
 
 onMounted(async () => {
+  document.addEventListener('visibilitychange', refreshAppearance)
+  window.addEventListener('focus', refreshAppearance)
+  appearancePoll = setInterval(refreshAppearance, 30000)
   window.addEventListener('admin-compliance-required', onAdminComplianceRequired)
 
   // Check if setup is needed

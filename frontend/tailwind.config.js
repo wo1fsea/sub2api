@@ -82,13 +82,20 @@ export default {
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace']
       },
       boxShadow: {
-        glass: '0 8px 32px rgba(0, 0, 0, 0.08)',
-        'glass-sm': '0 4px 16px rgba(0, 0, 0, 0.06)',
-        glow: '0 0 20px rgba(20, 184, 166, 0.25)',
-        'glow-lg': '0 0 40px rgba(20, 184, 166, 0.35)',
-        card: '0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06)',
-        'card-hover': '0 10px 40px rgba(0, 0, 0, 0.08)',
-        'inner-glow': 'inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+        sm: 'var(--site-flat-shadow, 0 1px 2px 0 rgb(0 0 0 / 0.05))',
+        DEFAULT: 'var(--site-flat-shadow, 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1))',
+        md: 'var(--site-flat-shadow, 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1))',
+        lg: 'var(--site-flat-shadow, 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1))',
+        xl: 'var(--site-flat-shadow, 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1))',
+        '2xl': 'var(--site-flat-shadow, 0 25px 50px -12px rgb(0 0 0 / 0.25))',
+        inner: 'var(--site-flat-shadow, inset 0 2px 4px 0 rgb(0 0 0 / 0.05))',
+        glass: 'var(--site-flat-shadow, 0 8px 32px rgba(0, 0, 0, 0.08))',
+        'glass-sm': 'var(--site-flat-shadow, 0 4px 16px rgba(0, 0, 0, 0.06))',
+        glow: 'var(--site-flat-shadow, 0 0 20px rgba(20, 184, 166, 0.25))',
+        'glow-lg': 'var(--site-flat-shadow, 0 0 40px rgba(20, 184, 166, 0.35))',
+        card: 'var(--site-flat-shadow, 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06))',
+        'card-hover': 'var(--site-flat-shadow, 0 10px 40px rgba(0, 0, 0, 0.08))',
+        'inner-glow': 'var(--site-flat-shadow, inset 0 1px 0 rgba(255, 255, 255, 0.1))'
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
@@ -107,7 +114,7 @@ export default {
         'scale-in': 'scaleIn 0.2s ease-out',
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         shimmer: 'shimmer 2s linear infinite',
-        glow: 'glow 2s ease-in-out infinite alternate'
+        glow: 'var(--site-flat-shadow, glow 2s ease-in-out infinite alternate)'
       },
       keyframes: {
         fadeIn: {
@@ -140,9 +147,17 @@ export default {
         }
       },
       backdropBlur: {
-        xs: '2px'
+        xs: 'var(--site-backdrop-blur, 2px)',
+        sm: 'var(--site-backdrop-blur, 4px)',
+        DEFAULT: 'var(--site-backdrop-blur, 8px)',
+        md: 'var(--site-backdrop-blur, 12px)',
+        lg: 'var(--site-backdrop-blur, 16px)',
+        xl: 'var(--site-backdrop-blur, 24px)',
+        '2xl': 'var(--site-backdrop-blur, 40px)',
+        '3xl': 'var(--site-backdrop-blur, 64px)'
       },
       borderRadius: {
+        full: 'var(--skin-full-radius, 9999px)',
         sm: 'var(--skin-radius, 0.125rem)',
         DEFAULT: 'var(--skin-radius, 0.25rem)',
         md: 'var(--skin-radius, 0.375rem)',

@@ -17,9 +17,11 @@ const [image] = JSON.parse(docker(['image', 'inspect', manifest.imageId]))
 assert.equal(`${image.Os}/${image.Architecture}`, manifest.platform)
 assert.equal(image.Config.Labels['org.opencontainers.image.revision'], manifest.commit)
 assert.equal(image.Config.Labels['org.opencontainers.image.version'], manifest.version)
-const containers = JSON.parse(docker(['inspect', 'sub2api', 'sub2api-postgres', 'sub2api-redis']))
+const appName = process.env.SUB2API_PREFLIGHT_APP || 'sub2api-current-app'
+assert.equal(appName, 'sub2api-current-app')
+const containers = JSON.parse(docker(['inspect', appName, 'sub2api-postgres', 'sub2api-redis']))
 for (const item of containers) {
-  assert.equal(item.Config.Labels['com.docker.compose.project'], 'sub2api')
+  assert.equal(item.Config.Labels['com.docker.compose.project'], item.Name === `/${appName}` ? 'sub2api-current' : 'sub2api')
   assert.equal(item.State.Running, true)
   assert.equal(item.State.Health?.Status, 'healthy')
 }

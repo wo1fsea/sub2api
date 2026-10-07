@@ -7,7 +7,10 @@
   --skin-line: #171715;
   --skin-line-soft: #dcdcdc;
   --skin-neutral: #f4f4f4;
-  --skin-lime: #d4ff3f;
+  --skin-lime: var(--site-accent-color, #d4ff3f);
+  --site-flat-shadow: none;
+  --site-backdrop-blur: 0px;
+  --skin-full-radius: 0px;
   --skin-radius: 0px;
   --skin-white: 247 246 240;
   --skin-gray-50: 247 246 240;
@@ -88,7 +91,7 @@
 
 [data-skin='neubrutalism'] ::selection {
   background: var(--skin-lime);
-  color: #181818;
+  color: var(--site-accent-ink, #181818);
 }
 
 [data-skin='neubrutalism'] .skin-decoration {
@@ -174,7 +177,7 @@
 
 [data-skin='neubrutalism'] :is(.btn-primary, .skin-home-action) {
   background: var(--skin-lime);
-  color: #181818;
+  color: var(--site-accent-ink, #181818);
   border: 1px solid #181818;
   border-radius: 0;
   box-shadow: 3px 3px 0 #181818;
@@ -239,11 +242,12 @@
   border-style: dashed;
 }
 
-[data-skin='neubrutalism'] :is(.skin-brand-logo, .skin-locale-flag, svg, canvas, .model-icon-fallback, .score-legend, [class*='health-'], .driver-popover-description, .aliyun-captcha-button) {
+[data-skin='neubrutalism'] :is(.skin-locale-flag, svg, canvas, .model-icon-fallback, .driver-popover-description) {
   filter: grayscale(1);
 }
 
 [data-skin='neubrutalism'] .skin-brand-logo {
+  filter: none;
   box-shadow: none;
 }
 
@@ -414,7 +418,7 @@
 }
 
 :root[data-skin='neubrutalism'] .skin-dashboard :is(.btn-primary, .btn-primary *) {
-  color: #181818;
+  color: var(--site-accent-ink, #181818);
 }
 
 [data-skin='neubrutalism'] .skin-dashboard .date-picker-actions .date-picker-apply {

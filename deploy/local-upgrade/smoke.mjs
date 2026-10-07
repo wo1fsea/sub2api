@@ -87,6 +87,23 @@ try {
   assert.equal((await request('/api/v1/auth/me')).status, 401)
   checks.push('synthetic admin login', 'authenticated session', 'unauthenticated rejection')
 
+  const registration = await request('/api/v1/auth/register', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'user-smoke@example.invalid', password: env.SUB2API_SMOKE_ADMIN_PASSWORD })
+  })
+  assert.equal(registration.status, 200, 'Isolated ordinary user registration failed')
+  const ordinaryToken = (await registration.json()).data.access_token
+  assert.equal(typeof ordinaryToken, 'string')
+  const publicAppearance = (await (await request('/api/v1/settings/public')).json()).data.site_appearance
+  assert.deepEqual(publicAppearance, { skin: 'neubrutalism', mode: 'light', accent_color: '#d4ff3f' })
+  const deniedAppearance = await request('/api/v1/admin/settings', {
+    method: 'PUT', headers: { Authorization: `Bearer ${ordinaryToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ site_appearance: { skin: 'original', mode: 'dark', accent_color: '#000000' } })
+  })
+  assert.equal(deniedAppearance.status, 403)
+  assert.deepEqual((await (await request('/api/v1/settings/public')).json()).data.site_appearance, publicAppearance)
+  checks.push('shared appearance defaults', 'ordinary user appearance write denied without changing settings')
+
   const compliance = await request('/api/v1/admin/compliance', { headers })
   assert.equal(compliance.status, 200)
   assert.equal((await compliance.json()).data.required, true)

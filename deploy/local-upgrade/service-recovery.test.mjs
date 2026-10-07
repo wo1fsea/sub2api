@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { desiredCompose, roleEnvironment, routing, names, image, assertCurrent, assertVersion, retired, retiredStatus, acquireLock } from './service-recovery.mjs'
+import { desiredCompose, roleEnvironment, routing, names, image, assertCurrent, assertVersion, retired, retiredStatus, acquireLock, releasePin } from './service-recovery.mjs'
 
 test('background ownership moves to the new app without mutating its seed', () => {
   const seed = { JWT_SECRET: 'private-fixture', TOKEN_REFRESH_ENABLED: 'false', USAGE_CLEANUP_ENABLED: 'false', CHANNEL_MONITOR_V2_DISABLE_AGGREGATOR: '1' }
@@ -55,6 +55,16 @@ test('admin version uses the live API envelope and rejects another version', () 
   assert.doesNotThrow(() => assertVersion({ code: 0, data: { version: '0.2.13' } }))
   assert.throws(() => assertVersion({ data: { version: '0.2.4' } }))
   assert.throws(() => assertVersion({ data: { version: { version: '0.2.13' } } }))
+})
+
+test('a promoted release must match its manifest, image and embedded source', () => {
+  const id = 'sha256:' + 'a'.repeat(64), commit = 'b'.repeat(40)
+  const manifest = { imageId: id, commit, version: '0.2.13' }
+  const metadata = { Id: id, Config: { Labels: { 'org.opencontainers.image.revision': commit, 'org.opencontainers.image.version': '0.2.13' } } }
+  assert.equal(releasePin({ image: id }, manifest, metadata), id)
+  assert.throws(() => releasePin({ image: image }, manifest, metadata))
+  assert.throws(() => releasePin({ image: id }, { ...manifest, commit: 'c'.repeat(40) }, metadata))
+  assert.throws(() => releasePin({ image: id }, { ...manifest, version: '0.2.14' }, metadata))
 })
 
 test('removed retired containers are valid, but a resurrected owner still blocks recovery', () => {

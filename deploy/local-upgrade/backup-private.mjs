@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { createWriteStream } from 'node:fs'
-import { chmod, mkdir, mkdtemp, rename, stat, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, rename, stat, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, resolve } from 'node:path'
 import { spawn, spawnSync } from 'node:child_process'
 import { pipeline } from 'node:stream/promises'
@@ -51,11 +51,18 @@ async function archive(name, args, maxBytes) {
 
 const appName = process.env.SUB2API_BACKUP_APP || 'sub2api'
 const knownApps = {
+  'sub2api-current-app': 'sha256:84a75cafee9d37d19df5de7f50924cacdf68ffd7c925485be421b496325979ea',
   sub2api: 'sha256:ccf47a1c62e355f51f896e489f8253e119fe4101b103cd701ba458cc6c6f0f77',
   'sub2api-green-clash2': 'sha256:da20743ebb5610646c8a2898f0cd0c6850bda10d2ed20dbebd75242731563214',
   'sub2api-green-v0213': 'sha256:145ba95c309d12c854d802075272c3358f125a0b8f11ef9bcf248f49a7c07e6c'
 }
 assert(Object.hasOwn(knownApps, appName), 'Resolve the current known application before backing it up')
+if (appName === 'sub2api-current-app') {
+  const active = JSON.parse(await readFile('/Users/clawbotbot/Projects/sub2api-local/current-0.2.13/state.json', 'utf8'))
+  assert.equal(active.phase, 'active-old-retired')
+  assert.match(active.image, /^sha256:[a-f0-9]{64}$/)
+  knownApps[appName] = active.image
+}
 const containers = JSON.parse(docker(['inspect', appName, 'sub2api-postgres', 'sub2api-redis']))
 for (const container of containers) {
   assert.equal(container.State.Running, true)

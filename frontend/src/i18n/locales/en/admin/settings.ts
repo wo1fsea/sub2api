@@ -632,6 +632,12 @@ export default {
         testNoResults: 'No results found',
       },
       site: {
+        appearanceTitle: 'Site appearance',
+        appearanceDescription: 'Administrators manage one appearance for the sign-in page and every user. Save to apply the skin and light/dark mode. Accent color applies to the Neubrutalism skin.',
+        appearanceSkin: 'Skin',
+        appearanceOriginal: 'Original',
+        appearanceMode: 'Color mode',
+        appearanceAccent: 'Accent color',
         title: 'Site Settings',
         description: 'Customize site branding',
         backendMode: 'Backend Mode',

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Preview-only synthetic fixtures. This entry is never imported by the product.
 import { computed, ref } from 'vue'
-import SkinSwitcher from '../src/components/common/SkinSwitcher.vue'
+import { applySiteAppearance, useSkin } from '../src/composables/useSkin'
 import ModelDistributionChart from '../src/components/charts/ModelDistributionChart.vue'
 import GroupDistributionChart from '../src/components/charts/GroupDistributionChart.vue'
 import EndpointDistributionChart from '../src/components/charts/EndpointDistributionChart.vue'
@@ -62,8 +62,8 @@ const methods = computed(() => state.value === '数据' ? ['alipay', 'wxpay', 's
 const revenue = computed(() => trend.value.map(point => ({ date: point.date, count: point.requests, amount: { USD: point.cost * 10, CNY: point.cost * 40 } })))
 const account = { id: 1, name: 'Synthetic account', platform: 'openai', type: 'apikey' }
 function toggleDark() {
-  const dark = document.documentElement.classList.toggle('dark')
-  localStorage.setItem('theme', dark ? 'dark' : 'light')
+  const { appearance } = useSkin()
+  applySiteAppearance({ ...appearance.value, mode: appearance.value.mode === 'dark' ? 'light' : 'dark' })
 }
 </script>
 
@@ -71,7 +71,7 @@ function toggleDark() {
   <main class="mx-auto max-w-6xl space-y-6 p-4">
     <header class="flex flex-wrap items-center gap-3">
       <h1 class="mr-auto text-2xl font-bold">图表样式预览</h1>
-      <SkinSwitcher />
+      <button class="btn btn-secondary" @click="applySiteAppearance({ ...useSkin().appearance.value, skin: useSkin().skin.value === 'original' ? 'neubrutalism' : 'original' })">切换外观</button>
       <button class="btn btn-secondary" @click="toggleDark">切换明暗</button>
     </header>
     <nav class="flex flex-wrap gap-2">
