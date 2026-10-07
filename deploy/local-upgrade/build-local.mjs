@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const inputs = JSON.parse(await readFile(join(root, 'deploy/local-upgrade/build-inputs.json'), 'utf8'))
+// Keep the local ARM package name unchanged; remote x86 hosts need their own tag.
+inputs.platform = process.env.SUB2API_PLATFORM || inputs.platform
 const validation = JSON.parse(await readFile(join(root, 'deploy/local-upgrade/source-validation.json'), 'utf8'))
 const buildx = process.env.SUB2API_BUILDX || 'docker-buildx'
 const builder = process.env.SUB2API_BUILDER || 'sub2api-release-20261002'
@@ -32,7 +34,7 @@ assert.equal(run('git', ['status', '--porcelain'], true), '', 'Commit source cha
 assert.match(inputs.version, /^[0-9]+\.[0-9]+\.[0-9]+$/)
 assert.equal(inputs.upstreamTag, `v${inputs.version}`)
 assert.equal((await readFile(join(root, 'backend/cmd/server/VERSION'), 'utf8')).trim(), inputs.version)
-assert.equal(inputs.platform, 'linux/arm64')
+assert(['linux/arm64', 'linux/amd64'].includes(inputs.platform), 'Unsupported release platform')
 assert.equal(run('git', ['rev-parse', `${inputs.upstreamTag}^{commit}`], true), inputs.upstreamCommit)
 run('git', ['merge-base', '--is-ancestor', inputs.upstreamCommit, 'HEAD'])
 const commit = run('git', ['rev-parse', 'HEAD'], true)
@@ -47,7 +49,7 @@ if (inputs.buildResources.viteNodeOptions) {
     'Update the direct build stages if upstream changes its required checks')
 }
 const date = run('git', ['show', '-s', '--format=%cI', commit], true)
-const image = `sub2api-local:${inputs.version}-${commit.slice(0, 12)}`
+const image = `sub2api-local:${inputs.version}-${commit.slice(0, 12)}${inputs.platform === 'linux/amd64' ? '-amd64' : ''}`
 const name = `sub2api_${inputs.version}_${inputs.platform.replace('/', '_')}_${commit.slice(0, 12)}`
 const output = join(root, 'release', name)
 await mkdir(join(root, 'release'), { recursive: true })
