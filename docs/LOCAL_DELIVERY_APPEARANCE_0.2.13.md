@@ -15,6 +15,10 @@
 
 最终源码树、浏览器补查与构建证据见 `deploy/local-upgrade/source-validation.json`。跳过的条件测试不证明真实提供商可用。
 
+GitHub 失败检查为前端 Security Scan：`source-map-js` GHSA-68fv-2mgg-jv7q、`@vue/server-renderer` GHSA-g2v6-rqmx-r4w6，以及 xlsx 的两项过期豁免。采用兼容补丁升级：source-map-js 1.2.2、Vue 3.5.43（官方修复从 3.5.42 起）、SheetJS 官方分发的 xlsx 0.20.3；移除已不需要的 xlsx 豁免。没有延长安全例外或关闭扫描。xlsx 保留现有动态导入、工作簿生成和下载 API，锁文件记录官方包完整性。
+
+依赖修复后重新运行完整前端测试（341 文件 / 2612 测试）、类型、完整扩展名 ESLint 及 Vite 生产构建，全部通过。生产依赖审计 high=0、critical=0，既有例外检查通过；新 xlsx 生成和读回包含中文及数值的工作簿通过。
+
 ## 上线步骤
 
 1. 提交并推送已验证源码，按固定基础镜像和 linux/arm64 打包，校验镜像标签、摘要及 SHA256SUMS。

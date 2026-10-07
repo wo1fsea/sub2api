@@ -2,7 +2,7 @@
   "status": "source-checks-passed-not-production-approved",
   "recordedDate": "2026-10-07",
   "backendTree": "1bbc93516eb68873c08ebe5a56072fba8370f802",
-  "frontendTree": "31672c11a66037137fe992b27361f907fe2add4a",
+  "frontendTree": "c3bf80af3be11bede01d3cb790cbce37658a9366",
   "toolchain": "go1.27.0",
   "backendUnit": { "passed": true, "packagesPassed": 57, "testsPassed": 21863, "testsSkipped": 18 },
   "backendIntegration": { "passed": true, "packagesPassed": 51, "testsPassed": 13565, "testsSkipped": 18 },
@@ -14,6 +14,7 @@
     "typecheck": "passed",
     "lint": "passed",
     "productionBuild": "passed",
+    "securityAudit": { "high": 0, "critical": 0, "exceptionsCheck": "passed", "xlsxRoundtrip": "Chinese text and numeric cells passed with SheetJS 0.20.3" },
     "browser": {
       "viewport": "Current overlays checked at 390x844; desktop 1280x720. Prior diagonal-chart qualification retained. A later 320px viewport request did not take effect and is not counted as a new narrow-screen result.",
       "visual": "Light/dark announcements, login agreement, TOTP, guided tour, tooltip/toast; shared SVG mark on login and component preview; diagonal distribution charts and health matrix density with 11 legend segments; original-skin gradient retained.",
