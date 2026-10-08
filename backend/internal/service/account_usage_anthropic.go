@@ -72,10 +72,10 @@ func (s *AccountUsageService) getAnthropicUsage(ctx context.Context, account *Ac
 			}
 			resp, fetchErr := s.fetchOAuthUsageRaw(fetchCtx, account)
 			if fetchErr == nil && resp == nil {
-				fetchErr = fmt.Errorf("Anthropic usage query returned no snapshot")
+				fetchErr = fmt.Errorf("anthropic usage query returned no snapshot")
 			}
 			if fetchErr == nil && !hasObservedQuota(buildAnthropicActiveQuotaWindows(resp, nil)) {
-				fetchErr = fmt.Errorf("Anthropic usage query returned no observed quota")
+				fetchErr = fmt.Errorf("anthropic usage query returned no observed quota")
 			}
 			result := &apiUsageCache{response: resp, err: fetchErr, timestamp: time.Now()}
 			if fetchErr == nil {

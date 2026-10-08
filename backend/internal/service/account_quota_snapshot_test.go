@@ -873,7 +873,7 @@ func TestAccountQuotaSnapshot_AnthropicResetOnlyFailureRetainsObservedQuota(t *t
 			window := quotaWindowByKey(t, usage.QuotaWindows, "five_hour")
 			require.Equal(t, 94.0, *window.Utilization)
 			require.Equal(t, sampledAt, *window.SampledAt)
-			require.Equal(t, "Anthropic usage query returned no observed quota", usage.QuotaSnapshotError)
+			require.Equal(t, "anthropic usage query returned no observed quota", usage.QuotaSnapshotError)
 			require.Empty(t, repo.updates)
 		})
 	}
