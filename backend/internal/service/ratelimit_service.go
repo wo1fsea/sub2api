@@ -2031,10 +2031,17 @@ func (s *RateLimitService) UpdateSessionWindow(ctx context.Context, account *Acc
 	if windowEnd != nil && needInitWindow {
 		_ = s.accountRepo.UpdateExtra(ctx, account.ID, map[string]any{
 			"session_window_utilization":      nil,
+			"session_window_reset":            nil,
+			"session_window_sampled_at":       nil,
+			"session_window_source":           nil,
 			"passive_usage_7d_utilization":    nil,
 			"passive_usage_7d_reset":          nil,
+			"passive_usage_7d_sampled_at":     nil,
+			"passive_usage_7d_source":         nil,
 			"passive_usage_7d_oi_utilization": nil,
 			"passive_usage_7d_oi_reset":       nil,
+			"passive_usage_7d_oi_sampled_at":  nil,
+			"passive_usage_7d_oi_source":      nil,
 			"passive_usage_sampled_at":        nil,
 		})
 	}
@@ -2060,14 +2067,22 @@ func (s *RateLimitService) samplePassiveUsageFromHeaders(ctx context.Context, ac
 	extraUpdates := make(map[string]any, 6)
 	// 5h utilization（0-1 小数），供 estimateSetupTokenUsage 使用
 	if utilStr := headers.Get("anthropic-ratelimit-unified-5h-utilization"); utilStr != "" {
-		if util, err := strconv.ParseFloat(utilStr, 64); err == nil {
-			extraUpdates["session_window_utilization"] = util
+		if util := quotaUtilization(utilStr, 1); util != nil {
+			extraUpdates["session_window_utilization"] = *util
+		}
+	}
+	if resetStr := headers.Get("anthropic-ratelimit-unified-5h-reset"); resetStr != "" && extraUpdates["session_window_utilization"] != nil {
+		if ts, err := strconv.ParseInt(resetStr, 10, 64); err == nil && ts > 0 {
+			if ts > 1e11 {
+				ts /= 1000
+			}
+			extraUpdates["session_window_reset"] = ts
 		}
 	}
 	// 7d utilization（0-1 小数）
 	if utilStr := headers.Get("anthropic-ratelimit-unified-7d-utilization"); utilStr != "" {
-		if util, err := strconv.ParseFloat(utilStr, 64); err == nil {
-			extraUpdates["passive_usage_7d_utilization"] = util
+		if util := quotaUtilization(utilStr, 1); util != nil {
+			extraUpdates["passive_usage_7d_utilization"] = *util
 		}
 	}
 	// 7d reset timestamp
@@ -2081,8 +2096,8 @@ func (s *RateLimitService) samplePassiveUsageFromHeaders(ctx context.Context, ac
 	}
 	// 7d_oi (Fable 专属 7d 窗口) utilization（0-1 小数）
 	if utilStr := headers.Get("anthropic-ratelimit-unified-7d_oi-utilization"); utilStr != "" {
-		if util, err := strconv.ParseFloat(utilStr, 64); err == nil {
-			extraUpdates["passive_usage_7d_oi_utilization"] = util
+		if util := quotaUtilization(utilStr, 1); util != nil {
+			extraUpdates["passive_usage_7d_oi_utilization"] = *util
 		}
 	}
 	// 7d_oi reset timestamp
@@ -2095,7 +2110,18 @@ func (s *RateLimitService) samplePassiveUsageFromHeaders(ctx context.Context, ac
 		}
 	}
 	if len(extraUpdates) > 0 {
-		extraUpdates["passive_usage_sampled_at"] = time.Now().UTC().Format(time.RFC3339)
+		sampledAt := time.Now().UTC().Format(time.RFC3339Nano)
+		hasUtilizationSample := false
+		for _, prefix := range []string{"session_window", "passive_usage_7d", "passive_usage_7d_oi"} {
+			if _, sampled := extraUpdates[prefix+"_utilization"]; sampled {
+				hasUtilizationSample = true
+				extraUpdates[prefix+"_sampled_at"] = sampledAt
+				extraUpdates[prefix+"_source"] = "response_headers"
+			}
+		}
+		if hasUtilizationSample {
+			extraUpdates["passive_usage_sampled_at"] = sampledAt
+		}
 		if err := s.accountRepo.UpdateExtra(ctx, account.ID, extraUpdates); err != nil {
 			slog.Warn("passive_usage_update_failed", "account_id", account.ID, "error", err)
 		}

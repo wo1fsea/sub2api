@@ -46,6 +46,7 @@ type OpenAIRateLimitWindow struct {
 	LimitWindowSeconds int64   `json:"limit_window_seconds"`
 	ResetAfterSeconds  int64   `json:"reset_after_seconds"`
 	ResetAt            int64   `json:"reset_at"`
+	quotaFieldPresence map[string]bool
 }
 
 // OpenAIRateLimit is a rate-limit envelope (primary + optional secondary window).
@@ -164,7 +165,18 @@ func NewOpenAIQuotaService(
 // OAuth account. Returns infraerrors so the handler layer can map them to
 // stable error codes / HTTP statuses.
 func (s *OpenAIQuotaService) QueryUsage(ctx context.Context, accountID int64) (*OpenAIQuotaUsage, error) {
-	accessToken, chatGPTAccountID, proxyURL, fedRAMP, err := s.prepareUpstreamCall(ctx, accountID)
+	return s.queryUsage(ctx, accountID, false)
+}
+
+// QueryUsageForOverview reads existing credentials and quota only. Missing or
+// expired authentication is reported without disabling scheduling, refreshing
+// tokens, creating/recovering Agent Identity tasks, or consuming reset credits.
+func (s *OpenAIQuotaService) QueryUsageForOverview(ctx context.Context, accountID int64) (*OpenAIQuotaUsage, error) {
+	return s.queryUsage(ctx, accountID, true)
+}
+
+func (s *OpenAIQuotaService) queryUsage(ctx context.Context, accountID int64, observationOnly bool) (*OpenAIQuotaUsage, error) {
+	accessToken, chatGPTAccountID, proxyURL, fedRAMP, err := s.prepareUpstreamCall(ctx, accountID, observationOnly)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +192,7 @@ func (s *OpenAIQuotaService) QueryUsage(ctx context.Context, accountID int64) (*
 
 	var payload OpenAIQuotaUsage
 	for recovered := false; ; {
-		quotaHeaders, expectedTaskID, headerErr := s.buildCodexQuotaHeaders(callCtx, accountID, accessToken, chatGPTAccountID, fedRAMP)
+		quotaHeaders, expectedTaskID, headerErr := s.buildCodexQuotaHeaders(callCtx, accountID, accessToken, chatGPTAccountID, fedRAMP, observationOnly)
 		if headerErr != nil {
 			return nil, infraerrors.Newf(http.StatusBadGateway, "OPENAI_QUOTA_AUTH_FAILED", "failed to build upstream authentication: %v", headerErr)
 		}
@@ -193,7 +205,7 @@ func (s *OpenAIQuotaService) QueryUsage(ctx context.Context, accountID int64) (*
 			return nil, infraerrors.Newf(http.StatusBadGateway, "OPENAI_QUOTA_REQUEST_FAILED", "upstream request failed: %v", err)
 		}
 		if !resp.IsSuccessState() {
-			if agentIdentity && !recovered && isAgentIdentityTaskInvalidHTTPResponse(resp.StatusCode, []byte(resp.String())) {
+			if !observationOnly && agentIdentity && !recovered && isAgentIdentityTaskInvalidHTTPResponse(resp.StatusCode, []byte(resp.String())) {
 				recovered = true
 				if err := s.recoverAgentIdentityTask(ctx, accountID, expectedTaskID); err != nil {
 					return nil, infraerrors.Newf(http.StatusBadGateway, "OPENAI_QUOTA_AUTH_FAILED", "agent identity task recovery failed: %v", err)
@@ -213,6 +225,9 @@ func (s *OpenAIQuotaService) QueryUsage(ctx context.Context, accountID int64) (*
 	}
 
 	payload.FetchedAt = time.Now().Unix()
+	if observationOnly {
+		return &payload, nil
+	}
 	details := s.queryResetCreditDetails(callCtx, client, accessToken, chatGPTAccountID, fedRAMP, accountID)
 	if details != nil {
 		payload.autoResetCandidates = details.AutoResetCandidates
@@ -441,7 +456,8 @@ func (s *OpenAIQuotaService) resetCredit(ctx context.Context, accountID int64, c
 // prepareUpstreamCall loads the account, validates it, obtains a fresh access
 // token via the shared TokenProvider, and resolves the chatgpt-account-id and
 // proxy URL. Centralized so QueryUsage / ResetCredit share validation.
-func (s *OpenAIQuotaService) prepareUpstreamCall(ctx context.Context, accountID int64) (accessToken, chatGPTAccountID, proxyURL string, fedRAMP bool, err error) {
+func (s *OpenAIQuotaService) prepareUpstreamCall(ctx context.Context, accountID int64, observation ...bool) (accessToken, chatGPTAccountID, proxyURL string, fedRAMP bool, err error) {
+	observationOnly := len(observation) > 0 && observation[0]
 	if s == nil || s.accountRepo == nil || s.privacyClientFactory == nil {
 		return "", "", "", false, infraerrors.New(http.StatusInternalServerError, "OPENAI_QUOTA_NOT_CONFIGURED", "openai quota service is not configured")
 	}
@@ -481,12 +497,25 @@ func (s *OpenAIQuotaService) prepareUpstreamCall(ctx context.Context, accountID 
 	}
 
 	if !account.IsOpenAIAgentIdentity() {
-		if s.tokenProvider == nil {
+		if observationOnly {
+			// The regular provider may permanently remove an expired account from
+			// scheduling. Quota inspection has no authority to make that change.
+			if s.tokenProvider != nil && s.tokenProvider.tokenCache != nil {
+				accessToken, _ = s.tokenProvider.tokenCache.GetAccessToken(ctx, OpenAITokenCacheKey(account))
+			}
+			if strings.TrimSpace(accessToken) == "" {
+				if expiresAt := account.GetOpenAITokenExpiresAt(); expiresAt != nil && !time.Now().Before(*expiresAt) {
+					return "", "", "", false, infraerrors.New(http.StatusBadGateway, "OPENAI_QUOTA_TOKEN_EXPIRED", "cached access token expired; quota observation cannot refresh credentials")
+				}
+				accessToken = account.GetOpenAIAccessToken()
+			}
+		} else if s.tokenProvider == nil {
 			return "", "", "", false, infraerrors.New(http.StatusInternalServerError, "OPENAI_QUOTA_NOT_CONFIGURED", "openai quota token provider is not configured")
-		}
-		accessToken, err = s.tokenProvider.GetAccessToken(ctx, account)
-		if err != nil {
-			return "", "", "", false, infraerrors.Newf(http.StatusBadGateway, "OPENAI_QUOTA_TOKEN_UNAVAILABLE", "failed to acquire access token: %v", err)
+		} else {
+			accessToken, err = s.tokenProvider.GetAccessToken(ctx, account)
+			if err != nil {
+				return "", "", "", false, infraerrors.Newf(http.StatusBadGateway, "OPENAI_QUOTA_TOKEN_UNAVAILABLE", "failed to acquire access token: %v", err)
+			}
 		}
 		if strings.TrimSpace(accessToken) == "" {
 			return "", "", "", false, infraerrors.New(http.StatusBadGateway, "OPENAI_QUOTA_TOKEN_UNAVAILABLE", "access token is empty")
@@ -550,7 +579,7 @@ func (s *OpenAIQuotaService) isAgentIdentityAccount(ctx context.Context, account
 	return account.IsOpenAIAgentIdentity()
 }
 
-func (s *OpenAIQuotaService) buildCodexQuotaHeaders(ctx context.Context, accountID int64, accessToken, chatGPTAccountID string, fedRAMP bool) (map[string]string, string, error) {
+func (s *OpenAIQuotaService) buildCodexQuotaHeaders(ctx context.Context, accountID int64, accessToken, chatGPTAccountID string, fedRAMP bool, observation ...bool) (map[string]string, string, error) {
 	headers := buildCodexCommonHeaders(accessToken, chatGPTAccountID, fedRAMP)
 	if s == nil || s.accountRepo == nil {
 		return headers, "", nil
@@ -572,8 +601,10 @@ func (s *OpenAIQuotaService) buildCodexQuotaHeaders(ctx context.Context, account
 	if !account.IsOpenAIAgentIdentity() {
 		return headers, "", nil
 	}
-	if err := ensureAgentIdentityTaskForAccount(ctx, s.accountRepo, s.agentIdentityWS, &s.agentIdentityTaskMu, account, ""); err != nil {
-		return nil, "", err
+	if len(observation) == 0 || !observation[0] {
+		if err := ensureAgentIdentityTaskForAccount(ctx, s.accountRepo, s.agentIdentityWS, &s.agentIdentityTaskMu, account, ""); err != nil {
+			return nil, "", err
+		}
 	}
 	key, err := agentIdentityKeyFromAccount(account)
 	if err != nil {
@@ -644,6 +675,9 @@ func buildCodexSparkWindowExtraUpdates(usage *OpenAIQuotaUsage, now time.Time) m
 	if usage == nil {
 		return nil
 	}
+	if usage.FetchedAt > 0 {
+		now = time.Unix(usage.FetchedAt, 0)
+	}
 	var spark *OpenAIRateLimit
 	for i := range usage.AdditionalRateLimits {
 		a := usage.AdditionalRateLimits[i]
@@ -659,22 +693,8 @@ func buildCodexSparkWindowExtraUpdates(usage *OpenAIQuotaUsage, now time.Time) m
 	// Reuse OpenAICodexUsageSnapshot / Normalize to map primary/secondary windows
 	// to canonical 5h/7d buckets (same logic as probeOpenAICodexSnapshot).
 	snap := &OpenAICodexUsageSnapshot{}
-	if w := spark.PrimaryWindow; w != nil {
-		p := w.UsedPercent
-		snap.PrimaryUsedPercent = &p
-		ra := int(w.ResetAfterSeconds)
-		snap.PrimaryResetAfterSeconds = &ra
-		wm := int(w.LimitWindowSeconds / 60)
-		snap.PrimaryWindowMinutes = &wm
-	}
-	if w := spark.SecondaryWindow; w != nil {
-		p := w.UsedPercent
-		snap.SecondaryUsedPercent = &p
-		ra := int(w.ResetAfterSeconds)
-		snap.SecondaryResetAfterSeconds = &ra
-		wm := int(w.LimitWindowSeconds / 60)
-		snap.SecondaryWindowMinutes = &wm
-	}
+	applyOpenAIObservedQuotaWindow(snap, spark.PrimaryWindow, true, now)
+	applyOpenAIObservedQuotaWindow(snap, spark.SecondaryWindow, false, now)
 
 	normalized := snap.Normalize()
 	if normalized == nil {
@@ -710,6 +730,7 @@ func buildCodexSparkWindowExtraUpdates(usage *OpenAIQuotaUsage, now time.Time) m
 		return nil
 	}
 	updates["codex_usage_updated_at"] = now.Format(time.RFC3339)
+	recordCodexQuotaWindowSamples(updates, now, "upstream")
 	return updates
 }
 

@@ -23,3 +23,17 @@ func TestShouldEnqueueSchedulerOutboxForExtraUpdates_OpenAIResponsesCapabilityKe
 		t.Fatalf("expected responses capability updates to enqueue scheduler outbox")
 	}
 }
+
+func TestShouldEnqueueSchedulerOutboxForExtraUpdates_QuotaSampleMetadataIsNeutral(t *testing.T) {
+	updates := map[string]any{
+		"session_window_sampled_at":          "2026-10-08T00:00:00Z",
+		"session_window_source":              "response_headers",
+		"session_window_reset":               1234,
+		"passive_usage_7d_sonnet_sampled_at": "2026-10-08T00:00:00Z",
+		"codex_5h_sampled_at":                "2026-10-08T00:00:00Z",
+		"codex_7d_source":                    "upstream",
+	}
+	if shouldEnqueueSchedulerOutboxForExtraUpdates(updates) {
+		t.Fatal("display-only quota metadata must not rebuild scheduler buckets")
+	}
+}

@@ -167,6 +167,7 @@ export default {
   // Navigation
   nav: {
     dashboard: 'Dashboard',
+    quotaOverview: 'Quota Overview',
     announcements: 'Announcements',
     apiKeys: 'API Keys',
     batchImage: 'Batch Images',

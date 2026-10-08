@@ -570,28 +570,16 @@ func buildOpenAIAutoResetUsageUpdates(usage *OpenAIQuotaUsage, now time.Time) ma
 	if usage == nil || usage.RateLimit == nil {
 		return nil
 	}
+	if usage.FetchedAt > 0 {
+		now = time.Unix(usage.FetchedAt, 0)
+	}
 	rateLimit := usage.RateLimit
 	snapshot := &OpenAICodexUsageSnapshot{UpdatedAt: now.UTC().Format(time.RFC3339)}
-	applyWindow := func(window *OpenAIRateLimitWindow, primary bool) {
-		if window == nil {
-			return
-		}
-		used := window.UsedPercent
-		resetAfter := int(window.ResetAfterSeconds)
-		windowMinutes := int(window.LimitWindowSeconds / 60)
-		if primary {
-			snapshot.PrimaryUsedPercent = &used
-			snapshot.PrimaryResetAfterSeconds = &resetAfter
-			snapshot.PrimaryWindowMinutes = &windowMinutes
-		} else {
-			snapshot.SecondaryUsedPercent = &used
-			snapshot.SecondaryResetAfterSeconds = &resetAfter
-			snapshot.SecondaryWindowMinutes = &windowMinutes
-		}
-	}
-	applyWindow(rateLimit.PrimaryWindow, true)
-	applyWindow(rateLimit.SecondaryWindow, false)
-	return buildCodexUsageExtraUpdates(snapshot, now)
+	applyOpenAIObservedQuotaWindow(snapshot, rateLimit.PrimaryWindow, true, now)
+	applyOpenAIObservedQuotaWindow(snapshot, rateLimit.SecondaryWindow, false, now)
+	updates := buildCodexUsageExtraUpdates(snapshot, now)
+	recordCodexQuotaWindowSamples(updates, now, "upstream")
+	return updates
 }
 
 func (s *OpenAIQuotaAutoResetService) persistFreshUsage(ctx context.Context, accountID int64, usage *OpenAIQuotaUsage, now time.Time) error {

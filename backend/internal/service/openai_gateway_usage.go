@@ -1114,6 +1114,7 @@ func buildCodexUsageExtraUpdates(snapshot *OpenAICodexUsageSnapshot, fallbackNow
 		}
 	}
 
+	recordCodexQuotaWindowSamples(updates, baseTime, "response_headers")
 	return updates
 }
 

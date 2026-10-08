@@ -2,9 +2,19 @@ import { createServer } from 'vite'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 
-const { values } = parseArgs({ options: { port: { type: 'string', default: '18381' }, role: { type: 'string', default: 'admin' } } })
+const { values } = parseArgs({ options: {
+  port: { type: 'string', default: '18381' },
+  role: { type: 'string', default: 'admin' },
+  appearance: { type: 'string', default: 'light' },
+  'quota-preview': { type: 'boolean', default: false },
+  'quota-scenario': { type: 'string', default: 'mixed' }
+} })
 const port = Number(values.port)
 if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('Invalid preview port')
+if (!['light', 'dark'].includes(values.appearance)) throw new Error('Invalid preview appearance')
+if (!['mixed', 'empty', 'failed'].includes(values['quota-scenario'])) throw new Error('Invalid quota preview scenario')
+const quotaPreview = values['quota-preview']
+const quotaScenario = values['quota-scenario']
 const root = fileURLToPath(new URL('../', import.meta.url))
 const timestamp = '2026-10-02T08:00:00Z'
 let webSearchFixture = { enabled: false, providers: [] }
@@ -15,7 +25,7 @@ const user = {
   subscriptions: [], created_at: timestamp, updated_at: timestamp, run_mode: 'standard'
 }
 const settings = {
-  site_appearance: { skin: 'neubrutalism', mode: 'light', accent_color: '#d4ff3f' },
+  site_appearance: { skin: 'neubrutalism', mode: values.appearance, accent_color: '#d4ff3f' },
   site_name: 'Sub2API', site_logo: '', site_subtitle: 'AI API Gateway', api_base_url: '',
   contact_info: '', doc_url: '', home_content: '', compact_home_enabled: true,
   registration_enabled: false, email_verify_enabled: false, password_reset_enabled: false,
@@ -48,6 +58,78 @@ const previewUsers = [
   { ...user, id: 2, username: 'Preview User', email: 'user@example.invalid', role: 'user', balance: 42.6 },
   { ...user, id: 3, username: 'Disabled User', email: 'disabled@example.invalid', role: 'user', status: 'disabled', balance: 0 }
 ].map(item => ({ ...item, notes: 'Synthetic preview record' }))
+
+// Quota fixtures are opt-in and never contain real credentials. Relative times
+// keep the fresh/expired examples useful without advancing a recorded reading.
+const quotaNow = Date.now()
+const quotaTime = minutes => new Date(quotaNow + minutes * 60_000).toISOString()
+const quotaSampledAt = quotaTime(-1)
+const quotaWindow = (key, utilization, resetMinutes, overrides = {}) => ({
+  key, utilization,
+  resets_at: resetMinutes === null ? null : quotaTime(resetMinutes),
+  sampled_at: quotaSampledAt,
+  source: 'response_headers',
+  window_minutes: key === 'five_hour' ? 300 : 10_080,
+  scope: 'account',
+  ...overrides
+})
+const quotaAccounts = [
+  { id: 101, name: 'Codex · 工作账号', platform: 'openai', plan: 'plus' },
+  { id: 102, name: 'Codex · 高频账号', platform: 'openai', plan: 'pro' },
+  { id: 103, name: 'Codex · 空闲账号', platform: 'openai', plan: 'plus' },
+  { id: 104, name: 'Claude · Sonnet 专用', platform: 'anthropic', plan: 'max' },
+  { id: 105, name: 'Claude · 待采样账号', platform: 'anthropic', plan: 'max' }
+].map(({ plan, ...account }) => ({
+  ...account, type: 'oauth', notes: 'Synthetic quota preview account',
+  credentials: { plan_type: plan }, credentials_status: {}, extra: {},
+  proxy_id: null, concurrency: 2, priority: 1, rate_multiplier: 1,
+  status: 'active', error_message: null, last_used_at: quotaSampledAt,
+  expires_at: null, auto_pause_on_expired: false,
+  created_at: quotaTime(-43_200), updated_at: quotaSampledAt,
+  group_ids: [], schedulable: true, rate_limited_at: null,
+  rate_limit_reset_at: null, overload_until: null,
+  temp_unschedulable_until: null, temp_unschedulable_reason: null,
+  session_window_start: null, session_window_end: null, session_window_status: null
+}))
+const quotaUsage = new Map([
+  [101, [quotaWindow('five_hour', 18, 160), quotaWindow('seven_day', 92, 2280)]],
+  [102, [quotaWindow('five_hour', 88, 85), quotaWindow('seven_day', 46, 4200)]],
+  // A confirmed zero usage sample is deliberately different from a missing one.
+  [103, [quotaWindow('five_hour', 0, 240), quotaWindow('seven_day', 0, 9600)]],
+  [104, [quotaWindow('seven_day_sonnet', 87, 1720, { scope: 'model', model: 'Sonnet' })]],
+  // Keep the expired percentage. Passing the reset time does not prove a new
+  // allowance was observed; the independent missing window remains unknown.
+  [105, [
+    quotaWindow('five_hour', 82, -8, { sampled_at: quotaTime(-120) }),
+    quotaWindow('seven_day', null, null, { sampled_at: null })
+  ]]
+].map(([id, windows]) => [id, {
+  source: 'passive', updated_at: windows[0].sampled_at,
+  five_hour: null, seven_day: null, seven_day_sonnet: null,
+  subscription_tier: id < 104 ? (id === 102 ? 'pro' : 'plus') : 'max',
+  quota_windows: windows
+}]))
+
+function quotaAccountPage(params) {
+  const positiveInteger = (raw, fallback, maximum = Number.MAX_SAFE_INTEGER) => {
+    const value = Number(raw)
+    return Number.isSafeInteger(value) && value > 0 && value <= maximum ? value : fallback
+  }
+  const page = positiveInteger(params.get('page'), 1)
+  const pageSize = positiveInteger(params.get('page_size') || params.get('limit'), 20, 1000)
+  const search = (params.get('search') || '').toLocaleLowerCase()
+  const items = (quotaScenario === 'empty' ? [] : quotaAccounts).filter(account =>
+    (!params.get('platform') || account.platform === params.get('platform')) &&
+    (!params.get('type') || account.type === params.get('type')) &&
+    (!params.get('status') || account.status === params.get('status')) &&
+    (!search || account.name.toLocaleLowerCase().includes(search)))
+  return {
+    items: items.slice((page - 1) * pageSize, page * pageSize),
+    total: items.length, page, page_size: pageSize,
+    pages: Math.ceil(items.length / pageSize)
+  }
+}
+
 const sampleUsage = (date, factor) => ({
   date, requests: 150 * factor, input_tokens: 12000 * factor, output_tokens: 8000 * factor,
   cache_creation_tokens: 1200 * factor, cache_read_tokens: 2400 * factor,
@@ -112,7 +194,8 @@ const previewPlugin = {
   },
   configureServer(server) {
     server.middlewares.use((req, res, next) => {
-      const path = new URL(req.url, `http://127.0.0.1:${port}`).pathname
+      const url = new URL(req.url, `http://127.0.0.1:${port}`)
+      const path = url.pathname
       if (path === '/__skin/charts' || path === '/__skin/components') {
         const entry = path.endsWith('components') ? 'component-skin-preview' : 'chart-skin-preview'
         server.transformIndexHtml(path, `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>样式预览</title></head><body><div id="app"></div><script type="module" src="/scripts/${entry}.ts"></script></body></html>`)
@@ -127,6 +210,33 @@ const previewPlugin = {
       if (path.startsWith('/api/v1/admin/') && previewRole !== 'admin') {
         res.statusCode = 403
         res.end(JSON.stringify({ code: 403, message: 'Administrator required' }))
+        return
+      }
+      if (quotaPreview && path === '/api/v1/admin/accounts/usage/batch' && req.method === 'POST') {
+        // This POST only reads fixture values. All other API writes retain the
+        // existing memory-only exceptions or are rejected below with 405.
+        let body = ''
+        req.on('data', chunk => { body += chunk; if (body.length > 262144) req.destroy() })
+        req.on('end', () => {
+          try {
+            const request = JSON.parse(body)
+            if (!Array.isArray(request.account_ids) || request.account_ids.length > 1000 ||
+                request.account_ids.some(id => !Number.isSafeInteger(id) || id <= 0)) {
+              throw new Error('Invalid synthetic account IDs')
+            }
+            const usage = {}
+            const errors = {}
+            for (const id of new Set(request.account_ids)) {
+              if (quotaScenario === 'failed') errors[id] = 'Synthetic quota query failed; previous reading is unchanged'
+              else if (quotaScenario === 'empty' || !quotaUsage.has(id)) errors[id] = 'Synthetic account not found'
+              else usage[id] = quotaUsage.get(id)
+            }
+            res.end(JSON.stringify({ code: 0, data: { usage, errors } }))
+          } catch {
+            res.statusCode = 400
+            res.end(JSON.stringify({ code: 400, message: 'Invalid synthetic usage request' }))
+          }
+        })
         return
       }
       if (path === '/api/v1/admin/settings/web-search-emulation' && ['GET', 'PUT'].includes(req.method) && previewRole === 'admin') {
@@ -158,7 +268,9 @@ const previewPlugin = {
         res.end(JSON.stringify({ code: 405, message: 'Read-only synthetic preview', data: null }))
         return
       }
-      const data = path === '/api/v1/auth/me' && previewRole === 'user' ? { ...user, role: 'user' } : fixtures.get(path)
+      const data = quotaPreview && path === '/api/v1/admin/accounts'
+        ? quotaAccountPage(url.searchParams)
+        : path === '/api/v1/auth/me' && previewRole === 'user' ? { ...user, role: 'user' } : fixtures.get(path)
       res.statusCode = data === undefined ? 404 : 200
       res.end(JSON.stringify({ code: data === undefined ? 404 : 0,
         message: data === undefined ? 'No preview fixture for this endpoint' : 'Synthetic preview', data: data ?? null }))
@@ -184,7 +296,7 @@ const server = await createServer({ root, plugins: [previewPlugin], server: {
   host: '127.0.0.1', port, strictPort: true
 } })
 await server.listen()
-console.log(`Isolated skin preview (appearance writes are in memory only): http://127.0.0.1:${port}/admin/dashboard`)
+console.log(`Isolated skin preview (appearance writes are in memory only): http://127.0.0.1:${port}/admin/${quotaPreview ? 'quota-overview' : 'dashboard'}${quotaPreview ? ` [quota: ${quotaScenario}]` : ''}`)
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.once(signal, async () => { await server.close(); process.exit(0) })
 }

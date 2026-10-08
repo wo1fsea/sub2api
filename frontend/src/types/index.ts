@@ -1428,7 +1428,21 @@ export interface GrokBillingSummary {
   failed_windows?: string[]
 }
 
+/** Authoritative quota readings are separate from legacy local usage statistics. */
+export interface AccountQuotaWindow {
+  key: string
+  utilization: number | null
+  resets_at: string | null
+  sampled_at: string | null
+  source: 'upstream' | 'response_headers' | 'estimated' | 'local'
+  window_minutes?: number
+  scope: 'account' | 'model'
+  model?: string
+}
+
 export interface AccountUsageInfo {
+  quota_windows?: AccountQuotaWindow[]
+  quota_snapshot_error?: string
   source?: 'passive' | 'active'
   updated_at: string | null
   five_hour: UsageProgress | null

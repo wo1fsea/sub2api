@@ -390,11 +390,20 @@ export interface BatchAccountUsageResponse {
   errors: Record<string, string>
 }
 
-export async function getBatchUsage(accountIds: number[], force?: boolean): Promise<BatchAccountUsageResponse> {
+export interface BatchAccountUsageRequestOptions {
+  timeout?: number
+  signal?: AbortSignal
+}
+
+export async function getBatchUsage(
+  accountIds: number[],
+  force?: boolean,
+  options?: BatchAccountUsageRequestOptions
+): Promise<BatchAccountUsageResponse> {
   const { data } = await apiClient.post<BatchAccountUsageResponse>('/admin/accounts/usage/batch', {
     account_ids: accountIds,
     force: force === true
-  })
+  }, options)
   return data
 }
 

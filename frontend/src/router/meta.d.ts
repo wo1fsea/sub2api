@@ -7,6 +7,8 @@ import 'vue-router'
 
 declare module 'vue-router' {
   interface RouteMeta {
+    /** Pages with their own heading avoid duplicating it in the app header. */
+    hidePageHeading?: boolean
     /**
      * Whether this route requires authentication
      * @default true

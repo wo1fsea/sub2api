@@ -415,6 +415,19 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/quota-overview',
+    name: 'AdminQuotaOverview',
+    component: () => import('@/views/admin/QuotaOverviewView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      hidePageHeading: true,
+      title: 'Quota Overview',
+      titleKey: 'admin.quotaOverview.title',
+      descriptionKey: 'admin.quotaOverview.description'
+    }
+  },
+  {
     path: '/admin/ops',
     name: 'AdminOps',
     component: () => import('@/views/admin/ops/OpsDashboard.vue'),
