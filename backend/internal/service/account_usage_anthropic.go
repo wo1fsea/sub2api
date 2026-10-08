@@ -111,7 +111,7 @@ func (s *AccountUsageService) getAnthropicUsage(ctx context.Context, account *Ac
 		cached, _ = result.(*apiUsageCache)
 	}
 	if cached == nil {
-		return nil, fmt.Errorf("Anthropic usage query returned no snapshot")
+		return nil, fmt.Errorf("anthropic usage query returned no snapshot")
 	}
 	if cached.response == nil {
 		// When the active request fails, persisted header observations are still
@@ -126,7 +126,7 @@ func (s *AccountUsageService) getAnthropicUsage(ctx context.Context, account *Ac
 		if cached.err != nil {
 			return nil, cached.err
 		}
-		return nil, fmt.Errorf("Anthropic usage query returned no snapshot")
+		return nil, fmt.Errorf("anthropic usage query returned no snapshot")
 	}
 	usage := s.buildUsageInfo(cached.response, anthropicSampleTime(cached))
 	usage.Source = "active"

@@ -138,9 +138,10 @@ func (s *AccountUsageService) getOpenAIBatchQuotaUsage(ctx context.Context, acco
 		if window.ResetsAt != nil {
 			progress.RemainingSeconds = max(0, int(time.Until(*window.ResetsAt).Seconds()))
 		}
-		if window.Key == "five_hour" {
+		switch window.Key {
+		case "five_hour":
 			usage.FiveHour = progress
-		} else if window.Key == "seven_day" {
+		case "seven_day":
 			usage.SevenDay = progress
 		}
 	}

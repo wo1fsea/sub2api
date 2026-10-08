@@ -672,9 +672,10 @@ func TestAccountQuotaSnapshot_OpenAIJSONMissingNullZeroAndAbsoluteReset(t *testi
 				t.Run(string(rune('0'+hours+1))+"/"+percentage+"/"+map[bool]string{false: "main", true: "spark"}[shadow], func(t *testing.T) {
 					resetAt := sampledAt.Add(time.Duration(hours) * time.Hour)
 					window := map[string]any{"limit_window_seconds": 18000, "reset_at": resetAt.Unix()}
-					if percentage == "null" {
+					switch percentage {
+					case "null":
 						window["used_percent"] = nil
-					} else if percentage == "zero" {
+					case "zero":
 						window["used_percent"] = 0
 					}
 					rateLimit := map[string]any{"primary_window": window, "secondary_window": nil}

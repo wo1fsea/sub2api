@@ -307,9 +307,10 @@ func buildAnthropicPassiveQuotaWindows(account *Account) []AccountQuotaWindow {
 		if i == 0 && utilization == nil {
 			// Status is a coarse signal, never an observed quota percentage.
 			source, sampledAt = "estimated", nil
-			if account.SessionWindowStatus == "rejected" {
+			switch account.SessionWindowStatus {
+			case "rejected":
 				utilization = quotaUtilization(100.0, 1)
-			} else if account.SessionWindowStatus == "allowed_warning" {
+			case "allowed_warning":
 				utilization = quotaUtilization(80.0, 1)
 			}
 		}
