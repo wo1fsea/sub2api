@@ -23,6 +23,8 @@ const quote = value => "'" + String(value).replaceAll("'", "'\\''") + "'"
 const now = () => new Date().toISOString()
 const assetPattern = /^\/assets\/[a-zA-Z0-9_.\/-]+-[a-zA-Z0-9_-]{6,}\.(?:js|css)$/
 const maxAssetBytes = 96 << 20
+const activationSteps = new Set(['candidate-proof', 'candidate-route', 'candidate-public-proof', 'retained-assets-before-current',
+  'rebuild-current', 'current-proof', 'current-route', 'current-public-proof', 'retained-assets-after-current', 'persist-current', 'cleanup-candidate'])
 
 export function validateRelease(manifest, manifestPath) {
   assert.equal(manifest.version, '0.2.13', 'This same-schema upgrade is qualified for 0.2.13 only')
@@ -85,6 +87,74 @@ export function requireResume(state, manifest, backupReport, time = Date.now()) 
   for (const file of backupReport.archives) {
     assert.match(file.sha256, /^[a-f0-9]{64}$/)
     assert(Number.isInteger(file.bytes) && file.bytes > 0)
+  }
+}
+
+export function requireRetry(record, state) {
+  assert.equal(record.phase, 'rolled-back', 'Only a completed verified rollback can be archived for another attempt')
+  for (const key of ['revision', 'commit', 'image', 'previousImage']) assert.equal(record[key], state[key])
+  assert.equal(record.rollbackGateway.completed, true)
+  assert.equal(record.rollbackGateway.httpStatus, 200)
+  assert.equal(record.rollbackGateway.automaticRetries, 0)
+  for (const key of ['candidateRemoved', 'candidateVolumeRemoved', 'ownedUploadRemoved']) assert.equal(record.cleanup[key], true)
+}
+
+export async function retryConnection(connect, work, { attempts = 3, wait = delay } = {}) {
+  assert(Number.isInteger(attempts) && attempts >= 1 && attempts <= 3)
+  let connection, last
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try { connection = await connect(attempt); break } catch (error) {
+      last = error
+      if (attempt < attempts) await wait(attempt * 750)
+    }
+  }
+  if (!connection) throw last
+  // After handshaking succeeds, HTTP/model work runs exactly once. A failure
+  // here cannot be retried as another billable or business request.
+  try { return await work(connection.base) } finally { await connection.close() }
+}
+
+export async function recordActivationFailure(directory, step, error) {
+  assert(activationSteps.has(step))
+  const record = { at: now(), step, name: String(error?.name || 'Error').slice(0, 128),
+    message: String(error?.message || error).slice(0, 16384), stack: String(error?.stack || '').slice(-16384) }
+  const path = join(directory, `activation-failure-${randomBytes(6).toString('hex')}.json`)
+  await writeFile(path, JSON.stringify(record, null, 2), { flag: 'wx', mode: 0o600 })
+  return { at: record.at, step, diagnostic: path }
+}
+
+function metadataFailure(state, operation, error) {
+  state.failureMetadataWrites ||= []
+  state.failureMetadataWrites.push({ operation, name: String(error?.name || 'Error').slice(0, 64),
+    code: String(error?.code || 'unavailable').slice(0, 64) })
+}
+
+export async function recoverActivationFailure(directory, state, step, error, {
+  record = recordActivationFailure, journal = save, restore = rollback
+} = {}) {
+  state.activationFailedAt = now()
+  state.activationFailure = { at: state.activationFailedAt, step, diagnosticSaved: false }
+  try {
+    state.activationFailure = { ...await record(directory, step, error), diagnosticSaved: true }
+  } catch (failure) { metadataFailure(state, 'activation-diagnostic', failure) }
+  try { await journal(directory, state) } catch (failure) { metadataFailure(state, 'activation-journal', failure) }
+  // Diagnostics never gate restoration of a previously working service.
+  try { await restore(directory, state) } catch {
+    state.phase = 'rollback-needs-attention'
+    try { await journal(directory, state) } catch (failure) { metadataFailure(state, 'rollback-attention-journal', failure) }
+    throw new Error('Activation failed and automatic rollback needs attention; the verified candidate and protected backup are retained')
+  }
+  throw new Error('Activation failed; old HK application and routing were restored and verified')
+}
+
+export async function recordFailedTunnel(child, record, diagnostic, { write = writeFile } = {}) {
+  try {
+    await write(diagnostic, JSON.stringify(record), { flag: 'wx', mode: 0o600 })
+    return { diagnosticSaved: true }
+  } catch {
+    return { diagnosticSaved: false }
+  } finally {
+    child.kill('SIGTERM')
   }
 }
 
@@ -207,14 +277,38 @@ elif action=='unlock':
     (p/'owner.json').unlink(); p.rmdir(); result={'unlocked':True}
 elif action=='inventory':
     compose,app,caddy,state,manifest=initial()
-    result={'app':summary(app),'caddy':summary(caddy),'previousCommit':state['commit'],'version':manifest['version'],'bootId':Path('/proc/sys/kernel/random/boot_id').read_text().strip(),'retainedAssets':read(deploy/'releases/retained-assets.json') if (deploy/'releases/retained-assets.json').exists() else {}}
+    prior=read(release/'state.json') if revision and (release/'state.json').exists() else None
+    result={'app':summary(app),'caddy':summary(caddy),'previousCommit':state['commit'],'version':manifest['version'],'bootId':Path('/proc/sys/kernel/random/boot_id').read_text().strip(),'retainedAssets':read(deploy/'releases/retained-assets.json') if (deploy/'releases/retained-assets.json').exists() else {},'priorAttempt':prior}
 elif action=='init':
     compose,app,caddy,state,manifest=initial(); assert app['Id']==a['previousId'] and app['Image']==a['previousImage']
-    release.parent.mkdir(mode=0o700,exist_ok=True); release.mkdir(mode=0o700)
+    release.parent.mkdir(mode=0o700,exist_ok=True)
+    archived=None
+    if release.exists():
+        assert release.is_dir() and not release.is_symlink()
+        prior=read(release/'state.json')
+        assert prior['phase']=='rolled-back' and prior['revision']==revision and prior['image']==a['image'] and prior['commit']==a['commit']
+        assert prior['previousImage']==app['Image']
+        assert prior.get('rollbackGateway',{}).get('completed') is True and prior['rollbackGateway']['httpStatus']==200 and prior['rollbackGateway']['automaticRetries']==0
+        assert all(prior.get('cleanup',{}).get(k) is True for k in ['candidateRemoved','candidateVolumeRemoved','ownedUploadRemoved'])
+        for source,name in [(base/'compose-private.json','compose-before.json'),(base/'state.json','state-before.json'),(deploy/'Caddyfile','Caddyfile.before'),(deploy/'releases/manifest.json','manifest-before.json')]:
+            assert source.read_bytes()==(release/name).read_bytes(),'A rolled-back deployment drifted from its saved originals'
+        assert read(release/'state-before.json')['image']==app['Image']
+        retained=deploy/'releases/retained-assets.json'; saved=release/'retained-assets-before.json'
+        assert retained.exists()==saved.exists()
+        if retained.exists(): assert retained.read_bytes()==saved.read_bytes()
+        names=run(['docker','ps','-a','--format','{{.Names}}']).decode().splitlines(); assert a['candidate'] not in names
+        volumes=run(['docker','volume','ls','--format','{{.Name}}']).decode().splitlines(); assert a['candidateVolume'] not in volumes
+        refs=run(['docker','ps','-a','--filter','label=io.sub2api.hk-upgrade='+revision,'--format','{{.Names}}']).strip(); assert not refs,'A prior candidate remains referenced'
+        # Keep the immutable image and every before-config/proof intact. Rename
+        # only this validated release journal; previous local backup remains.
+        if re.search(r'(?<![a-zA-Z0-9-])'+re.escape(a['candidate'])+r':8080',(deploy/'Caddyfile').read_text()): raise ValueError('Old candidate is still routed')
+        archive=release.parent/('quota-'+revision+'-rolled-back-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')+'-'+os.urandom(3).hex())
+        assert not archive.exists(); os.rename(release,archive); archived=str(archive)
+    release.mkdir(mode=0o700)
     for source,name in [(base/'compose-private.json','compose-before.json'),(base/'state.json','state-before.json'),(deploy/'Caddyfile','Caddyfile.before'),(deploy/'releases/manifest.json','manifest-before.json')]:
         shutil.copyfile(source,release/name); os.chmod(release/name,0o600)
     if (deploy/'releases/retained-assets.json').exists(): shutil.copyfile(deploy/'releases/retained-assets.json',release/'retained-assets-before.json')
-    result={'savedOriginals':True}
+    result={'savedOriginals':True,'archivedPriorAttempt':archived}
 elif action=='stage':
     upload=Path(a['upload']); assert re.fullmatch(r'/home/ubuntu/sub2api-upgrade-[a-f0-9]{12}',str(upload))
     image=upload/'image.tar'; mf=upload/'manifest.json'
@@ -231,8 +325,9 @@ elif action=='stage':
         assert 'sha256:'+hashlib.sha256(b).hexdigest()==m['imageConfigDigest']
         config=json.loads(b); assert config['os']=='linux' and config['architecture']=='amd64'
         assert config['config']['Labels']['org.opencontainers.image.revision']==m['commit']
-    out=deploy/'releases'/('upgrade-'+revision); out.mkdir(mode=0o700)
-    shutil.copyfile(mf,out/'manifest.json'); os.chmod(out/'manifest.json',0o600)
+    out=deploy/'releases'/('upgrade-'+revision); out.mkdir(mode=0o700,exist_ok=True)
+    if (out/'manifest.json').exists(): assert hashfile(out/'manifest.json')==a['manifestSha256'],'Immutable manifest changed between attempts'
+    else: shutil.copyfile(mf,out/'manifest.json'); os.chmod(out/'manifest.json',0o600)
     run(['docker','load','-i',str(image)],timeout=240)
     c=json.loads(run(['docker','image','inspect',m['imageId']]))[0]
     assert c['Id']==m['imageId'],'Engine returned another image identity; explicit requalification is required'
@@ -441,7 +536,7 @@ async function backup(directory, state) {
   for (const file of archives) assert.equal((await stat(join(target, file.name))).mode & 0o777, 0o600)
   return { directory: target, ...report }
 }
-export async function tunnel(port, work) {
+async function connectTunnel(port, attempt) {
   assert([18584, 18585].includes(port))
   const server = createServer(); await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve) })
   const localPort = server.address().port; await new Promise(resolve => server.close(resolve))
@@ -456,13 +551,16 @@ export async function tunnel(port, work) {
       try { const r = await fetch(base + '/health', { signal: AbortSignal.timeout(1000) }); if (r.ok) break } catch { /* Tunnel startup. */ }
       assert(Date.now() < deadline, 'HK tunnel readiness deadline exceeded'); await delay(200)
     }
-    return await work(base)
+    return { base, close: async () => { child.kill('SIGTERM') } }
   } catch (error) {
     const diagnostic = join(privateRoot, `getcodex-tunnel-failure-${randomBytes(6).toString('hex')}.json`)
-    await writeFile(diagnostic, JSON.stringify({ remotePort: port, localPort, exitCode: child.exitCode,
-      signalCode: child.signalCode, failure: error.message, stderr }), { flag: 'wx', mode: 0o600 })
-    throw new Error(`${error.message}; private tunnel diagnostic: ${diagnostic}`)
-  } finally { child.kill('SIGTERM') }
+    const result = await recordFailedTunnel(child, { remotePort: port, localPort, connectionAttempt: attempt, exitCode: child.exitCode,
+      signalCode: child.signalCode, failure: error.message, stderr }, diagnostic)
+    throw new Error(result.diagnosticSaved ? `${error.message}; private tunnel diagnostic: ${diagnostic}` : `${error.message}; private tunnel diagnostic could not be saved`)
+  }
+}
+export async function tunnel(port, work) {
+  return retryConnection(attempt => connectTunnel(port, attempt), work)
 }
 export async function readBoundedBody(response, maxBytes = 8 << 20) {
   const chunks = []; let bytes = 0
@@ -580,7 +678,7 @@ export async function main(argv = process.argv.slice(2)) {
     }
     if (action === 'prepare') {
       const manifestPath = resolve(argument), manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
-      const revision = validateRelease(manifest, manifestPath), observed = remote('inventory')
+      const revision = validateRelease(manifest, manifestPath), observed = remote('inventory', { revision })
       assert.equal(manifest.version, observed.version); assert.notEqual(manifest.imageId, observed.app.image)
       // Shared-DB cutover requires no migration or Ent schema differences.
       command('git', ['diff', '--exit-code', observed.previousCommit, manifest.commit, '--', 'backend/migrations', 'backend/ent/schema'])
@@ -595,6 +693,7 @@ export async function main(argv = process.argv.slice(2)) {
       const config = command('tar', ['-xOf', join(dirname(manifestPath), 'image.tar'), savedManifest[0].Config], undefined, 60_000, true)
       assert.equal('sha256:' + digest(config), manifest.imageConfigDigest)
       const imageConfig = JSON.parse(config); assert.equal(imageConfig.config.Labels['org.opencontainers.image.revision'], manifest.commit)
+      if (observed.priorAttempt) requireRetry(observed.priorAttempt, { revision, image: manifest.imageId, commit: manifest.commit, previousImage: observed.app.image })
       directory = await mkdtemp(join(privateRoot, 'getcodex-upgrade-'))
       state = { phase: 'preparing', revision, version: manifest.version, commit: manifest.commit, image: manifest.imageId,
         manifestPath, imageConfigDigest: manifest.imageConfigDigest, imageTarSha256: hashes['image.tar'], manifestSha256: hashes['manifest.json'],
@@ -603,7 +702,7 @@ export async function main(argv = process.argv.slice(2)) {
         candidate: 'getcodex-sub2api-quota-candidate-' + revision, candidateVolume: 'getcodex-sub2api-quota-candidate-' + revision + '-data',
         upload: '/home/ubuntu/sub2api-upgrade-' + randomBytes(6).toString('hex'), preparedAt: now(), currentChanged: false,
         standbyBackgroundRefresh: false, continuousSynchronization: false }
-      remote('init', state); await save(directory, state)
+      state.initialization = remote('init', state); await save(directory, state)
       state.backup = await backup(directory, state); await save(directory, state)
       const oldFiles = await tunnel(18584, assetGraph), newAssets = {}, files = join(directory, 'assets')
       await mkdir(files, { mode: 0o700 })
@@ -658,28 +757,34 @@ export async function main(argv = process.argv.slice(2)) {
         const observed = remote('status', state)
         assert.equal(observed.app.id, state.previousId); assert.equal(observed.app.image, state.previousImage)
         assert(observed.app.healthy && observed.systemdEnabled && observed.systemdActive)
+        let activationStep = 'candidate-proof'
         try {
           // Refresh real proof immediately before the first public-route write.
           state.candidateProof = await probe(directory, state, 'candidate', 18585); await save(directory, state)
           state.phase = 'switching-to-candidate'; await save(directory, state)
+          activationStep = 'candidate-route'
           state.candidateReload = await reload(directory, state, state.candidate + ':8080')
+          activationStep = 'candidate-public-proof'
           state.candidateEntryProof = await probe(directory, state, 'candidate-public', 18585, true)
+          activationStep = 'retained-assets-before-current'
           state.retainedAssets = await verifyRetainedAssets(state); state.phase = 'candidate-serving'; await save(directory, state)
           state.currentChanged = true; state.phase = 'rebuilding-current'; await save(directory, state)
+          activationStep = 'rebuild-current'
           state.currentContainer = remote('update-current', state)
+          activationStep = 'current-proof'
           state.currentProof = await probe(directory, state, 'current', 18584); await save(directory, state)
+          activationStep = 'current-route'
           state.currentReload = await reload(directory, state, 'app:8080')
+          activationStep = 'current-public-proof'
           state.publicProof = await probe(directory, state, 'current-public', 18584, true)
+          activationStep = 'retained-assets-after-current'
           state.retainedAssets = await verifyRetainedAssets(state)
+          activationStep = 'persist-current'
           state.persistence = remote('persist', state, { checkedAt: now() }); state.phase = 'active'; state.activatedAt = now(); await save(directory, state)
+          activationStep = 'cleanup-candidate'
           state.cleanup = remote('cleanup', state); await save(directory, state)
         } catch (error) {
-          state.activationFailedAt = now(); await save(directory, state)
-          try { await rollback(directory, state) } catch {
-            state.phase = 'rollback-needs-attention'; await save(directory, state)
-            throw new Error('Activation failed and automatic rollback needs attention; the verified candidate and protected backup are retained')
-          }
-          throw new Error('Activation failed; old HK application and routing were restored and verified')
+          await recoverActivationFailure(directory, state, activationStep, error)
         }
       } else if (action === 'rollback') await rollback(directory, state)
       else {
