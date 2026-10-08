@@ -187,11 +187,19 @@ func buildOpenAIQuotaWindows(extra map[string]any) []AccountQuotaWindow {
 		utilization := quotaUtilization(extra[prefix+"_used_percent"], 1)
 		resetAt := quotaTime(extra[prefix+"_reset_at"])
 		sampledAt := quotaSampleTime(extra, prefix+"_sampled_at", "codex_usage_updated_at", has5hSample || has7dSample)
+		resetAfter := quotaNumber(extra[prefix+"_reset_after_seconds"])
 		if resetAt == nil && sampledAt != nil {
-			if seconds := quotaNumber(extra[prefix+"_reset_after_seconds"]); seconds != nil && math.Abs(*seconds) < float64(math.MaxInt64/int64(time.Second)) {
-				stamp := sampledAt.Add(time.Duration(*seconds) * time.Second)
+			if resetAfter != nil && math.Abs(*resetAfter) < float64(math.MaxInt64/int64(time.Second)) {
+				stamp := sampledAt.Add(time.Duration(*resetAfter) * time.Second)
 				resetAt = &stamp
 			}
+		}
+		// An explicitly observed 0%/0-second pair provides no future reset.
+		// Legacy writers anchor that zero countdown to the sample time. Hide
+		// only this display deadline; retain the observation's age, raw Extra
+		// and scheduling fields, and prefer any real future absolute deadline.
+		if utilization != nil && *utilization == 0 && resetAfter != nil && *resetAfter == 0 && sampledAt != nil && resetAt != nil && !resetAt.After(*sampledAt) {
+			resetAt = nil
 		}
 		if utilization == nil && resetAt == nil && sampledAt == nil {
 			continue

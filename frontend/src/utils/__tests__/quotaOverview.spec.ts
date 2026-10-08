@@ -87,6 +87,47 @@ describe('subscription quota overview', () => {
     expect(row.bottleneck?.resetsAt).toBe('2026-10-08T02:20:00Z')
   })
 
+  it('accepts a fresh observed zero countdown with no future reset while retaining the actual weekly bottleneck', () => {
+    // The backend normalizes the explicit upstream 0%/0-second pair to a
+    // missing future reset; it preserves both the sample and weekly reading.
+    const row = normalizeQuotaAccount(account(), usage(
+      window('five_hour', 0, { resets_at: null, source: 'response_headers', window_minutes: 300 }),
+      window('seven_day', 26, { source: 'response_headers', window_minutes: 10080 })
+    ), now)
+    expect(row.state).toBe('fresh')
+    expect(row.incomplete).toBe(false)
+    expect(row.remainingPercent).toBe(74)
+    expect(row.bottleneck?.key).toBe('seven_day')
+    expect(row.windows[0].remainingPercent).toBe(100)
+    expect(row.windows[0].resetsAt).toBeNull()
+    expect(row.windows[0].sampledAt).toBe(sampled)
+    expect(row.windows[0].stale).toBe(false)
+  })
+
+  it('does not let an absent zero-countdown reset refresh old, unknown, future-skewed or failed samples', () => {
+    for (const sample of [new Date(now - QUOTA_STALE_AFTER_MS - 1).toISOString(), null, 'invalid', new Date(now + 60_001).toISOString()]) {
+      const row = normalizeQuotaAccount(account(), usage(
+        window('five_hour', 0, { resets_at: null, sampled_at: sample, source: 'response_headers' }),
+        window('seven_day', 26)
+      ), now)
+      expect(row.state).toBe('stale')
+      expect(row.windows[0].stale).toBe(true)
+    }
+    const failed = normalizeQuotaAccount(account(), {
+      ...usage(window('five_hour', 0, { resets_at: null }), window('seven_day', 26)),
+      quota_snapshot_error: 'snapshot unavailable'
+    }, now)
+    expect(failed.state).toBe('stale')
+    for (const used of [25, 100]) {
+      const expired = normalizeQuotaAccount(account(), usage(
+        window('five_hour', used, { resets_at: sampled }), window('seven_day', 26)
+      ), now)
+      expect(expired.state).toBe('stale')
+      expect(expired.windows[0].utilization).toBe(used)
+      expect(expired.windows[0].resetsAt).toBe(sampled)
+    }
+  })
+
   it('does not substitute response creation time for real sampling time', () => {
     for (const invalid of [null, 'invalid', '2026-10-08T03:24:00Z']) {
       const row = normalizeQuotaAccount(account(), usage(window('five_hour', 25, { sampled_at: invalid })), now)

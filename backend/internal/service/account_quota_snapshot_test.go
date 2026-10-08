@@ -120,6 +120,121 @@ func TestAccountQuotaSnapshot_OpenAIPreservesReadingAndActualDuration(t *testing
 	}), "five_hour").ResetsAt, "relative reset must not be anchored to the current request")
 }
 
+func TestAccountQuotaSnapshot_OpenAIZeroCountdownHeadersPreserveRawSchedulingData(t *testing.T) {
+	sampledAt := time.Date(2030, 10, 8, 2, 23, 0, 0, time.UTC)
+	headers := make(http.Header)
+	headers.Set("x-codex-primary-used-percent", "0")
+	headers.Set("x-codex-primary-reset-after-seconds", "0")
+	headers.Set("x-codex-primary-window-minutes", "300")
+	headers.Set("x-codex-secondary-used-percent", "26")
+	headers.Set("x-codex-secondary-reset-after-seconds", "516132")
+	headers.Set("x-codex-secondary-window-minutes", "10080")
+	snapshot := ParseCodexRateLimitHeaders(headers)
+	require.NotNil(t, snapshot)
+	snapshot.UpdatedAt = sampledAt.Format(time.RFC3339)
+	extra := buildCodexUsageExtraUpdates(snapshot, sampledAt)
+	require.Equal(t, sampledAt.Format(time.RFC3339), extra["codex_5h_reset_at"], "the existing raw writer and scheduler deadline stay unchanged")
+	require.Equal(t, 0, extra["codex_5h_reset_after_seconds"])
+	before, err := json.Marshal(extra)
+	require.NoError(t, err)
+	for _, suffix := range []string{"", "_cached"} {
+		t.Run("header_observation"+suffix, func(t *testing.T) {
+			// JSON round-tripping covers the already persisted numeric types
+			// used by the live account's Extra map without a data migration.
+			observed := extra
+			if suffix != "" {
+				require.NoError(t, json.Unmarshal(before, &observed))
+			}
+			windows := buildOpenAIQuotaWindows(observed)
+			fiveHour := quotaWindowByKey(t, windows, "five_hour")
+			require.NotNil(t, fiveHour.Utilization)
+			require.Zero(t, *fiveHour.Utilization)
+			require.Nil(t, fiveHour.ResetsAt, "zero countdown is not a future reset")
+			require.Equal(t, sampledAt, *fiveHour.SampledAt)
+			require.Equal(t, "response_headers", fiveHour.Source)
+			sevenDay := quotaWindowByKey(t, windows, "seven_day")
+			require.Equal(t, 26.0, *sevenDay.Utilization)
+			require.Equal(t, sampledAt.Add(516132*time.Second), *sevenDay.ResetsAt)
+			legacy := buildCodexUsageProgressFromExtra(observed, "5h", sampledAt)
+			require.Equal(t, sampledAt, *legacy.ResetsAt, "legacy scheduling/usage deadline must not be changed")
+			after, err := json.Marshal(observed)
+			require.NoError(t, err)
+			require.JSONEq(t, string(before), string(after), "quota normalization must not mutate raw data")
+		})
+	}
+}
+
+func TestAccountQuotaSnapshot_OpenAIZeroCountdownBodyObservation(t *testing.T) {
+	sampledAt := time.Date(2030, 10, 8, 2, 23, 0, 0, time.UTC)
+	var response OpenAIQuotaUsage
+	require.NoError(t, json.Unmarshal([]byte(`{"rate_limit":{"primary_window":{"used_percent":0,"limit_window_seconds":18000,"reset_after_seconds":0}}}`), &response))
+	extra := buildOpenAIQuotaObservationUpdates(&response, false, sampledAt)
+	require.Equal(t, sampledAt.Format(time.RFC3339Nano), extra["codex_5h_reset_at"])
+	window := quotaWindowByKey(t, buildOpenAIQuotaWindows(extra), "five_hour")
+	require.NotNil(t, window.Utilization)
+	require.Zero(t, *window.Utilization)
+	require.Nil(t, window.ResetsAt)
+	require.Equal(t, sampledAt, *window.SampledAt)
+	require.Equal(t, "upstream", window.Source)
+}
+
+func TestAccountQuotaSnapshot_OpenAIZeroCountdownRetainsExpiryAndPresenceBoundaries(t *testing.T) {
+	sampledAt := time.Date(2030, 10, 8, 2, 23, 0, 0, time.UTC)
+	future := sampledAt.Add(time.Hour)
+	past := sampledAt.Add(-time.Second)
+	oldSample := sampledAt.Add(-time.Hour)
+	zero, partial, exhausted := 0.0, 25.0, 100.0
+	tests := []struct {
+		name       string
+		changes    map[string]any
+		remove     []string
+		wantUsed   *float64
+		wantReset  *time.Time
+		wantSample *time.Time
+	}{
+		{name: "explicit zero countdown", wantUsed: &zero, wantSample: &sampledAt},
+		{name: "relative zero without absolute", remove: []string{"codex_5h_reset_at"}, wantUsed: &zero, wantSample: &sampledAt},
+		{name: "old sample stays old", changes: map[string]any{"codex_5h_sampled_at": oldSample.Format(time.RFC3339Nano), "codex_5h_reset_at": oldSample.Format(time.RFC3339Nano)}, wantUsed: &zero, wantSample: &oldSample},
+		{name: "future absolute wins over zero relative", changes: map[string]any{"codex_5h_reset_at": future.Format(time.RFC3339Nano)}, wantUsed: &zero, wantReset: &future, wantSample: &sampledAt},
+		{name: "positive countdown retains future", changes: map[string]any{"codex_5h_reset_after_seconds": 3600}, remove: []string{"codex_5h_reset_at"}, wantUsed: &zero, wantReset: &future, wantSample: &sampledAt},
+		{name: "negative countdown still expired", changes: map[string]any{"codex_5h_reset_after_seconds": -1}, remove: []string{"codex_5h_reset_at"}, wantUsed: &zero, wantReset: &past, wantSample: &sampledAt},
+		{name: "missing countdown does not hide absolute", remove: []string{"codex_5h_reset_after_seconds"}, wantUsed: &zero, wantReset: &sampledAt, wantSample: &sampledAt},
+		{name: "null countdown does not hide absolute", changes: map[string]any{"codex_5h_reset_after_seconds": nil}, wantUsed: &zero, wantReset: &sampledAt, wantSample: &sampledAt},
+		{name: "missing used percentage remains unknown", remove: []string{"codex_5h_used_percent"}, wantReset: &sampledAt, wantSample: &sampledAt},
+		{name: "null used percentage remains unknown", changes: map[string]any{"codex_5h_used_percent": nil}, wantReset: &sampledAt, wantSample: &sampledAt},
+		{name: "negative used percentage remains unknown", changes: map[string]any{"codex_5h_used_percent": -1}, wantReset: &sampledAt, wantSample: &sampledAt},
+		{name: "nonzero use remains expired", changes: map[string]any{"codex_5h_used_percent": 25}, wantUsed: &partial, wantReset: &sampledAt, wantSample: &sampledAt},
+		{name: "exhausted use remains expired", changes: map[string]any{"codex_5h_used_percent": 100}, wantUsed: &exhausted, wantReset: &sampledAt, wantSample: &sampledAt},
+		{name: "unknown sample cannot clear deadline", changes: map[string]any{"codex_5h_sampled_at": nil}, wantUsed: &zero, wantReset: &sampledAt},
+		{name: "invalid sample cannot clear deadline", changes: map[string]any{"codex_5h_sampled_at": "invalid"}, wantUsed: &zero, wantReset: &sampledAt},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			extra := map[string]any{
+				"codex_5h_used_percent": 0.0, "codex_5h_reset_after_seconds": 0,
+				"codex_5h_reset_at": sampledAt.Format(time.RFC3339Nano), "codex_5h_sampled_at": sampledAt.Format(time.RFC3339Nano),
+				"codex_5h_source": "response_headers", "codex_usage_updated_at": sampledAt.Format(time.RFC3339Nano),
+			}
+			for key, value := range test.changes {
+				extra[key] = value
+			}
+			for _, key := range test.remove {
+				delete(extra, key)
+			}
+			before, err := json.Marshal(extra)
+			require.NoError(t, err)
+			window := quotaWindowByKey(t, buildOpenAIQuotaWindows(extra), "five_hour")
+			require.Equal(t, test.wantUsed, window.Utilization)
+			require.Equal(t, test.wantReset, window.ResetsAt)
+			require.Equal(t, test.wantSample, window.SampledAt)
+			require.Equal(t, "response_headers", window.Source)
+			after, err := json.Marshal(extra)
+			require.NoError(t, err)
+			require.Equal(t, before, after)
+		})
+	}
+}
+
 func TestAccountQuotaSnapshot_LocalCostsDoNotInventOpenAIQuota(t *testing.T) {
 	svc := &AccountUsageService{usageLogRepo: &usageBatchLogRepoStub{}, cache: NewUsageCache()}
 	account := &Account{ID: 7358, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
