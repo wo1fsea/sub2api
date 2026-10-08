@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { createReadStream } from 'node:fs'
-import { chmod, copyFile, lstat, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
+import { chmod, copyFile, lstat, mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { isDeepStrictEqual } from 'node:util'
 import { setTimeout as delay } from 'node:timers/promises'
 import { acquireLock, assertCurrent, deployment, directory, names, routing } from './service-recovery.mjs'
 import { liveGateway } from './live-gateway.mjs'
@@ -33,6 +34,26 @@ function docker(args, input, timeout = 60_000, binary = false) {
   })
   check(!result.error && result.status === 0, `Docker ${args[0]} failed; private details suppressed`)
   return binary ? result.stdout : result.stdout.trim()
+}
+export function postgresDumpListToc(result) {
+  // --list reads only an archive's directory and may close stdin while Docker
+  // is still receiving its data blocks. Do not extend this exception to any
+  // command that restores data or mutates a container.
+  check(result.status === 0 && !result.signal && (!result.error || result.error.code === 'EPIPE'), 'Backup PostgreSQL directory check failed; private details suppressed')
+  const toc = result.stdout
+  check(typeof toc === 'string' && toc.endsWith('\n') && /^;\s+Archive created at /m.test(toc) && /^;\s+Format: CUSTOM\s*$/m.test(toc), 'Backup PostgreSQL archive directory is incomplete')
+  const declared = /^;\s+TOC Entries:\s+(\d+)\s*$/m.exec(toc)
+  const section = toc.split(/^;\s+Selected TOC Entries:\s*$/m)
+  check(declared && Number(declared[1]) > 0 && section.length === 2, 'Backup PostgreSQL archive directory is incomplete')
+  const entries = section[1].split('\n').filter(line => line.trim() && !line.startsWith(';'))
+  check(entries.length > 0 && entries.length <= Number(declared[1]) && entries.every(line => /^\d+; \d+ \d+ .+/.test(line)), 'Backup PostgreSQL archive directory is incomplete')
+  check(entries.some(line => /\bTABLE public schema_migrations\b/.test(line)), 'Backup PostgreSQL archive is not readable')
+  return toc.trim()
+}
+function listPostgresDump(container, dump) {
+  return postgresDumpListToc(spawnSync('/opt/homebrew/bin/docker', ['exec', '-i', container, 'pg_restore', '--list'], {
+    input: dump, encoding: 'utf8', timeout: 30_000, maxBuffer: (256 << 20)
+  }))
 }
 function inspect(name) { return JSON.parse(docker(['inspect', name]))[0] }
 function imageMetadata(id) { return JSON.parse(docker(['image', 'inspect', id]))[0] }
@@ -212,8 +233,7 @@ async function verifyBackup(backup, active, manifest, reportPath) {
     check(await checksum(path) === archive.sha256, 'Private backup archive checksum changed')
   }
   // Parse a dump's table of contents without restoring or writing the live DB.
-  const toc = docker(['exec', '-i', active.dependencies[0].Id, 'pg_restore', '--list'], await readFile(join(backup, 'postgres.dump')), 30_000)
-  check(toc.includes('TABLE') && toc.includes('schema_migrations'), 'Backup PostgreSQL archive is not readable')
+  listPostgresDump(active.dependencies[0].Id, await readFile(join(backup, 'postgres.dump')))
   if (reportPath) {
     const report = await jsonPrivate(resolve(reportPath))
     check(report.passed === true && report.backup === backup && report.candidateCommit === manifest.commit && report.candidateImageId === manifest.imageId && report.oldImageId === active.container.Image, 'Restore report does not verify this exact backup and release')
@@ -253,9 +273,12 @@ async function verifyShared(base, token, appearance, version = '0.2.13') {
   check((await api(base, '/admin/system/version', { token })).version === version, 'Application version is incorrect')
   const current = (await api(base, '/settings/public')).site_appearance
   const admin = (await api(base, '/admin/settings', { token })).site_appearance
-  check(JSON.stringify(admin) === JSON.stringify(current), 'Public and administrator themes disagree')
-  if (appearance) check(JSON.stringify(current) === JSON.stringify(appearance), 'The existing administrator theme changed during upgrade')
+  assertAppearanceMatch(current, admin, appearance)
   return current
+}
+export function assertAppearanceMatch(current, admin, previous) {
+  check(isDeepStrictEqual(admin, current), 'Public and administrator themes disagree')
+  if (previous !== undefined) check(isDeepStrictEqual(current, previous), 'The existing administrator theme changed during upgrade')
 }
 
 async function assetGraph(base) {
@@ -455,6 +478,41 @@ async function cleanupCandidate(identity) {
   }
 }
 
+export function assertPrepareRetry(state, release, active, currentPins) {
+  check(state.phase === 'prepare-failed', 'Do not replay an active or unexpected preparation directory')
+  check(Object.entries(release.identity).every(([key, value]) => state[key] === value) && state.manifestSha256 === release.manifestSha256, 'Failed preparation belongs to another immutable release')
+  check(state.priorImage === active.state.image && state.priorImage === active.container.Image && state.priorContainerId === active.container.Id, 'Current application changed after failed preparation')
+  check(state.priorComposeSha256 === currentPins.composeSha256 && state.priorStateSha256 === currentPins.stateSha256, 'Protected deployment changed after failed preparation')
+  check(currentPins.route === routing(`${names.app}:8080`), 'Failed preparation retry requires the verified current routing target')
+}
+
+async function prepareDirectory(release, active) {
+  const { identity } = release
+  try {
+    await mkdir(identity.directory, { mode: 0o700 })
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error
+    const info = await lstat(identity.directory)
+    check(info.isDirectory() && !info.isSymbolicLink() && (info.mode & 0o777) === 0o700 && info.uid === process.getuid(), 'Failed preparation directory permissions or owner changed')
+    const files = await readdir(identity.directory)
+    const allowed = ['state.json', 'previous-compose-private.json', 'previous-state.json', 'compose-private.json']
+    check(files.every(name => allowed.includes(name)) && allowed.slice(0, 3).every(name => files.includes(name)), 'Do not reuse an unexpected preparation directory')
+    const previous = await jsonPrivate(join(identity.directory, 'state.json'))
+    assertPrepareRetry(previous, release, active, {
+      composeSha256: sha(await privateFile(composePath)), stateSha256: sha(await privateFile(activeStatePath)),
+      route: await readFile(join(directory, 'haproxy.cfg'), 'utf8')
+    })
+    await snapshots(identity, previous)
+    if (existingContainer(identity.candidateName)) assertCandidate(identity)
+    return { priorComposeSha256: previous.priorComposeSha256, priorStateSha256: previous.priorStateSha256,
+      retryOf: previous.preparedAt }
+  }
+  await copyFile(composePath, join(identity.directory, 'previous-compose-private.json'))
+  await copyFile(activeStatePath, join(identity.directory, 'previous-state.json'))
+  return { priorComposeSha256: sha(await privateFile(join(identity.directory, 'previous-compose-private.json'))),
+    priorStateSha256: sha(await privateFile(join(identity.directory, 'previous-state.json'))) }
+}
+
 async function prepare(manifestPath, backup, restoreReport) {
   const release = await loadRelease(manifestPath, true), { identity, manifest } = release
   const active = await activeConfiguration()
@@ -463,13 +521,10 @@ async function prepare(manifestPath, backup, restoreReport) {
   const backupCheck = await verifyBackup(resolve(backup || ''), active, manifest, restoreReport)
   const jobs = JSON.parse(docker(['exec', '-i', active.dependencies[0].Id, 'sh', '-c', 'exec psql -X -qAt -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'], `BEGIN READ ONLY; SET LOCAL statement_timeout='3s'; ${await readFile(new URL('./compatibility-inventory.sql', import.meta.url), 'utf8')} ROLLBACK;`))
   check(jobs.enabledScheduledTests === 0 && jobs.enabledChannelMonitors === 0 && !jobs.backupScheduleEnabled && jobs.activeBackupOperations === 0, 'An overlapping unclaimed background job blocks candidate preparation')
-  await mkdir(identity.directory, { mode: 0o700 })
-  await copyFile(composePath, join(identity.directory, 'previous-compose-private.json'))
-  await copyFile(activeStatePath, join(identity.directory, 'previous-state.json'))
+  const priorPins = await prepareDirectory(release, active)
   const state = { ...identity, phase: 'preparing', manifestSha256: release.manifestSha256,
     backup: resolve(backup), backupCheck, priorImage: active.state.image, priorContainerId: active.container.Id,
-    priorComposeSha256: sha(await privateFile(join(identity.directory, 'previous-compose-private.json'))),
-    priorStateSha256: sha(await privateFile(join(identity.directory, 'previous-state.json'))),
+    ...priorPins,
     preparedAt: new Date().toISOString() }
   const statePath = join(identity.directory, 'state.json')
   await save(statePath, state)

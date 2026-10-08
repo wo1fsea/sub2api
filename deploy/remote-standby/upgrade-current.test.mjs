@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
-import { readBoundedBody, requireProbe, remoteProgram, routing, validateRelease } from './upgrade-current.mjs'
+import { forwardArgs, readBoundedBody, requireProbe, requireResume, remoteProgram, routing, validateRelease } from './upgrade-current.mjs'
 
 const revision = '0123456789ab'
 const manifest = { version: '0.2.13', platform: 'linux/amd64', commit: revision + '0'.repeat(28), imageId: 'sha256:' + '1'.repeat(64), imageConfigDigest: 'sha256:' + '2'.repeat(64) }
@@ -13,6 +13,32 @@ test('release rejects another architecture, an incomplete checksum identity, or 
   assert.throws(() => validateRelease({ ...manifest, imageConfigDigest: undefined }, path))
   assert.throws(() => validateRelease(manifest, '/tmp/manifest.json'))
   assert.throws(() => validateRelease({ ...manifest, version: '0.2.14' }, path))
+})
+test('probe forwards own a foreground SSH connection without the shared control master', () => {
+  const args = forwardArgs(49123, 18585)
+  for (const option of ['ControlMaster=no', 'ControlPath=none', 'ControlPersist=no', 'ForkAfterAuthentication=no', 'ExitOnForwardFailure=yes']) assert(args.includes(option))
+  assert(args.includes('-N'))
+  assert(args.includes('127.0.0.1:49123:127.0.0.1:18585'))
+  assert.equal(args.at(-1), 'getcodex-prod')
+  assert.throws(() => forwardArgs(0, 18585))
+  assert.throws(() => forwardArgs(49123, 8080))
+})
+test('prepare resume only accepts the same qualified candidate and fresh complete backup', () => {
+  const backup = { oldImageId: 'sha256:' + '0'.repeat(64), oldContainerId: 'original', finished: new Date().toISOString(),
+    archives: ['postgres.dump', 'redis.rdb', 'app-data.tar.gz', 'configuration-private.tar.gz'].map(name => ({ name, bytes: 128, sha256: 'a'.repeat(64) })) }
+  const state = { phase: 'candidate-started', currentChanged: false, manifestPath: path, revision, image: manifest.imageId,
+    commit: manifest.commit, imageConfigDigest: manifest.imageConfigDigest, previousImage: backup.oldImageId, previousId: backup.oldContainerId,
+    imageQualification: { imageLoaded: true, imageConfigDigestVerified: true, revisionVerified: true, loadedImageId: manifest.imageId, archiveConfigDigest: manifest.imageConfigDigest },
+    candidate: 'fixture-owned', candidateContainer: { image: manifest.imageId, name: 'fixture-owned', healthy: true }, backup }
+  requireResume(state, manifest, backup)
+  for (const change of [{ phase: 'preparing' }, { phase: 'active' }, { currentChanged: true },
+    { image: 'sha256:' + '3'.repeat(64) }, { candidateContainer: { ...state.candidateContainer, healthy: false } },
+    { imageQualification: { ...state.imageQualification, loadedImageId: 'sha256:' + '4'.repeat(64) } }]) {
+    assert.throws(() => requireResume({ ...state, ...change }, manifest, backup))
+  }
+  assert.throws(() => requireResume(state, manifest, { ...backup, oldImageId: 'sha256:' + '5'.repeat(64) }))
+  assert.throws(() => requireResume(state, manifest, { ...backup, finished: new Date(Date.now() - 31 * 60_000).toISOString() }))
+  assert.throws(() => requireResume(state, manifest, { ...backup, archives: backup.archives.slice(1) }))
 })
 test('old resources only handle exact fingerprinted GET/HEAD paths and never an API route', () => {
   const config = routing('app:8080', revision, [asset])

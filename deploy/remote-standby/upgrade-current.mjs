@@ -55,6 +55,39 @@ export function requireProbe(report, state, stage) {
   assert.equal(report.gateway.automaticRetries, 0)
 }
 
+export function forwardArgs(localPort, remotePort) {
+  assert(Number.isInteger(localPort) && localPort > 1023 && localPort <= 65535)
+  assert([18584, 18585].includes(remotePort))
+  // A mux client can successfully create a forward and exit immediately.
+  // Own an independent foreground connection so its lifetime is meaningful.
+  return [...sshOptions, '-o', 'ControlMaster=no', '-o', 'ControlPath=none', '-o', 'ControlPersist=no',
+    '-o', 'ForkAfterAuthentication=no', '-o', 'ExitOnForwardFailure=yes', '-N',
+    '-L', `127.0.0.1:${localPort}:127.0.0.1:${remotePort}`, host]
+}
+
+export function requireResume(state, manifest, backupReport, time = Date.now()) {
+  assert.equal(state.phase, 'candidate-started')
+  assert.equal(state.currentChanged, false)
+  assert.equal(validateRelease(manifest, state.manifestPath), state.revision)
+  for (const [key, expected] of [['imageId', state.image], ['commit', state.commit], ['imageConfigDigest', state.imageConfigDigest]]) assert.equal(manifest[key], expected)
+  for (const key of ['imageLoaded', 'imageConfigDigestVerified', 'revisionVerified']) assert.equal(state.imageQualification[key], true)
+  assert.equal(state.imageQualification.loadedImageId, state.image)
+  assert.equal(state.imageQualification.archiveConfigDigest, state.imageConfigDigest)
+  assert.equal(state.candidateContainer.image, state.image)
+  assert.equal(state.candidateContainer.name, state.candidate)
+  assert.equal(state.candidateContainer.healthy, true)
+  assert.equal(backupReport.oldImageId, state.previousImage)
+  assert.equal(backupReport.oldContainerId, state.previousId)
+  const finished = Date.parse(backupReport.finished)
+  assert(Number.isFinite(finished) && finished <= time + 5000 && time - finished < 30 * 60_000, 'Resume requires a fresh protected HK backup')
+  assert.deepEqual(backupReport.archives, state.backup.archives)
+  assert.deepEqual(backupReport.archives.map(v => v.name).sort(), ['app-data.tar.gz', 'configuration-private.tar.gz', 'postgres.dump', 'redis.rdb'])
+  for (const file of backupReport.archives) {
+    assert.match(file.sha256, /^[a-f0-9]{64}$/)
+    assert(Number.isInteger(file.bytes) && file.bytes > 0)
+  }
+}
+
 // Everything involving private Compose values and administrator credentials
 // remains inside a root-only Python process on HK. Only allowlisted results
 // cross SSH. Docker stderr is never printed, including failure paths.
@@ -225,6 +258,30 @@ elif action=='assets':
         p=destination/path.lstrip('/'); assert p.is_file() and not p.is_symlink() and hashlib.sha256(p.read_bytes()).hexdigest()==meta['sha256']
     write(release/'retained-assets-next.json',a['assets']); result={'assetsCached':len(a['assets'])}
 elif action=='candidate-start': result=candidate_start()
+elif action=='resume-check':
+    compose,old,caddy,state,manifest=initial()
+    assert old['Id']==a['previousId'] and old['Image']==a['previousImage']
+    assert caddy['Id']==a['caddyId'] and caddy['State']['StartedAt']==a['caddyStartedAt']
+    assert compose==read(release/'compose-before.json')
+    assert (deploy/'Caddyfile').read_bytes()==(release/'Caddyfile.before').read_bytes(),'Serving config changed before resume'
+    mpath=deploy/'releases'/('upgrade-'+revision)/'manifest.json'
+    assert hashlib.sha256(mpath.read_bytes()).hexdigest()==a['manifestSha256']
+    m=read(mpath); assert m['imageId']==a['image'] and m['commit']==a['commit'] and m['imageConfigDigest']==a['imageConfigDigest']
+    c=healthy(a['candidate'],a['image'])
+    assert c['Config']['Labels'].get('io.sub2api.hk-upgrade')==revision
+    assert any(v['Type']=='volume' and v['Name']==a['candidateVolume'] and v['Destination']=='/app/data' for v in c['Mounts'])
+    v=json.loads(run(['docker','volume','inspect',a['candidateVolume']]))[0]; assert v.get('Labels',{}).get('io.sub2api.hk-upgrade')==revision
+    image=json.loads(run(['docker','image','inspect',a['image']]))[0]
+    assert image['Id']==a['image'] and image['Architecture']=='amd64' and image['Os']=='linux'
+    assert image['Config']['Labels']['org.opencontainers.image.revision']==a['commit']
+    cached=read(release/'retained-assets-next.json'); assert cached==a['assets'] and len(cached)>0
+    data=next(v['Source'] for v in caddy['Mounts'] if v['Type']=='volume' and v['Destination']=='/data')
+    cache=Path(data)/'sub2api-release-assets'/'retained'
+    for path,meta in cached.items():
+        assert re.fullmatch(r'/assets/[a-zA-Z0-9_.\/-]+-[a-zA-Z0-9_-]{6,}\.(js|css)',path) and '..' not in path
+        p=cache/path.lstrip('/'); assert p.is_file() and not p.is_symlink() and p.stat().st_size==meta['bytes']
+        assert hashlib.sha256(p.read_bytes()).hexdigest()==meta['sha256']
+    result={'previousStillHealthy':True,'ownedCandidateReady':True,'exactImageVerified':True,'retainedAssetsVerified':len(cached),'originalConfigUnchanged':True,'originalConfig':(release/'Caddyfile.before').read_text()}
 elif action=='admin-probe':
     assert a['port'] in [18584,18585]; url='http://127.0.0.1:'+str(a['port'])
     healthy(a['candidate'] if a['port']==18585 else 'getcodex-sub2api-app',a['image'])
@@ -384,11 +441,13 @@ async function backup(directory, state) {
   for (const file of archives) assert.equal((await stat(join(target, file.name))).mode & 0o777, 0o600)
   return { directory: target, ...report }
 }
-async function tunnel(port, work) {
+export async function tunnel(port, work) {
   assert([18584, 18585].includes(port))
   const server = createServer(); await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve) })
   const localPort = server.address().port; await new Promise(resolve => server.close(resolve))
-  const child = spawn('ssh', [...sshOptions, '-o', 'ExitOnForwardFailure=yes', '-N', '-L', `127.0.0.1:${localPort}:127.0.0.1:${port}`, host], { stdio: 'ignore' })
+  const child = spawn('ssh', forwardArgs(localPort, port), { stdio: ['ignore', 'ignore', 'pipe'] })
+  let stderr = ''
+  child.stderr.on('data', chunk => { stderr = (stderr + chunk.toString()).slice(-16384) })
   let failed = false; child.once('error', () => { failed = true })
   try {
     const base = `http://127.0.0.1:${localPort}`, deadline = Date.now() + 15_000
@@ -398,6 +457,11 @@ async function tunnel(port, work) {
       assert(Date.now() < deadline, 'HK tunnel readiness deadline exceeded'); await delay(200)
     }
     return await work(base)
+  } catch (error) {
+    const diagnostic = join(privateRoot, `getcodex-tunnel-failure-${randomBytes(6).toString('hex')}.json`)
+    await writeFile(diagnostic, JSON.stringify({ remotePort: port, localPort, exitCode: child.exitCode,
+      signalCode: child.signalCode, failure: error.message, stderr }), { flag: 'wx', mode: 0o600 })
+    throw new Error(`${error.message}; private tunnel diagnostic: ${diagnostic}`)
   } finally { child.kill('SIGTERM') }
 }
 export async function readBoundedBody(response, maxBytes = 8 << 20) {
@@ -504,7 +568,7 @@ async function rollback(directory, state) {
 export async function main(argv = process.argv.slice(2)) {
   process.umask(0o077)
   const [action, argument] = argv
-  assert(['prepare', 'activate', 'rollback', 'status', 'verify-boot'].includes(action))
+  assert(['prepare', 'resume-prepare', 'activate', 'rollback', 'status', 'verify-boot'].includes(action))
   assert.equal(argv.length, 2, 'Use ACTION MANIFEST for prepare, or ACTION PRIVATE_UPGRADE_DIRECTORY')
   await mkdir(privateRoot, { recursive: true, mode: 0o700 }); await chmod(privateRoot, 0o700)
   let directory, state, locked = false, localLock
@@ -568,7 +632,27 @@ export async function main(argv = process.argv.slice(2)) {
       state = JSON.parse(await readFile(join(directory, 'state.json'), 'utf8'))
       assert.match(state.revision, /^[a-f0-9]{12}$/); assert.equal(state.commit.slice(0, 12), state.revision)
       assert.match(state.image, /^sha256:[a-f0-9]{64}$/)
-      if (action === 'activate') {
+      if (action === 'resume-prepare') {
+        const manifest = JSON.parse(await readFile(state.manifestPath, 'utf8'))
+        assert.equal(state.backup.directory, join(directory, 'backup'))
+        const report = JSON.parse(await readFile(join(state.backup.directory, 'backup-manifest.json'), 'utf8'))
+        requireResume(state, manifest, report)
+        assert.equal(await hashFile(state.manifestPath), state.manifestSha256)
+        assert.equal(await hashFile(join(dirname(state.manifestPath), 'image.tar')), state.imageTarSha256)
+        for (const file of report.archives) {
+          const path = join(state.backup.directory, file.name)
+          const metadata = await stat(path); assert.equal(metadata.mode & 0o777, 0o600); assert.equal(metadata.size, file.bytes)
+          assert.equal(await hashFile(path), file.sha256)
+        }
+        const observed = remote('resume-check', state, { manifestSha256: state.manifestSha256,
+          imageConfigDigest: state.imageConfigDigest, assets: state.assets })
+        const publicHealth = await fetch('https://getcodex.pro/health', { headers: { Connection: 'close' }, signal: AbortSignal.timeout(10_000), redirect: 'error' })
+        assert.equal(publicHealth.status, 200); assert.equal((await publicHealth.json()).status, 'ok')
+        const priorMarker = observed.originalConfig.match(/header X-Sub2API-Release ([a-f0-9]{12})/)
+        assert.equal(publicHealth.headers.get('x-sub2api-release'), priorMarker?.[1] || null, 'Public route changed before resume')
+        state.candidateProof = await probe(directory, state, 'candidate', 18585)
+        state.phase = 'prepared'; state.resumedAt = now(); await save(directory, state)
+      } else if (action === 'activate') {
         assert.equal(state.phase, 'prepared'); requireProbe(state.candidateProof, state, 'candidate')
         assert(Date.now() - Date.parse(state.backup.finished) < 30 * 60_000, 'Take a fresh protected HK backup before activation')
         const observed = remote('status', state)

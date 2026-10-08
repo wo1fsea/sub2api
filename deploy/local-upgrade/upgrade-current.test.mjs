@@ -1,14 +1,15 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import test from 'node:test'
 import {
-  assertActivePin, assertFreshBackup, assertSnapshotPins, candidateCompose, mergeAssetInventory,
-  promotedCompose, promotedState, publicSummary, quotaResponseSummary, releaseIdentity,
+  assertActivePin, assertAppearanceMatch, assertFreshBackup, assertPrepareRetry, assertSnapshotPins, candidateCompose, mergeAssetInventory,
+  postgresDumpListToc, promotedCompose, promotedState, publicSummary, quotaResponseSummary, releaseIdentity,
   rollbackPlan, runHotSwitch
 } from './upgrade-current.mjs'
-import { desiredCompose, names } from './service-recovery.mjs'
+import { desiredCompose, names, routing } from './service-recovery.mjs'
 
 const currentImage = 'sha256:' + 'a'.repeat(64)
 const nextImage = 'sha256:' + 'b'.repeat(64)
@@ -137,6 +138,29 @@ test('prior snapshots must agree on exact immutable image and canonical owner', 
   assert.throws(() => assertSnapshotPins({ config: promotedCompose(config, nextImage), state }, currentImage))
 })
 
+test('theme equality accepts differently ordered public/admin JSON objects but rejects actual value changes', () => {
+  const current = { skin: 'neubrutalism', mode: 'light', accent_color: '#d7ff00' }
+  const admin = { accent_color: '#d7ff00', mode: 'light', skin: 'neubrutalism' }
+  assert.doesNotThrow(() => assertAppearanceMatch(current, admin, { mode: 'light', skin: 'neubrutalism', accent_color: '#d7ff00' }))
+  assert.throws(() => assertAppearanceMatch(current, { ...admin, accent_color: '#ff0000' }), /themes disagree/)
+  assert.throws(() => assertAppearanceMatch(current, admin, { ...current, mode: 'dark' }), /changed during upgrade/)
+  assert.throws(() => assertAppearanceMatch(current, { ...admin, unexpected: true }), /themes disagree/)
+})
+
+test('failed prepare can resume only its exact immutable release, live current and unchanged protected snapshots/routing', () => {
+  const active = activeFixture(), release = { identity, manifestSha256: 'c'.repeat(64) }
+  const state = { ...identity, phase: 'prepare-failed', manifestSha256: release.manifestSha256, priorImage: currentImage,
+    priorContainerId: active.container.Id, priorComposeSha256: 'd'.repeat(64), priorStateSha256: 'e'.repeat(64) }
+  const pins = { composeSha256: state.priorComposeSha256, stateSha256: state.priorStateSha256, route: routing(`${names.app}:8080`) }
+  assert.doesNotThrow(() => assertPrepareRetry(state, release, active, pins))
+  for (const changed of [{ phase: 'prepared' }, { phase: 'active-verified' }, { commit: 'f'.repeat(40) }, { image: currentImage },
+    { manifestPath: '/tmp/other-manifest.json' }, { manifestSha256: 'f'.repeat(64) }, { directory: '/tmp/other-directory' },
+    { priorImage: nextImage }, { priorContainerId: 'other-container' }, { priorComposeSha256: 'f'.repeat(64) }, { priorStateSha256: 'f'.repeat(64) }]) {
+    assert.throws(() => assertPrepareRetry({ ...state, ...changed }, release, active, pins))
+  }
+  assert.throws(() => assertPrepareRetry(state, release, active, { ...pins, route: routing(`${identity.candidateName}:8080`) }))
+})
+
 function backupFixture(now) {
   const { container, state } = activeFixture()
   const dependencies = state.dependencies.map(item => ({ Image: item.image }))
@@ -167,6 +191,40 @@ test('backup rejects stale or future completion and changed application, depende
     { ...fixture.record, archives: fixture.record.archives.map(item => ({ ...item, sha256: 'wrong' })) }
   ]
   for (const record of records) assert.throws(() => assertFreshBackup(record, fixture.container, fixture.dependencies, now))
+})
+
+const completeToc = `;
+; Archive created at 2026-10-08 01:00:00
+;     dbname: fixture
+;     TOC Entries: 4
+;     Format: CUSTOM
+;
+; Selected TOC Entries:
+;
+10; 1259 100 TABLE public schema_migrations fixture
+11; 0 100 TABLE DATA public schema_migrations fixture
+12; 1259 200 TABLE public accounts fixture
+13; 0 200 TABLE DATA public accounts fixture
+`
+test('dump listing accepts only successful complete TOC output when stdin closes early with EPIPE', () => {
+  const result = spawnSync(process.execPath, ['-e', `require('node:fs').writeSync(1, ${JSON.stringify(completeToc)}); process.exit(0)`], {
+    input: Buffer.alloc(16 << 20), encoding: 'utf8', timeout: 5000, maxBuffer: (1 << 20)
+  })
+  assert.equal(result.status, 0)
+  assert.equal(result.error?.code, 'EPIPE', 'The child must exit without consuming the oversized input pipe')
+  assert.equal(postgresDumpListToc(result), completeToc.trim())
+  assert.equal(postgresDumpListToc({ status: 0, stdout: completeToc }), completeToc.trim())
+})
+
+test('dump-list EPIPE never masks failure, signal, other spawn errors or truncated/non-TOC stdout', () => {
+  const error = code => Object.assign(new Error('fixture-private-details'), { code })
+  for (const changes of [
+    { status: 1, error: error('EPIPE') }, { status: null, error: error('EPIPE') }, { signal: 'SIGTERM', error: error('EPIPE') },
+    ...['ETIMEDOUT', 'ENOBUFS', 'ENOENT', 'EINTR'].map(code => ({ error: error(code) })),
+    { stdout: completeToc.slice(0, -1) }, { stdout: 'schema_migrations TABLE\n' },
+    { stdout: completeToc.replace('Selected TOC Entries:', 'incomplete directory') },
+    { stdout: completeToc + 'truncated-entry\n' }, { stdout: completeToc.replaceAll('schema_migrations', 'other_table') }
+  ]) assert.throws(() => postgresDumpListToc({ status: 0, error: error('EPIPE'), stdout: completeToc, ...changes }))
 })
 
 const quotaWindow = (now, changes = {}) => ({ key: 'five_hour', utilization: 85, source: 'response_headers', scope: 'account', window_minutes: 300,
@@ -314,6 +372,7 @@ test('local upgrade does not restore live stores, rewrite Serve, prune images or
   assert(!source.includes("'tailscale'"))
   assert(!source.includes("'--clean'"))
   assert(source.includes("'pg_restore', '--list'"))
+  assert(source.includes('check(!result.error && result.status === 0, `Docker'))
   const cleanup = source.slice(source.indexOf('async function cleanupCandidate'), source.indexOf('async function prepare'))
   assert(cleanup.indexOf('routing(`${names.app}:8080`)') < cleanup.indexOf("docker(['stop'"))
   assert(cleanup.includes('Candidate volume is still used by a container'))
