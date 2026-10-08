@@ -72,4 +72,18 @@ Next discuss a single-writer design. A short-term option is periodic consistent 
 
 Tools live in `deploy/remote-standby/`. They allow only the established host, protected output directories and named deployment targets; private responses remain in `sub2api-upgrade-private`.
 
+For a subsequent application release, use the current hot-upgrade tool, not the first-install scripts:
+
+```sh
+node deploy/remote-standby/upgrade-current.mjs prepare AMD64_MANIFEST
+node deploy/remote-standby/upgrade-current.mjs activate PRIVATE_RELEASE_DIRECTORY
+node deploy/remote-standby/upgrade-current.mjs status PRIVATE_RELEASE_DIRECTORY
+node deploy/remote-standby/upgrade-current.mjs verify-boot PRIVATE_RELEASE_DIRECTORY
+node deploy/remote-standby/upgrade-current.mjs rollback PRIVATE_RELEASE_DIRECTORY
+```
+
+Prepare retains the previous private Compose/state/Caddy configuration and takes a fresh backup of HK's own data. It loads the checksummed amd64 image and starts a separate candidate at loopback `18585`, sharing HK's existing dependencies with duplicate background work disabled. Activation proves copied login/session, shared theme, the quota API and compiled quota chunk, and a real current-Codex request before moving the public route. Caddy's validated configuration is updated in place and gracefully reloaded with SIGUSR1; its admin API is disabled. While the candidate serves, replace only the canonical application, prove it and route back. Persist the new image/release identity in the existing startup sources, retain old fingerprinted assets, and remove only owned candidate resources after successful promotion.
+
+This preserves each site's database, domain, proxy bindings and background-role policy. It neither overwrites HK with a new Mac snapshot nor installs ongoing replication. Rollback restores application/configuration/route, never a pre-upgrade database over newer writes. Startup verification checks the enabled systemd job, actual running image and protected configuration; a configuration check alone is not evidence of a fresh host reboot.
+
 `configure-webshare.mjs DIRECTORY hk` safely tests and binds HK; its default is HK. `sync-current-oauth.mjs DIRECTORY` performs a manual, scoped primary-to-HK catch-up through admin writes and raw credential readback. `verify-boot.mjs DIRECTORY PREVIOUS_BOOT_ID` checks actual host restart and automatic startup, waiting for systemd readiness rather than merely SSH availability. `verify.mjs` also restarts the application; run it only during a standby validation window. `activate.mjs` requires candidate proof; `cleanup.mjs` requires public proof plus an actually restored old archive.

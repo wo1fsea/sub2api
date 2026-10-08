@@ -1,30 +1,87 @@
 {
   "status": "source-checks-passed-not-production-approved",
-  "recordedDate": "2026-10-07",
-  "backendTree": "1bbc93516eb68873c08ebe5a56072fba8370f802",
-  "frontendTree": "c3bf80af3be11bede01d3cb790cbce37658a9366",
+  "recordedDate": "2026-10-08",
+  "qualifiedApplicationCommit": "e019dc184a1ffc3c68c48f11d3677a2344c8b7b0",
+  "backendTree": "756608a62a7910833f1ec24ec16e046f36ba9511",
+  "frontendTree": "861d32a000a43b961d8665f133487343a636309f",
+  "qualificationScope": "Subscription quota overview and affected account-usage, quota, scheduling-metadata and locale regressions. Current checks are targeted; historical full suites below are background evidence for different Git trees.",
   "toolchain": "go1.27.0",
-  "backendUnit": { "passed": true, "packagesPassed": 57, "testsPassed": 21863, "testsSkipped": 18 },
-  "backendIntegration": { "passed": true, "packagesPassed": 51, "testsPassed": 13565, "testsSkipped": 18 },
-  "backendLint": { "version": "2.13.0", "issues": 0 },
+  "backendUnit": {
+    "passed": true,
+    "scope": "Selected tests in internal/service, -tags=unit, -count=1. Top-level tests and nested pass events are counted separately; this is not the full backend suite.",
+    "packagesPassed": 1,
+    "topLevelTestsPassed": 99,
+    "testPassEvents": 167,
+    "testsSkipped": 0,
+    "testFilter": "Test(AccountQuotaSnapshot|ClaudeUsageResponse|BuildUsageInfo|BuildPassiveUsageWindow|SyncActiveToPassive|BuildCodexUsageExtraUpdates|BuildCodexSparkWindowExtraUpdates|UpdateSessionWindow|DuplicateAccount|OpenAIQuotaAutoReset|QueryUsage|PrepareUpstreamCall|ResetCredit|CachePostResetSnapshot|AccountUsageService_(GetUsageBatch|OpenAIQueries|PersistOpenAI)|ShouldRefreshOpenAICodexSnapshot|ExtractOpenAICodex)",
+    "privateReport": "frontend/tmp/quota-qualification-KeOJoS/backend-targeted-unit.json"
+  },
+  "backendRace": {
+    "passed": true,
+    "scope": "TestAccountQuotaSnapshot in internal/service with -race and -count=1. These tests overlap the targeted unit set; the counts must not be added as unique tests.",
+    "packagesPassed": 1,
+    "topLevelTestsPassed": 27,
+    "testPassEvents": 41,
+    "testsSkipped": 0,
+    "privateReport": "frontend/tmp/quota-qualification-KeOJoS/backend-quota-race.json"
+  },
+  "backendRepository": {
+    "passed": true,
+    "scope": "TestShouldEnqueueSchedulerOutboxForExtraUpdates CompactCapabilityKeysAreRelevant, OpenAIResponsesCapabilityKeysAreRelevant and QuotaSampleMetadataIsNeutral; -tags=unit, -count=1.",
+    "packagesPassed": 1,
+    "topLevelTestsPassed": 3,
+    "testPassEvents": 3,
+    "testsSkipped": 0,
+    "privateReport": "frontend/tmp/quota-qualification-KeOJoS/backend-repository.json"
+  },
+  "backendIntegration": { "status": "not-run-for-current-trees" },
+  "backendLint": { "status": "not-rerun-for-current-trees", "note": "The previous complete golangci-lint result is historical only; no fresh full backend lint pass is claimed." },
+  "embeddedServerBuild": {
+    "passed": true,
+    "scope": "Server build with embed tag and the current frontend build, completed earlier in the same task and confirmed by the root agent. This is a source compile check, not an exact-image runtime or provider check.",
+    "evidence": "Same-task execution result; its original transient log path was not retained."
+  },
   "frontend": {
     "unchangedTreeReused": false,
-    "testFilesPassed": 341,
-    "testsPassed": 2612,
+    "scope": "Four quota overview helper, composable, page and batch API files plus locale key completeness and locale message compilation; direct Vitest CLI, maxWorkers=2, 2048MiB Node heap. Fresh output replaces the earlier compressed test-count summary.",
+    "testFilesPassed": 6,
+    "testsPassed": 30,
+    "testsFailed": 0,
+    "testsSkipped": 0,
+    "privateTestReport": "frontend/tmp/quota-qualification-KeOJoS/vitest-summary.json",
     "typecheck": "passed",
-    "lint": "passed",
+    "privateTypecheckReport": "frontend/tmp/quota-qualification-KeOJoS/frontend-typecheck.json",
+    "lint": "changed-files-passed",
+    "lintFilesChecked": 21,
+    "lintScope": "Changed JavaScript, TypeScript and Vue files between the recorded production application source 3e364ac542d0463133adaebd6c1e01cc11fdfdd7 and e019dc184; ESLint without --fix. Full frontend lint was not rerun.",
+    "privateLintReport": "frontend/tmp/quota-qualification-KeOJoS/frontend-changed-eslint.json",
     "productionBuild": "passed",
-    "securityAudit": { "high": 0, "critical": 0, "exceptionsCheck": "passed", "xlsxRoundtrip": "Chinese text and numeric cells passed with SheetJS 0.20.3" },
-    "browser": {
-      "viewport": "Current overlays checked at 390x844; desktop 1280x720. Prior diagonal-chart qualification retained. A later 320px viewport request did not take effect and is not counted as a new narrow-screen result.",
-      "visual": "Light/dark announcements, login agreement, TOTP, guided tour, tooltip/toast; shared SVG mark on login and component preview; diagonal distribution charts and health matrix density with 11 legend segments; original-skin gradient retained.",
-      "functional": "Actual admin form save succeeded; original/custom roundtrip and shared user appearance were observed; ordinary user has no appearance control. Hatch cache reuse remains covered by existing tests.",
-      "numeric": "390px overlays fit without page overflow; desktop matrix has zero overflow; dark accent text uses black/white contrast selection.",
-      "limitation": "Synthetic preview is not live gateway evidence. Browser QA samples independent components and roles, not every business workflow. Screenshots/logs remain ignored; preview-only matrix fixture and banner added after full tests, with fresh type/lint checks."
-    }
+    "productionBuildEvidence": "Vite production build completed earlier in the same task on the identical frontend tree; original transient log path was not retained. Immutable packaging reruns the required i18n, type and Vite stages.",
+    "fullSuite": "not-rerun-for-current-tree",
+    "securityAudit": { "status": "not-rerun", "note": "package.json and pnpm-lock.yaml are unchanged; the older audit below is not a new scan." },
+    "browserLimitation": "Synthetic quota fixtures and preview inspection do not certify authenticated live quota access, real model forwarding or production cutover."
+  },
+  "fullBackendUnitAttempt": {
+    "status": "interrupted",
+    "passed": false,
+    "result": { "code": null, "signal": "SIGTERM" },
+    "privateReport": "frontend/tmp/backend-tests/run-3Opt1N/report.json",
+    "note": "Started the complete suite, then stopped only this agent's processes when the root agent narrowed release qualification. Partial passes are not treated as a full-suite pass; no further full integration or frontend suite was started."
+  },
+  "historicalBaseline": {
+    "recordedDate": "2026-10-07",
+    "backendTree": "1bbc93516eb68873c08ebe5a56072fba8370f802",
+    "frontendTree": "c3bf80af3be11bede01d3cb790cbce37658a9366",
+    "appliesToCurrentTrees": false,
+    "backendUnit": { "passed": true, "packagesPassed": 57, "testPassEvents": 21863, "testsSkipped": 18 },
+    "backendIntegration": { "passed": true, "packagesPassed": 51, "testPassEvents": 13565, "testsSkipped": 18 },
+    "backendLint": { "version": "2.13.0", "issues": 0 },
+    "frontend": { "testFilesPassed": 341, "testsPassed": 2612, "typecheck": "passed", "lint": "passed", "productionBuild": "passed", "securityAudit": { "high": 0, "critical": 0, "exceptionsCheck": "passed" } },
+    "operationsTestsPassed": 18,
+    "note": "Copied from the prior checked-in validation record solely as historical context. These results are not relabeled as checks of the quota release."
   },
   "realGatewayCallsTested": false,
   "productionDeploymentPerformed": false,
-  "operationsTestsPassed": 18,
-  "note": "Fresh full frontend and backend suites validate shared appearance and authorization changes. Exact final frontend type/lint checks also include isolated preview fixtures. Immutable Docker packaging re-runs official i18n/type/Vite stages. Conditional provider/plugin/audit skips do not certify real providers. VERSION remains aligned to published v0.2.13. Exact-image smoke, current-data restore, real candidate/entry calls and deployment are separate gates."
+  "liveTestCredentialsInherited": false,
+  "note": "Targeted source qualification matches the exact application trees, independently of later deployment-tool commits. VERSION remains aligned to upstream v0.2.13; migrations, schema and dependency manifests are unchanged from the recorded local/HK application sources. Exact-image smoke, current-data restore and comparison, deployment-tool checks, real candidate and original-entry responses, persistent routing and startup verification are separate release evidence. This file grants no production approval."
 }

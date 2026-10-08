@@ -2,7 +2,28 @@
 
 This package combines upstream `v0.2.13` with **Restrained Neubrutalism**, our OpenJev-inspired appearance with grayscale hatch charts. The application version is exactly `0.2.13`; the source SHA and image ID identify our local build separately. Do not suppress legitimate future upstream updates. Packaging alone never changes the running service, production database, secrets, or entry. The Cursor experiment is excluded.
 
-## Current frontend refresh: v0.2.13 hatches
+## Current upgrade: subscription quota overview
+
+The administrator's `/admin/quota-overview` page adds subscription-window summaries, sortable account cards and retained stale/unknown readings. It preserves the shared administrator-selected appearance and grayscale hatches. The upstream version remains `0.2.13`; identify this release by the full OCI source revision and immutable image ID. This change adds no schema migration or dependency update.
+
+Use `upgrade-current.mjs` for the installed `sub2api-current` deployment. The older helpers below pin historical containers and must not be replayed against it. Build both ARM64 and amd64 packages from the same committed source with a freshly qualified backend/frontend tree. For Mac, smoke the exact ARM64 image and rehearse a fresh backup of `sub2api-current-app` on independent no-egress dependencies before preparing the production candidate.
+
+```sh
+SUB2API_BACKUP_APP=sub2api-current-app node deploy/local-upgrade/backup-private.mjs /Users/clawbotbot/Projects/sub2api-upgrade-private
+node deploy/local-upgrade/rehearse-private.mjs BACKUP MANIFEST
+node deploy/local-upgrade/upgrade-current.mjs prepare MANIFEST BACKUP RESTORE_REPORT
+node deploy/local-upgrade/upgrade-current.mjs activate MANIFEST
+node deploy/local-upgrade/upgrade-current.mjs status MANIFEST
+node deploy/local-upgrade/upgrade-current.mjs rollback MANIFEST
+```
+
+The candidate uses loopback `18585`, a separate app-data volume, shared existing PostgreSQL/Redis, and disabled duplicate background roles. Authentication, the quota API and compiled quota chunk, existing sessions, and a short real current-Codex Responses stream must pass before routing traffic to it. Retain old fingerprinted assets for existing browser tabs. While the candidate serves the stable entry, replace only the canonical application with the pinned new image and its original background-role configuration; prove it before routing back. Preserve `18080`, `18480`, the tailnet HTTPS URL and other Tailscale Serve ports. The private Compose/state and release-manifest checksum must agree with the promoted image so recovery boots this release.
+
+Rollback restores the prior application image/configuration and route without restoring a database snapshot or losing intervening writes. Keep the previous image, package, private configuration and data backup. Client reconnects are accepted under the owner's existing switch policy; a partially delivered stream is not automatically replayed or guaranteed to resume losslessly.
+
+For the independently backed-up HK environment, use [REMOTE_STANDBY.md](REMOTE_STANDBY.md). A software rollout does not synchronize its business data with Mac or change standby roles.
+
+## Historical frontend refresh: v0.2.13 hatches
 
 Use `refresh-current.mjs` for this refresh, retaining the same upstream version. It pins the existing `sub2api-green-v0213` image/container and the stable ingress at `18480`; the new candidate is `sub2api-blue-hatches` at loopback `18582`. It shares the existing DB/Redis, restores installed config into a separate app volume, and disables duplicate background roles. `sub2api` on `18080` remains the background owner. Backend Git tree must match the qualified `0.2.13` tree; zero new migrations are expected.
 
@@ -39,7 +60,7 @@ node deploy/local-upgrade/release-next.mjs rollback
 
 Verify requires the current configured Codex key/model to complete one short real Responses stream on the candidate. Activate checks all mapped old static assets, moves only Tailscale HTTPS 443 to `18480`, then repeats a real stream through the original HTTPS URL. HTTPS 8443 remains on `7777`. A failure restores the previous entry. No automatic POST replay, formal acceptance delay or lossless continuation of an interrupted stream is claimed. Old instances remain available for reconnects/rollback. Hermes clients on direct `18080` remain on their prior entry.
 
-`release-next.mjs` and the sections below document historical initial/.2 delivery. Use `refresh-current.mjs` for the current refresh; do not reuse the old hard-coded prepare/status/rollback commands.
+`release-next.mjs`, `refresh-current.mjs` and the sections below document historical deliveries. Use `upgrade-current.mjs` for the current installed deployment; do not reuse old hard-coded prepare/status/rollback commands.
 
 ## Current Local Switch Policy
 
