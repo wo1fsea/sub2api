@@ -162,7 +162,7 @@ export async function recordFailedTunnel(child, record, diagnostic, { write = wr
 // remains inside a root-only Python process on HK. Only allowlisted results
 // cross SSH. Docker stderr is never printed, including failure paths.
 export const remoteProgram = String.raw`
-import copy, hashlib, json, math, os, re, shutil, subprocess, sys, tarfile, time, urllib.request
+import copy, hashlib, json, math, os, re, shutil, stat, subprocess, sys, tarfile, time, urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 a=json.load(sys.stdin)
@@ -183,6 +183,59 @@ def write(p,v):
     fd=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_TRUNC,0o600)
     with os.fdopen(fd,'w') as f: json.dump(v,f,indent=2); f.flush(); os.fsync(f.fileno())
     os.chmod(temporary,0o600); os.replace(temporary,p)
+def asset_metadata(values):
+    assert isinstance(values,dict) and 0<len(values)<=1000,'Invalid asset inventory'
+    for path,meta in values.items():
+        assert re.fullmatch(r'/assets/[a-zA-Z0-9_.\/-]+-[a-zA-Z0-9_-]{6,}\.(js|css)',path) and '..' not in path and '//' not in path
+        assert isinstance(meta,dict) and set(meta)=={'bytes','sha256'}
+        assert type(meta['bytes']) is int and 0<meta['bytes']<=8*1024*1024
+        assert re.fullmatch(r'[a-f0-9]{64}',meta['sha256'])
+    assert sum(v['bytes'] for v in values.values())<96*1024*1024,'Asset inventory exceeds its byte budget'
+def validated_asset_archive(archive,meta,expected):
+    asset_metadata(expected)
+    assert type(meta['bytes']) is int and 0<meta['bytes']<=96*1024*1024
+    assert re.fullmatch(r'[a-f0-9]{64}',meta['sha256'])
+    allowed_directories={'','assets'}
+    for path in expected:
+        parts=path.lstrip('/').split('/')
+        allowed_directories.update('/'.join(parts[:i]) for i in range(1,len(parts)))
+    fd=os.open(archive,os.O_RDONLY|os.O_NOFOLLOW)
+    with os.fdopen(fd,'rb') as f:
+        info=os.fstat(f.fileno()); assert stat.S_ISREG(info.st_mode) and info.st_size==meta['bytes']
+        h=hashlib.sha256()
+        for chunk in iter(lambda:f.read(1024*1024),b''): h.update(chunk)
+        assert h.hexdigest()==meta['sha256'],'Asset archive checksum mismatch'
+        f.seek(0); payload={}; seen=set(); total=0
+        with tarfile.open(fileobj=f,mode='r:gz') as t:
+            for index,member in enumerate(t):
+                assert index<2000,'Asset archive exceeds its entry budget'
+                name=member.name
+                assert not name.startswith('/') and '\\' not in name
+                while name.startswith('./'): name=name[2:]
+                name='' if name=='.' else name.rstrip('/')
+                assert name not in seen,'Duplicate archived asset path'
+                assert not name or all(part not in ('','..','.') for part in name.split('/')),'Unsafe archived asset path'
+                seen.add(name)
+                if member.isdir():
+                    assert name in allowed_directories,'Unexpected asset directory'
+                    continue
+                assert member.isreg(),'Asset links and special files are forbidden'
+                path='/'+name; assert path in expected,'Unexpected archived asset'
+                expected_file=expected[path]; assert member.size==expected_file['bytes'] and 0<member.size<=8*1024*1024
+                total+=member.size; assert total<96*1024*1024
+                source=t.extractfile(member); assert source is not None
+                content=source.read(member.size+1)
+                assert len(content)==member.size and hashlib.sha256(content).hexdigest()==expected_file['sha256'],'Archived asset checksum mismatch'
+                payload[path]=content
+        assert set(payload)==set(expected),'Asset archive is incomplete'
+        return payload
+def cached_asset_path(destination,path):
+    target=destination/path.lstrip('/')
+    for parent in [destination,*target.parents]:
+        if parent==destination.parent: break
+        assert not parent.is_symlink() and (not parent.exists() or parent.is_dir()),'Unsafe asset cache directory'
+    assert not target.is_symlink() and (not target.exists() or target.is_file()),'Unsafe asset cache target'
+    return target
 def inspect(name): return json.loads(run(['docker','inspect',name]))[0]
 def healthy(name,image=None):
     c=inspect(name)
@@ -337,18 +390,27 @@ elif action=='stage':
     image.unlink(); mf.unlink()
     result={'imageLoaded':True,'imageConfigDigestVerified':True,'revisionVerified':True,'loadedImageId':c['Id'],'archiveConfigDigest':m['imageConfigDigest']}
 elif action=='assets':
-    c=caddy_check(); source=Path(a['upload'])/'assets'
+    c=caddy_check(); upload=Path(a['upload'])
+    assert re.fullmatch(r'/home/ubuntu/sub2api-upgrade-[a-f0-9]{12}',str(upload)) and upload.is_dir() and not upload.is_symlink()
+    asset_metadata(a['assets'])
+    assert all(a['assets'].get(path)==meta for path,meta in a['newAssets'].items()),'New asset inventory differs from the retained inventory'
+    payload=validated_asset_archive(upload/'assets.tar.gz',a['assetArchive'],a['newAssets'])
     data=next(m['Source'] for m in c['Mounts'] if m['Destination']=='/data' and m['Type']=='volume')
-    destination=Path(data)/'sub2api-release-assets'/'retained'; destination.mkdir(parents=True,mode=0o755,exist_ok=True)
-    assert not destination.is_symlink()
-    for path,meta in a['newAssets'].items():
-        assert re.fullmatch(r'/assets/[a-zA-Z0-9_.\/-]+-[a-zA-Z0-9_-]{6,}\.(js|css)',path) and '..' not in path
-        p=source/path.lstrip('/'); b=p.read_bytes(); assert len(b)==meta['bytes'] and hashlib.sha256(b).hexdigest()==meta['sha256']
-        dest=destination/path.lstrip('/'); dest.parent.mkdir(parents=True,mode=0o755,exist_ok=True)
-        assert not dest.is_symlink()
-        if dest.exists(): assert hashlib.sha256(dest.read_bytes()).hexdigest()==meta['sha256'],'Hashed asset URL collision'
-        else: dest.write_bytes(b); os.chmod(dest,0o644)
-    assert sum(v['bytes'] for v in a['assets'].values())<96*1024*1024
+    destination=Path(data)/'sub2api-release-assets'/'retained'
+    assert not destination.parent.is_symlink()
+    # Validate the complete new payload and every retained target before writing
+    # any cache files. Never apply tar ownership/modes or extract broad paths.
+    for path,meta in a['assets'].items():
+        target=cached_asset_path(destination,path)
+        if target.exists():
+            assert target.stat().st_size==meta['bytes'] and hashlib.sha256(target.read_bytes()).hexdigest()==meta['sha256'],'Hashed asset URL collision'
+        else: assert path in payload,'A retained historical asset is missing'
+    destination.mkdir(parents=True,mode=0o755,exist_ok=True)
+    for path,content in payload.items():
+        dest=cached_asset_path(destination,path); dest.parent.mkdir(parents=True,mode=0o755,exist_ok=True)
+        if not dest.exists():
+            with dest.open('xb') as f: f.write(content)
+            os.chmod(dest,0o644)
     for path,meta in a['assets'].items():
         p=destination/path.lstrip('/'); assert p.is_file() and not p.is_symlink() and hashlib.sha256(p.read_bytes()).hexdigest()==meta['sha256']
     write(release/'retained-assets-next.json',a['assets']); result={'assetsCached':len(a['assets'])}
@@ -471,8 +533,8 @@ else: raise ValueError('Unknown remote action')
 print(json.dumps(result))
 `
 
-function command(binary, args, input, timeout = 180_000, raw = false) {
-  const r = spawnSync(binary, args, { input, encoding: raw ? undefined : 'utf8', timeout, maxBuffer: 8 << 20 })
+function command(binary, args, input, timeout = 180_000, raw = false, environment = undefined) {
+  const r = spawnSync(binary, args, { input, encoding: raw ? undefined : 'utf8', timeout, maxBuffer: 8 << 20, env: environment })
   if (r.error || r.status !== 0) {
     const diagnostic = join(privateRoot, `getcodex-upgrade-failure-${randomBytes(6).toString('hex')}.json`)
     writeFileSync(diagnostic, JSON.stringify({ operation: binary, status: r.status, error: r.error?.code,
@@ -717,11 +779,18 @@ export async function main(argv = process.argv.slice(2)) {
         state.assets[path] = meta
       }
       assert(Object.values(state.assets).reduce((total, v) => total + v.bytes, 0) < maxAssetBytes)
+      const archive = join(directory, 'assets.tar.gz')
+      command('tar', ['--no-xattrs', '-czf', archive, '-C', files, '.'], undefined, 60_000, false, { ...process.env, COPYFILE_DISABLE: '1' })
+      await chmod(archive, 0o600)
+      state.assetArchive = { bytes: (await stat(archive)).size, sha256: await hashFile(archive) }
+      assert(state.assetArchive.bytes > 0 && state.assetArchive.bytes <= maxAssetBytes)
+      await save(directory, state)
       command('ssh', [...sshOptions, host, 'mkdir -m 700 ' + quote(state.upload)])
       command('scp', ['-q', ...sshOptions, join(dirname(manifestPath), 'image.tar'), manifestPath, host + ':' + state.upload + '/'], undefined, 300_000)
       state.imageQualification = remote('stage', state, { upload: state.upload, imageTarSha256: state.imageTarSha256, manifestSha256: state.manifestSha256 })
-      command('scp', ['-q', ...sshOptions, '-r', files, host + ':' + state.upload + '/'], undefined, 180_000)
-      remote('assets', state, { upload: state.upload, newAssets, assets: state.assets })
+      await save(directory, state)
+      command('scp', ['-q', ...sshOptions, archive, host + ':' + state.upload + '/'], undefined, 180_000)
+      remote('assets', state, { upload: state.upload, newAssets, assets: state.assets, assetArchive: state.assetArchive })
       state.candidateContainer = remote('candidate-start', state); state.phase = 'candidate-started'; await save(directory, state)
       state.candidateProof = await probe(directory, state, 'candidate', 18585)
       state.phase = 'prepared'; await save(directory, state)

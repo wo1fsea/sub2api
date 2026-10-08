@@ -290,3 +290,89 @@ for (const scenario of ['safe', 'drift', 'unconfirmed', 'candidate-remains']) {
     assert.equal(JSON.parse(result.stdout).passed, true)
   })
 }
+
+const assetArchiveFixture = String.raw`
+import hashlib,io,json,os,subprocess,sys,tarfile,tempfile,traceback
+from pathlib import Path
+task=json.load(sys.stdin)
+with tempfile.TemporaryDirectory(prefix='sub2api-hk-asset-archive-test-') as td:
+    base=Path(td)/'etc'; deploy=Path(td)/'opt'; base.mkdir(); deploy.mkdir()
+    revision='0123456789ab'; release=base/'upgrades'/('quota-'+revision); release.mkdir(parents=True)
+    upload=Path(td)/'sub2api-upgrade-0123456789ab'; upload.mkdir()
+    data=Path(td)/'caddy-data'; cache=data/'sub2api-release-assets'/'retained'; cache.mkdir(parents=True)
+    first='/assets/First-aBc12345.js'; second='/assets/nested/Second-aBc12345.css'; old='/assets/Previous-old12345.js'
+    contents={first:b'export default "first"',second:b'.fixture { color: black; }'}
+    def meta(b): return {'bytes':len(b),'sha256':hashlib.sha256(b).hexdigest()}
+    expected={p:meta(b) for p,b in contents.items()}; retained={old:meta(b'original'),**expected}
+    (cache/'assets').mkdir(); (cache/old.lstrip('/')).write_bytes(b'original')
+    case=task['case']; archive=upload/'assets.tar.gz'
+    if case=='native-tar':
+        source=Path(td)/'source'; source.mkdir()
+        for path,content in contents.items():
+            dest=source/path.lstrip('/'); dest.parent.mkdir(parents=True,exist_ok=True); dest.write_bytes(content)
+        result=subprocess.run(['tar','--no-xattrs','-czf',str(archive),'-C',str(source),'.'],stdout=subprocess.PIPE,stderr=subprocess.PIPE,env={**os.environ,'COPYFILE_DISABLE':'1'})
+        assert result.returncode==0,result.stderr
+    else:
+        with tarfile.open(archive,'w:gz',format=tarfile.PAX_FORMAT) as t:
+            def add(name,content=b'fixture',kind=tarfile.REGTYPE,link=''):
+                member=tarfile.TarInfo(name); member.type=kind; member.linkname=link; member.size=len(content) if kind==tarfile.REGTYPE else 0
+                t.addfile(member,io.BytesIO(content) if kind==tarfile.REGTYPE else None)
+            add('./assets/First-aBc12345.js',contents[first])
+            if case!='missing': add('./assets/nested/Second-aBc12345.css',b'X'*len(contents[second]) if case=='file-checksum' else contents[second])
+            if case=='traversal': add('../escape-aBc12345.js')
+            if case=='absolute': add('/tmp/escape-aBc12345.js')
+            if case=='duplicate': add('assets/First-aBc12345.js',contents[first])
+            if case=='symlink': add('assets/link-aBc12345.js',kind=tarfile.SYMTYPE,link='../../escape')
+            if case=='hardlink': add('assets/link-aBc12345.js',kind=tarfile.LNKTYPE,link='assets/First-aBc12345.js')
+            if case=='special': add('assets/device-aBc12345.js',kind=tarfile.FIFOTYPE)
+            if case=='unexpected': add('assets/Unexpected-aBc12345.js')
+            if case=='unexpected-dir': add('unplanned-directory',kind=tarfile.DIRTYPE)
+    archived=meta(archive.read_bytes())
+    if case=='archive-checksum': archived['sha256']='0'*64
+    if case=='archive-size': archived['bytes']+=1
+    if case=='compressed-budget': archived['bytes']=96*1024*1024+1
+    if case=='entry-size': expected[first]['bytes']=8*1024*1024+1
+    if case=='total-budget':
+        for i in range(12):
+            p='/assets/Large'+str(i)+'-aBc12345.js'; expected[p]={'bytes':8*1024*1024,'sha256':'0'*64}; retained[p]=expected[p]
+    if case=='cache-collision': (cache/first.lstrip('/')).write_bytes(b'existing collision')
+    original_files={str(p.relative_to(cache)):p.read_bytes() for p in cache.rglob('*') if p.is_file()}
+    healthy={'Running':True}
+    caddy={'Id':'fixture-caddy','Path':'caddy','Args':['run','--config','/etc/caddy/Caddyfile','--adapter','caddyfile'],'State':healthy,'Mounts':[{'Destination':'/data','Type':'volume','Source':str(data)}]}
+    real_run=subprocess.run
+    def fake_run(args,**kwargs):
+        if args==['docker','inspect','getcodex-sub2api-caddy']: out=json.dumps([caddy]).encode()
+        elif args[:3]==['docker','exec','fixture-caddy']: out=b'v2.11.4 fixture'
+        else: raise AssertionError('Unexpected external operation')
+        return subprocess.CompletedProcess(args,0,out,b'')
+    subprocess.run=fake_run
+    args={'action':'assets','revision':revision,'upload':str(upload),'assetArchive':archived,'newAssets':expected,'assets':retained}
+    program=task['program'].replace("base=Path('/etc/sub2api')",'base=Path('+repr(str(base))+')').replace("deploy=Path('/opt/sub2api')",'deploy=Path('+repr(str(deploy))+')')
+    program=program.replace("re.fullmatch(r'/home/ubuntu/sub2api-upgrade-[a-f0-9]{12}',str(upload))",'str(upload)=='+repr(str(upload)))
+    sys.stdin=io.StringIO(json.dumps(args)); output=io.StringIO(); original=sys.stdout; sys.stdout=output; failure=None
+    try: exec(program,{})
+    except (AssertionError,tarfile.TarError,OSError,ValueError) as error: failure=type(error).__name__+'\n'+traceback.format_exc()
+    finally: sys.stdout=original
+    if case in ['safe','native-tar']:
+        assert failure is None,failure
+        for path,content in contents.items():
+            target=cache/path.lstrip('/'); assert target.read_bytes()==content and target.stat().st_mode&0o777==0o644
+        assert json.loads((release/'retained-assets-next.json').read_text())==retained
+        assert json.loads(output.getvalue())['assetsCached']==3
+    else:
+        assert failure is not None,'Unsafe asset archive passed validation'
+        actual={str(p.relative_to(cache)):p.read_bytes() for p in cache.rglob('*') if p.is_file()}
+        assert actual==original_files,'Validation failure wrote a partial asset cache'
+        assert not (release/'retained-assets-next.json').exists()
+        assert not (Path(td).parent/'escape-aBc12345.js').exists()
+    assert (cache/old.lstrip('/')).read_bytes()==b'original'
+    print(json.dumps({'passed':True,'case':case,'validationFailed':failure is not None}))
+`
+for (const scenario of ['safe', 'native-tar', 'traversal', 'absolute', 'duplicate', 'symlink', 'hardlink', 'special', 'unexpected', 'unexpected-dir',
+  'missing', 'file-checksum', 'archive-checksum', 'archive-size', 'compressed-budget', 'entry-size', 'total-budget', 'cache-collision']) {
+  test(`single compressed asset upload validates all contents before writing retained files: ${scenario}`, () => {
+    const result = spawnSync('python3', ['-c', assetArchiveFixture], { input: JSON.stringify({ program: remoteProgram, case: scenario }), encoding: 'utf8', timeout: 5000, maxBuffer: 64 << 10 })
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(JSON.parse(result.stdout).passed, true)
+  })
+}

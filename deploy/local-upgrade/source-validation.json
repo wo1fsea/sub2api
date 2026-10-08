@@ -1,10 +1,10 @@
 {
   "status": "source-checks-passed-not-production-approved",
   "recordedDate": "2026-10-08",
-  "qualifiedApplicationCommit": "60d6dca0a9761fd4a515ccd988155c994c9e802d",
-  "backendTree": "2505b72ecc5dded63c0d3da8b2aeda880c871404",
+  "qualifiedApplicationCommit": "2384f92e2546a2555324680bd44bec8191a69ebf",
+  "backendTree": "43ea9a6742be05c2536f56d90d7b74d9870340b3",
   "frontendTree": "c14f7d9bc5df622ed328b8d2357a4c0563fc0984",
-  "qualificationScope": "Subscription quota overview, explicit zero-usage/zero-countdown normalization, and affected account-usage, quota, scheduling-metadata and locale regressions. Current checks are targeted; historical full suites below are background evidence for different Git trees. The display fix retains raw Extra and legacy scheduling fields.",
+  "qualificationScope": "Subscription quota overview, explicit zero-usage/zero-countdown normalization, and affected account-usage, quota, scheduling-metadata and locale regressions. The final backend also fixes eight staticcheck findings with equivalent switches and lowercase errors. Fresh targeted checks match the qualified backend tree; unchanged frontend evidence is reused by exact tree. The display fix retains raw Extra and legacy scheduling fields.",
   "toolchain": "go1.27.0",
   "backendUnit": {
     "passed": true,
@@ -14,7 +14,7 @@
     "testPassEvents": 187,
     "testsSkipped": 0,
     "testFilter": "Test(AccountQuotaSnapshot|ClaudeUsageResponse|BuildUsageInfo|BuildPassiveUsageWindow|SyncActiveToPassive|BuildCodexUsageExtraUpdates|BuildCodexSparkWindowExtraUpdates|UpdateSessionWindow|DuplicateAccount|OpenAIQuotaAutoReset|QueryUsage|PrepareUpstreamCall|ResetCredit|CachePostResetSnapshot|AccountUsageService_(GetUsageBatch|OpenAIQueries|PersistOpenAI)|ShouldRefreshOpenAICodexSnapshot|ExtractOpenAICodex)",
-    "privateReport": "frontend/tmp/quota-zero-YaJjV4/backend-unit.json"
+    "privateReport": "frontend/tmp/quota-zero-YaJjV4/backend-unit-finalserial.json"
   },
   "backendRace": {
     "passed": true,
@@ -23,26 +23,35 @@
     "topLevelTestsPassed": 30,
     "testPassEvents": 61,
     "testsSkipped": 0,
-    "privateReport": "frontend/tmp/quota-zero-YaJjV4/backend-race.json"
+    "privateReport": "frontend/tmp/quota-zero-YaJjV4/backend-race-finalserial.json"
   },
   "backendRepository": {
     "passed": true,
-    "scope": "TestShouldEnqueueSchedulerOutboxForExtraUpdates CompactCapabilityKeysAreRelevant, OpenAIResponsesCapabilityKeysAreRelevant and QuotaSampleMetadataIsNeutral; -tags=unit, -count=1.",
+    "unchangedRepositorySourceReused": true,
+    "scope": "TestShouldEnqueueSchedulerOutboxForExtraUpdates CompactCapabilityKeysAreRelevant, OpenAIResponsesCapabilityKeysAreRelevant and QuotaSampleMetadataIsNeutral; -tags=unit, -count=1. Exact repository source is unchanged since this check; later changes only lowercased service error messages and the corresponding quota test expectation.",
     "packagesPassed": 1,
     "topLevelTestsPassed": 3,
     "testPassEvents": 3,
     "testsSkipped": 0,
-    "privateReport": "frontend/tmp/quota-zero-YaJjV4/backend-repository.json"
+    "privateReport": "frontend/tmp/quota-zero-YaJjV4/backend-repository-lintfix.json"
   },
   "backendIntegration": { "status": "not-run-for-current-trees" },
-  "backendLint": { "status": "not-rerun-for-current-trees", "note": "The previous complete golangci-lint result is historical only; no fresh full backend lint pass is claimed." },
+  "backendLint": {
+    "status": "passed",
+    "version": "2.13.2",
+    "toolchain": "go1.27.0",
+    "issues": 0,
+    "scope": "Fresh full backend golangci-lint on the qualified backend tree. The official release binary checksum was verified, and the process completed with exit zero and 0 issues. GitHub's same-tree lint job also passed.",
+    "ciJob": "https://github.com/wo1fsea/sub2api/actions/runs/37740579290/job/113190111514"
+  },
   "embeddedServerBuild": {
     "passed": true,
     "scope": "Fresh go1.27.0 server build with -tags embed -p 2 on the qualified backend tree, using the existing compiled frontend (only frontend tests changed since its prior build). This is a source compile check, not an exact-image runtime or provider check.",
-    "evidence": "Root execution exited zero; ignored binary frontend/tmp/quota-zero-YaJjV4/server-embed-check. Immutable packaging separately rebuilds the frontend and server."
+    "evidence": "Root execution exited zero after all eight staticcheck fixes; ignored binary frontend/tmp/quota-zero-YaJjV4/server-embed-lintfix2. Immutable packaging separately rebuilds the frontend and server."
   },
   "frontend": {
-    "unchangedTreeReused": false,
+    "unchangedTreeReused": true,
+    "reuseEvidence": "The frontend Git tree is unchanged from qualified application commit 60d6dca0a9761fd4a515ccd988155c994c9e802d. Its 32 assertions, typecheck and changed-file lint results remain exact-tree evidence; official production stages run again in immutable packaging.",
     "scope": "Four quota overview helper, composable, page and batch API files plus locale key completeness and locale message compilation; direct Vitest CLI, maxWorkers=2, 2048MiB Node heap. Fresh output replaces the earlier compressed test-count summary.",
     "testFilesPassed": 6,
     "testsPassed": 32,
@@ -68,6 +77,11 @@
     "result": { "code": null, "signal": "SIGTERM" },
     "privateReport": "frontend/tmp/backend-tests/run-3Opt1N/report.json",
     "note": "Started the complete suite, then stopped only this agent's processes when the root agent narrowed release qualification. Partial passes are not treated as a full-suite pass; no further full integration or frontend suite was started."
+  },
+  "localResourceCorrection": {
+    "interruptedAttempts": ["frontend/tmp/quota-zero-YaJjV4/backend-unit-lintfix2.json", "frontend/tmp/quota-zero-YaJjV4/backend-race-lintfix2.json"],
+    "passed": false,
+    "note": "These parallel attempts were stopped with SIGTERM before any tests completed after host CPU and memory pressure coincided with primary-entry health timeouts. They are not passes. Stop the owned synthetic preview and duplicate Go work, run checks sequentially, and bound the build worker before deployment. Final successful reports are recorded separately."
   },
   "historicalBaseline": {
     "recordedDate": "2026-10-07",
