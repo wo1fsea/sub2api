@@ -6,7 +6,11 @@ This package combines upstream `v0.2.13` with **Restrained Neubrutalism**, our O
 
 The administrator's `/admin/quota-overview` page adds subscription-window summaries, sortable account cards and retained stale/unknown readings. It preserves the shared administrator-selected appearance and grayscale hatches. The upstream version remains `0.2.13`; identify this release by the full OCI source revision and immutable image ID. This change adds no schema migration or dependency update.
 
+The current quota release was installed on Mac and HK on 2026-10-08 from source `12426d2b4c42154c30202440e591ff6da180ce50`. See [the dual-environment delivery record](LOCAL_DELIVERY_QUOTA_0.2.13.md) for exact images, current rollback targets, actual upstream calls, startup checks and observed timeouts. Later documentation commits do not change the installed package identity.
+
 Use `upgrade-current.mjs` for the installed `sub2api-current` deployment. The older helpers below pin historical containers and must not be replayed against it. Build both ARM64 and amd64 packages from the same committed source with a freshly qualified backend/frontend tree. For Mac, smoke the exact ARM64 image and rehearse a fresh backup of `sub2api-current-app` on independent no-egress dependencies before preparing the production candidate.
+
+Run large Go checks and platform builds sequentially on the primary Mac. Stop owned preview/watch processes before packaging and keep the build worker within the recorded CPU/memory budget. Monitor the live entries during preparation as well as cutover; stop owned duplicate work if host memory/CPU pressure affects responses. Passed tests do not turn an observed health timeout into a zero-downtime result.
 
 ```sh
 SUB2API_BACKUP_APP=sub2api-current-app node deploy/local-upgrade/backup-private.mjs /Users/clawbotbot/Projects/sub2api-upgrade-private
@@ -21,7 +25,7 @@ The candidate uses loopback `18585`, a separate app-data volume, shared existing
 
 An interrupted preparation may be retried with the same manifest only when its recorded phase is `prepare-failed`, the original image/container/configuration and route still match, and its protected recovery snapshots verify. The tool retains those snapshots and rejects unexpected operation directories. An expired backup requires a fresh backup and an isolated restore report for the exact release. Administrator/public appearance comparisons ignore JSON field ordering while requiring equal values. PostgreSQL archive-directory inspection accepts an early closed stdin pipe only with exit status zero and a valid complete TOC; this exception never applies to restore or mutation commands.
 
-Rollback restores the prior application image/configuration and route without restoring a database snapshot or losing intervening writes. Keep the previous image, package, private configuration and data backup. Client reconnects are accepted under the owner's existing switch policy; a partially delivered stream is not automatically replayed or guaranteed to resume losslessly.
+Rollback restores the prior application image/configuration and route without overwriting newer database data with a pre-upgrade snapshot. Keep the previous image, package, private configuration and data backup. Client reconnects are accepted under the owner's existing switch policy; a partially delivered stream is not automatically replayed or guaranteed to resume losslessly.
 
 For the independently backed-up HK environment, use [REMOTE_STANDBY.md](REMOTE_STANDBY.md). A software rollout does not synchronize its business data with Mac or change standby roles.
 

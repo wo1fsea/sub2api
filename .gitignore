@@ -140,6 +140,7 @@ docs/*
 !docs/LOCAL_UPGRADE.md
 !docs/LOCAL_DELIVERY_CLASH_2.md
 !docs/LOCAL_DELIVERY_0.2.13.md
+!docs/LOCAL_DELIVERY_QUOTA_0.2.13.md
 !docs/REMOTE_STANDBY.md
 !docs/local/
 docs/local/*
