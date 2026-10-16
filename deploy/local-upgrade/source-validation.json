@@ -1,102 +1,57 @@
 {
   "status": "source-checks-passed-not-production-approved",
-  "recordedDate": "2026-10-08",
-  "qualifiedApplicationCommit": "2384f92e2546a2555324680bd44bec8191a69ebf",
-  "backendTree": "43ea9a6742be05c2536f56d90d7b74d9870340b3",
-  "frontendTree": "c14f7d9bc5df622ed328b8d2357a4c0563fc0984",
-  "qualificationScope": "Subscription quota overview, explicit zero-usage/zero-countdown normalization, and affected account-usage, quota, scheduling-metadata and locale regressions. The final backend also fixes eight staticcheck findings with equivalent switches and lowercase errors. Fresh targeted checks match the qualified backend tree; unchanged frontend evidence is reused by exact tree. The display fix retains raw Extra and legacy scheduling fields.",
-  "toolchain": "go1.27.0",
+  "recordedDate": "2026-10-17",
+  "qualifiedApplicationCommit": "37a36628137a02745df01655270fe5cdd6d7fd54",
+  "backendTree": "4dbf014232a19c5df6ec1387cb0c9a698e1ae3b8",
+  "frontendTree": "b69486d9481a88bfd78093fcba8870cecc56b958",
+  "qualificationScope": "Third monochrome site skin with light/dark tokens, settings, default branding, charts, quota legends and narrow-screen user stats. Existing original/neubrutalism skins and default remain. No migration, dependency, account, credential or routing changes.",
+  "toolchain": "go1.27.1 darwin/arm64 for local tests; pinned go1.27.0 linux/arm64 during immutable packaging",
   "backendUnit": {
     "passed": true,
-    "scope": "Selected tests in internal/service, -tags=unit, -count=1. Top-level tests and nested pass events are counted separately; this is not the full backend suite.",
-    "packagesPassed": 1,
-    "topLevelTestsPassed": 102,
-    "testPassEvents": 187,
+    "packagesPassed": 2,
+    "topLevelTestsPassed": 6,
     "testsSkipped": 0,
-    "testFilter": "Test(AccountQuotaSnapshot|ClaudeUsageResponse|BuildUsageInfo|BuildPassiveUsageWindow|SyncActiveToPassive|BuildCodexUsageExtraUpdates|BuildCodexSparkWindowExtraUpdates|UpdateSessionWindow|DuplicateAccount|OpenAIQuotaAutoReset|QueryUsage|PrepareUpstreamCall|ResetCredit|CachePostResetSnapshot|AccountUsageService_(GetUsageBatch|OpenAIQueries|PersistOpenAI)|ShouldRefreshOpenAICodexSnapshot|ExtractOpenAICodex)",
-    "privateReport": "frontend/tmp/quota-zero-YaJjV4/backend-unit-finalserial.json"
+    "testFilter": "Test.*(SiteAppearance|Monochrome|RejectsInvalidAppearance)",
+    "scope": "internal/service and internal/handler/admin; GOMAXPROCS=2 GOMEMLIMIT=768MiB go test -p 1 -tags=unit -count=1 -json",
+    "privateReport": "/Users/clawbotbot/Projects/sub2api-monochrome/frontend/tmp/monochrome/backend-tests.json"
   },
-  "backendRace": {
-    "passed": true,
-    "scope": "TestAccountQuotaSnapshot in internal/service with -race and -count=1. These tests overlap the targeted unit set; the counts must not be added as unique tests.",
-    "packagesPassed": 1,
-    "topLevelTestsPassed": 30,
-    "testPassEvents": 61,
-    "testsSkipped": 0,
-    "privateReport": "frontend/tmp/quota-zero-YaJjV4/backend-race-finalserial.json"
+  "backendIntegration": {
+    "status": "not-run-for-current-trees"
   },
-  "backendRepository": {
-    "passed": true,
-    "unchangedRepositorySourceReused": true,
-    "scope": "TestShouldEnqueueSchedulerOutboxForExtraUpdates CompactCapabilityKeysAreRelevant, OpenAIResponsesCapabilityKeysAreRelevant and QuotaSampleMetadataIsNeutral; -tags=unit, -count=1. Exact repository source is unchanged since this check; later changes only lowercased service error messages and the corresponding quota test expectation.",
-    "packagesPassed": 1,
-    "topLevelTestsPassed": 3,
-    "testPassEvents": 3,
-    "testsSkipped": 0,
-    "privateReport": "frontend/tmp/quota-zero-YaJjV4/backend-repository-lintfix.json"
-  },
-  "backendIntegration": { "status": "not-run-for-current-trees" },
   "backendLint": {
-    "status": "passed",
-    "version": "2.13.2",
-    "toolchain": "go1.27.0",
-    "issues": 0,
-    "scope": "Fresh full backend golangci-lint on the qualified backend tree. The official release binary checksum was verified, and the process completed with exit zero and 0 issues. GitHub's same-tree lint job also passed.",
-    "ciJob": "https://github.com/wo1fsea/sub2api/actions/runs/37740579290/job/113190111514"
-  },
-  "embeddedServerBuild": {
-    "passed": true,
-    "scope": "Fresh go1.27.0 server build with -tags embed -p 2 on the qualified backend tree, using the existing compiled frontend (only frontend tests changed since its prior build). This is a source compile check, not an exact-image runtime or provider check.",
-    "evidence": "Root execution exited zero after all eight staticcheck fixes; ignored binary frontend/tmp/quota-zero-YaJjV4/server-embed-lintfix2. Immutable packaging separately rebuilds the frontend and server."
+    "status": "not-rerun",
+    "scope": "Changed Go files gofmt clean; go test default vet completed. No fresh full golangci-lint claim."
   },
   "frontend": {
-    "unchangedTreeReused": true,
-    "reuseEvidence": "The frontend Git tree is unchanged from qualified application commit 60d6dca0a9761fd4a515ccd988155c994c9e802d. Its 32 assertions, typecheck and changed-file lint results remain exact-tree evidence; official production stages run again in immutable packaging.",
-    "scope": "Four quota overview helper, composable, page and batch API files plus locale key completeness and locale message compilation; direct Vitest CLI, maxWorkers=2, 2048MiB Node heap. Fresh output replaces the earlier compressed test-count summary.",
-    "testFilesPassed": 6,
-    "testsPassed": 32,
+    "testFilesPassed": 21,
+    "testsPassed": 163,
     "testsFailed": 0,
     "testsSkipped": 0,
-    "privateTestReport": "frontend/tmp/quota-zero-YaJjV4/vitest-results-rerun1.json",
+    "scope": "siteAppearance, useChartTheme, branding, SettingsView, all i18n tests, chart consumers, quota helper/composable/view and UserDashboardStats; final single-worker run after implementation fixes.",
+    "privateTestReport": "/Users/clawbotbot/Projects/sub2api-monochrome/frontend/tmp/monochrome/final-vitest.json",
     "typecheck": "passed",
-    "privateTypecheckReport": "frontend/tmp/quota-zero-YaJjV4/typecheck.json",
     "lint": "changed-files-passed",
-    "lintFilesChecked": 1,
-    "lintScope": "Fresh ESLint without --fix for the only frontend file changed after e019dc184, quotaOverview.spec.ts. The earlier 21 changed-file pass is historical qualification of the preceding tree; no fresh full frontend lint pass is claimed.",
-    "privateLintReport": "frontend/tmp/quota-zero-YaJjV4/lint.json",
+    "lintFilesChecked": 38,
+    "lintScope": "ESLint without fix on modified JS/TS/Vue files; later preview and stats edits checked again with zero warnings/errors.",
     "productionBuild": "required-during-immutable-packaging",
-    "productionBuildEvidence": "The prior Vite build belongs to the preceding frontend tree. build-local.mjs requires the exact committed application trees and runs the official i18n, type and Vite stages plus embedded server compilation before completing the image/package.",
-    "runnerCorrection": "The first final frontend attempt exited one with zero tests due to worker startup settings. Its failed report is retained; only the explicit minWorkers=1/maxWorkers=2 rerun with 32 successful assertions counts as passed.",
-    "fullSuite": "not-rerun-for-current-tree",
-    "securityAudit": { "status": "not-rerun", "note": "package.json and pnpm-lock.yaml are unchanged; the older audit below is not a new scan." },
-    "browserLimitation": "Synthetic quota fixtures and preview inspection do not certify authenticated live quota access, real model forwarding or production cutover."
+    "fullSuite": "not-run",
+    "securityAudit": {
+      "status": "not-rerun",
+      "note": "Dependency manifests unchanged."
+    }
   },
-  "fullBackendUnitAttempt": {
-    "status": "interrupted",
-    "passed": false,
-    "result": { "code": null, "signal": "SIGTERM" },
-    "privateReport": "frontend/tmp/backend-tests/run-3Opt1N/report.json",
-    "note": "Started the complete suite, then stopped only this agent's processes when the root agent narrowed release qualification. Partial passes are not treated as a full-suite pass; no further full integration or frontend suite was started."
+  "browser": {
+    "passed": true,
+    "scope": "Synthetic desktop1440 and mobile390/320: light/dark dashboard and quota, user table, homepage/login, settings save/reload/legacy return, ordinary-user inheritance, date popup, quota detail, two-factor dialog, availability legend. Fixed observed contrast and narrow-screen issues; final observed pageerror empty. Not a live deployment check.",
+    "privateEvidence": "/Users/clawbotbot/Projects/sub2api-monochrome/frontend/tmp/monochrome/"
   },
-  "localResourceCorrection": {
-    "interruptedAttempts": ["frontend/tmp/quota-zero-YaJjV4/backend-unit-lintfix2.json", "frontend/tmp/quota-zero-YaJjV4/backend-race-lintfix2.json"],
-    "passed": false,
-    "note": "These parallel attempts were stopped with SIGTERM before any tests completed after host CPU and memory pressure coincided with primary-entry health timeouts. They are not passes. Stop the owned synthetic preview and duplicate Go work, run checks sequentially, and bound the build worker before deployment. Final successful reports are recorded separately."
-  },
-  "historicalBaseline": {
-    "recordedDate": "2026-10-07",
-    "backendTree": "1bbc93516eb68873c08ebe5a56072fba8370f802",
-    "frontendTree": "c3bf80af3be11bede01d3cb790cbce37658a9366",
-    "appliesToCurrentTrees": false,
-    "backendUnit": { "passed": true, "packagesPassed": 57, "testPassEvents": 21863, "testsSkipped": 18 },
-    "backendIntegration": { "passed": true, "packagesPassed": 51, "testPassEvents": 13565, "testsSkipped": 18 },
-    "backendLint": { "version": "2.13.0", "issues": 0 },
-    "frontend": { "testFilesPassed": 341, "testsPassed": 2612, "typecheck": "passed", "lint": "passed", "productionBuild": "passed", "securityAudit": { "high": 0, "critical": 0, "exceptionsCheck": "passed" } },
-    "operationsTestsPassed": 18,
-    "note": "Copied from the prior checked-in validation record solely as historical context. These results are not relabeled as checks of the quota release."
+  "operationsTests": {
+    "passed": true,
+    "testsPassed": 49,
+    "scope": "upgrade-current, service-recovery and live-gateway Node tests"
   },
   "realGatewayCallsTested": false,
   "productionDeploymentPerformed": false,
   "liveTestCredentialsInherited": false,
-  "note": "Targeted source qualification matches the exact application trees, independently of later deployment-tool commits. VERSION remains aligned to upstream v0.2.13; migrations, schema and dependency manifests are unchanged from the recorded local/HK application sources. Exact-image smoke, current-data restore and comparison, deployment-tool checks, real candidate and original-entry responses, persistent routing and startup verification are separate release evidence. This file grants no production approval."
+  "note": "This record qualifies source only. Packaging runs exact committed frontend i18n/typecheck/Vite and embedded Go build. Exact-image smoke, fresh backup, isolated old/new restore comparison, real Responses completion, traffic switch, historical resources and recovery pin checks are separate required release evidence. The prior 2026-10-08 qualification remains in Git history and is not relabeled as current validation."
 }
