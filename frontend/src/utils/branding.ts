@@ -7,10 +7,15 @@ export function resolveBrandLogo(logoUrl: string): string {
   if (customLogo) return customLogo
   const { appearance } = useSkin()
   const dark = appearance.value.mode === 'dark'
+  // Monochrome keeps the same geometry but uses neutral ink/surface and no accent.
+  const neutral = appearance.value.skin === 'monochrome'
+  const ink = neutral ? (dark ? '#f5f5f5' : '#171717') : (dark ? '#f4f4f4' : '#171715')
+  const surface = neutral ? (dark ? '#262626' : '#ffffff') : (dark ? '#222222' : '#f7f6f0')
+  const accent = neutral ? ink : appearance.value.accent_color
   const svg = brandMark
-    .replace(/__INK__/g, dark ? '#f4f4f4' : '#171715')
-    .replace(/__SURFACE__/g, dark ? '#222222' : '#f7f6f0')
-    .replace(/__ACCENT__/g, appearance.value.accent_color)
+    .replace(/__INK__/g, ink)
+    .replace(/__SURFACE__/g, surface)
+    .replace(/__ACCENT__/g, accent)
   return `data:image/svg+xml,${encodeURIComponent(svg)}`
 }
 

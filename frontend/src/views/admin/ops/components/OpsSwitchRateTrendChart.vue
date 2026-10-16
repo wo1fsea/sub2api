@@ -32,12 +32,12 @@ interface Props {
 const props = defineProps<Props>()
 const { t } = useI18n()
 
-const { skin, isDark: isDarkMode, chartMuted, chartGrid, lineStyle, lineLegend, tooltipTheme } = useChartTheme()
+const { isNeutral, isDark: isDarkMode, chartMuted, chartGrid, lineStyle, lineLegend, tooltipTheme } = useChartTheme()
 const colors = computed(() => ({
   teal: '#14b8a6',
   tealAlpha: '#14b8a620',
-  grid: skin.value === 'neubrutalism' ? chartGrid.value : isDarkMode.value ? '#374151' : '#f3f4f6',
-  text: skin.value === 'neubrutalism' ? chartMuted.value : isDarkMode.value ? '#9ca3af' : '#6b7280'
+  grid: isNeutral.value ? chartGrid.value : isDarkMode.value ? '#374151' : '#f3f4f6',
+  text: isNeutral.value ? chartMuted.value : isDarkMode.value ? '#9ca3af' : '#6b7280'
 }))
 
 const totalRequests = computed(() => sumNumbers(props.points.map((p) => p.request_count)))

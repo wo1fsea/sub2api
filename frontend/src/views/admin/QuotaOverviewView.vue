@@ -124,9 +124,9 @@
       </div>
 
       <div v-if="!loading && rows.length > 0" class="qo-legend">
-        <span><i class="qo-swatch qo-swatch-used" aria-hidden="true"></i>{{ t('admin.quotaOverview.legend.used') }}</span>
+        <span><i class="qo-swatch qo-swatch-used" aria-hidden="true"></i>{{ t(skin === 'monochrome' ? 'admin.quotaOverview.legend.monochromeUsed' : 'admin.quotaOverview.legend.used') }}</span>
         <span><i class="qo-swatch" aria-hidden="true"></i>{{ t('admin.quotaOverview.legend.remaining') }}</span>
-        <span><i class="qo-swatch qo-swatch-accent" aria-hidden="true"></i>{{ t('admin.quotaOverview.legend.attention') }}</span>
+        <span><i class="qo-swatch qo-swatch-accent" aria-hidden="true"></i>{{ t(skin === 'monochrome' ? 'admin.quotaOverview.legend.monochromeAttention' : 'admin.quotaOverview.legend.attention') }}</span>
       </div>
       <footer class="qo-page-footer">
         <p>{{ t('admin.quotaOverview.noPooling') }}</p>
@@ -183,6 +183,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useQuotaOverview, QUOTA_ACCOUNT_MAX_PAGES, QUOTA_ACCOUNT_PAGE_SIZE } from '@/composables/useQuotaOverview'
+import { useSkin } from '@/composables/useSkin'
 import { formatDateTime } from '@/utils/format'
 import {
   QUOTA_PRIORITY_THRESHOLD,
@@ -193,6 +194,7 @@ import {
 } from '@/utils/quotaOverview'
 
 const { t } = useI18n()
+const { skin } = useSkin()
 const { rows, now, loading, refreshing, listFailed, truncated, failedCount, lastFetchedAt, loadedUsageCount, totalUsageCount, refresh } = useQuotaOverview()
 type QuotaFilter = 'all' | 'priority' | 'needsRefresh'
 const filter = ref<QuotaFilter>('all')

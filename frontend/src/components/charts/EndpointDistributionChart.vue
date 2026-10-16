@@ -95,7 +95,7 @@
               >
                 <td class="max-w-[180px] truncate py-1.5 font-medium" :class="enableBreakdown ? 'text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300' : 'text-gray-900 dark:text-white'" :title="item.endpoint">
                   <span class="inline-flex items-center gap-1">
-                    <span v-if="skin === 'neubrutalism'" class="skin-chart-swatch" :style="distributionSwatches[index % distributionSwatches.length]" aria-hidden="true"></span>
+                    <span v-if="skin !== 'original'" class="skin-chart-swatch" :style="distributionSwatches[index % distributionSwatches.length]" aria-hidden="true"></span>
                     <svg v-if="enableBreakdown && expandedKey === item.endpoint" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     <svg v-else-if="enableBreakdown" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                     {{ item.endpoint }}
@@ -147,7 +147,7 @@ import { useChartTheme } from '@/composables/useChartTheme'
 ChartJS.register(ArcElement, Tooltip, Legend)
 
 const { t } = useI18n()
-const { skin, distributionFills, distributionSwatches, chartInk, tooltipTheme } = useChartTheme()
+const { skin, isNeutral, distributionFills, distributionSwatches, chartInk, tooltipTheme } = useChartTheme()
 
 type DistributionMetric = 'tokens' | 'actual_cost'
 type EndpointSource = 'inbound' | 'upstream' | 'path'
@@ -228,7 +228,7 @@ const originalChartColors = [
   '#06b6d4',
   '#a855f7'
 ]
-const chartColors = computed(() => skin.value === 'original' ? originalChartColors : distributionFills.value)
+const chartColors = computed(() => isNeutral.value ? distributionFills.value : originalChartColors)
 
 const displayEndpointStats = computed(() => {
   const sourceStats = props.source === 'upstream'
@@ -253,8 +253,8 @@ const chartData = computed(() => {
           props.metric === 'actual_cost' ? item.actual_cost : item.total_tokens
         ),
         backgroundColor: displayEndpointStats.value.map((_, index) => chartColors.value[index % chartColors.value.length]),
-        borderColor: skin.value === 'neubrutalism' ? chartInk.value : undefined,
-        borderWidth: skin.value === 'neubrutalism' ? 1 : 0
+        borderColor: isNeutral.value ? chartInk.value : undefined,
+        borderWidth: isNeutral.value ? 1 : 0
       }
     ]
   }

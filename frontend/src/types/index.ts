@@ -208,8 +208,10 @@ export interface LoginAgreementDocument {
   content_md: string
 }
 
+export type SiteSkin = 'original' | 'neubrutalism' | 'monochrome'
+
 export interface SiteAppearance {
-  skin: 'original' | 'neubrutalism'
+  skin: SiteSkin
   mode: 'light' | 'dark'
   accent_color: string
 }

@@ -22,8 +22,8 @@ func DefaultSiteAppearance() SiteAppearance {
 var appearanceHexColor = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 
 func (a SiteAppearance) Validate() error {
-	if a.Skin != "neubrutalism" && a.Skin != "original" {
-		return fmt.Errorf("site appearance skin must be neubrutalism or original")
+	if a.Skin != "neubrutalism" && a.Skin != "original" && a.Skin != "monochrome" {
+		return fmt.Errorf("site appearance skin must be neubrutalism, original or monochrome")
 	}
 	if a.Mode != "light" && a.Mode != "dark" {
 		return fmt.Errorf("site appearance mode must be light or dark")

@@ -631,6 +631,7 @@ export default {
         appearanceOriginal: '原版',
         appearanceMode: '明暗模式',
         appearanceAccent: '强调色',
+        appearanceMonochromeHint: '极简黑白不使用强调色：主按钮随明暗模式反色。强调色仍保留在设置中，切换回其他皮肤时继续生效。',
         title: '站点设置',
         description: '自定义站点品牌',
         backendMode: 'Backend 模式',

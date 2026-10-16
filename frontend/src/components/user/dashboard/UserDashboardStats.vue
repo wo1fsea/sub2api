@@ -1,6 +1,6 @@
 <template>
   <!-- Row 1: Core Stats -->
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+  <div class="user-dashboard-stats grid grid-cols-2 gap-4 lg:grid-cols-4">
     <!-- Balance -->
     <div v-if="!isSimple" class="card p-4">
       <div class="flex items-center gap-3">
@@ -68,7 +68,7 @@
   </div>
 
   <!-- Row 2: Token Stats -->
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+  <div class="user-dashboard-stats grid grid-cols-2 gap-4 lg:grid-cols-4">
     <!-- Today Tokens -->
     <div class="card p-4">
       <div class="flex items-center gap-3">

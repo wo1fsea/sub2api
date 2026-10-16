@@ -533,12 +533,12 @@ const loading = ref(false)
 const stats = ref<AccountUsageStatsResponse | null>(null)
 
 // Dark mode detection
-const { skin, isDark: isDarkMode, chartMuted, chartGrid, lineStyle, lineLegend, tooltipTheme } = useChartTheme()
+const { isNeutral, isDark: isDarkMode, chartMuted, chartGrid, lineStyle, lineLegend, tooltipTheme } = useChartTheme()
 
 // Chart colors
 const chartColors = computed(() => ({
-  text: skin.value === 'neubrutalism' ? chartMuted.value : isDarkMode.value ? '#e5e7eb' : '#374151',
-  grid: skin.value === 'neubrutalism' ? chartGrid.value : isDarkMode.value ? '#374151' : '#e5e7eb'
+  text: isNeutral.value ? chartMuted.value : isDarkMode.value ? '#e5e7eb' : '#374151',
+  grid: isNeutral.value ? chartGrid.value : isDarkMode.value ? '#374151' : '#e5e7eb'
 }))
 
 // Line chart data
@@ -641,7 +641,7 @@ const lineChartOptions = computed(() => ({
         color: chartColors.value.grid
       },
       ticks: {
-        color: skin.value === 'neubrutalism' ? chartMuted.value : '#3b82f6',
+        color: isNeutral.value ? chartMuted.value : '#3b82f6',
         font: {
           size: 10
         },
@@ -650,7 +650,7 @@ const lineChartOptions = computed(() => ({
       title: {
         display: true,
         text: t('usage.accountBilled') + ' (USD)',
-        color: skin.value === 'neubrutalism' ? chartMuted.value : '#3b82f6',
+        color: isNeutral.value ? chartMuted.value : '#3b82f6',
         font: {
           size: 11
         }
@@ -664,7 +664,7 @@ const lineChartOptions = computed(() => ({
         drawOnChartArea: false
       },
       ticks: {
-        color: skin.value === 'neubrutalism' ? chartMuted.value : '#f97316',
+        color: isNeutral.value ? chartMuted.value : '#f97316',
         font: {
           size: 10
         },
@@ -673,7 +673,7 @@ const lineChartOptions = computed(() => ({
       title: {
         display: true,
         text: t('admin.accounts.stats.requests'),
-        color: skin.value === 'neubrutalism' ? chartMuted.value : '#f97316',
+        color: isNeutral.value ? chartMuted.value : '#f97316',
         font: {
           size: 11
         }

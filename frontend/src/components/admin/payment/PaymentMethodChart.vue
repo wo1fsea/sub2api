@@ -13,7 +13,7 @@
       <div v-for="(method, index) in methods" :key="method.type" class="space-y-1">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
-            <span :class="skin === 'neubrutalism' ? 'skin-chart-swatch' : ['inline-block h-3 w-3 rounded-full', colorMap[method.type] || 'bg-gray-400']" :style="skin === 'neubrutalism' ? distributionSwatches[index % distributionSwatches.length] : undefined" aria-hidden="true"></span>
+            <span :class="skin !== 'original' ? 'skin-chart-swatch' : ['inline-block h-3 w-3 rounded-full', colorMap[method.type] || 'bg-gray-400']" :style="skin !== 'original' ? distributionSwatches[index % distributionSwatches.length] : undefined" aria-hidden="true"></span>
             <span class="text-sm text-gray-700 dark:text-gray-300">
               {{ t('payment.methods.' + method.type, method.type) }}
             </span>
@@ -32,7 +32,7 @@
           <div class="h-2 flex-1 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-700">
             <div
               :class="['h-full rounded-full transition-all', skin === 'original' ? barColorMap[method.type] || 'bg-gray-400' : 'skin-chart-bar']"
-              :style="{ width: barWidth(currency, amount) + '%', ...(skin === 'neubrutalism' ? distributionSwatches[index % distributionSwatches.length] : {}) }"
+              :style="{ width: barWidth(currency, amount) + '%', ...(skin !== 'original' ? distributionSwatches[index % distributionSwatches.length] : {}) }"
             ></div>
           </div>
         </div>

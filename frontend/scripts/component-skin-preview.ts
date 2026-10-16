@@ -7,6 +7,7 @@ import ComponentSkinPreview from './ComponentSkinPreview.vue'
 import '../src/style.css'
 import '../src/styles/neubrutalism-skin.css'
 import '../src/styles/neubrutalism-components.css'
+import '../src/styles/monochrome-skin.css'
 import 'driver.js/dist/driver.css'
 import '../src/styles/onboarding.css'
 

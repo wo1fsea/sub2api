@@ -49,14 +49,14 @@ ChartJS.register(
 )
 
 const { t } = useI18n()
-const { skin, isDark: isDarkMode, chartMuted, lineLegend, tooltipTheme } = useChartTheme()
+const { isNeutral, isDark: isDarkMode, chartMuted, lineLegend, tooltipTheme } = useChartTheme()
 
 const props = defineProps<{
   trendData: TrendDataPoint[]
   loading?: boolean
 }>()
 
-const chartColors = computed(() => skin.value === 'neubrutalism' ? {
+const chartColors = computed(() => isNeutral.value ? {
   text: chartMuted.value,
   grid: isDarkMode.value ? '#4e4e4e' : '#dcdcdc',
   input: isDarkMode.value ? '#dddddd' : '#555555',
@@ -125,7 +125,7 @@ const chartData = computed(() => {
         tension: 0.3,
         yAxisID: 'yPercent'
       }
-    ].map((dataset, index) => skin.value === 'neubrutalism' && index < 4 ? {
+    ].map((dataset, index) => isNeutral.value && index < 4 ? {
       ...dataset, fill: false, borderDash: [[], [6, 3], [2, 3], [8, 3, 2, 3]][index]
     } : dataset)
   }
@@ -204,7 +204,7 @@ const lineOptions = computed(() => ({
         drawOnChartArea: false
       },
       ticks: {
-        color: skin.value === 'neubrutalism' ? chartMuted.value : chartColors.value.cacheHitRate,
+        color: isNeutral.value ? chartMuted.value : chartColors.value.cacheHitRate,
         font: {
           size: 10
         },

@@ -39,7 +39,7 @@ import { useChartTheme } from '@/composables/useChartTheme'
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
 
 const { t } = useI18n()
-const { skin, chartMuted, chartGrid, lineStyle, lineLegend, tooltipTheme } = useChartTheme()
+const { isNeutral, chartMuted, chartGrid, lineStyle, lineLegend, tooltipTheme } = useChartTheme()
 
 const props = defineProps<{
   data: DailyPaymentStats[]
@@ -98,22 +98,22 @@ const chartOptions = computed(() => ({
       type: 'linear' as const,
       display: true,
       position: 'left' as const,
-      title: { display: true, text: t('payment.admin.revenue'), color: skin.value === 'neubrutalism' ? chartMuted.value : undefined },
-      ticks: { color: skin.value === 'neubrutalism' ? chartMuted.value : undefined },
-      grid: { color: skin.value === 'neubrutalism' ? chartGrid.value : undefined },
+      title: { display: true, text: t('payment.admin.revenue'), color: isNeutral.value ? chartMuted.value : undefined },
+      ticks: { color: isNeutral.value ? chartMuted.value : undefined },
+      grid: { color: isNeutral.value ? chartGrid.value : undefined },
     },
     y1: {
       type: 'linear' as const,
       display: true,
       position: 'right' as const,
-      title: { display: true, text: t('payment.admin.orderCount'), color: skin.value === 'neubrutalism' ? chartMuted.value : undefined },
-      ticks: { color: skin.value === 'neubrutalism' ? chartMuted.value : undefined },
+      title: { display: true, text: t('payment.admin.orderCount'), color: isNeutral.value ? chartMuted.value : undefined },
+      ticks: { color: isNeutral.value ? chartMuted.value : undefined },
       grid: { drawOnChartArea: false },
     },
-    x: { ticks: { color: skin.value === 'neubrutalism' ? chartMuted.value : undefined }, grid: { color: skin.value === 'neubrutalism' ? chartGrid.value : undefined } }
+    x: { ticks: { color: isNeutral.value ? chartMuted.value : undefined }, grid: { color: isNeutral.value ? chartGrid.value : undefined } }
   },
   plugins: {
-    legend: { position: 'top' as const, labels: { color: skin.value === 'neubrutalism' ? chartMuted.value : undefined, ...lineLegend.value } },
+    legend: { position: 'top' as const, labels: { color: isNeutral.value ? chartMuted.value : undefined, ...lineLegend.value } },
     tooltip: { ...tooltipTheme.value }
   }
 }))

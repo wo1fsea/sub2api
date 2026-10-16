@@ -638,6 +638,7 @@ export default {
         appearanceOriginal: 'Original',
         appearanceMode: 'Color mode',
         appearanceAccent: 'Accent color',
+        appearanceMonochromeHint: 'Monochrome ignores the accent color: primary actions invert with the light/dark mode. The stored accent is kept and still applies to the other skins.',
         title: 'Site Settings',
         description: 'Customize site branding',
         backendMode: 'Backend Mode',

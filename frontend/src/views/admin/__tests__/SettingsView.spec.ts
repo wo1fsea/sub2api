@@ -238,6 +238,7 @@ vi.mock("vue-i18n", async () => {
     "admin.settings.openaiFastPolicy.summaryAction.pass": "透传",
     "admin.settings.security.passkeyDeploymentHint":
       "请由服务器运维在部署配置中将 webauthn.enabled 设为 true，填写 webauthn.rp_id（仅域名）与 webauthn.rp_origins（完整 HTTPS 来源），然后重启服务。",
+    "admin.settings.site.appearanceMonochromeHint": "MONOCHROME_ACCENT_HINT",
     "admin.settings.site.uploadImage": "上传图片",
     "admin.settings.site.remove": "移除",
     "admin.settings.platformQuota.platform": "平台",
@@ -778,6 +779,39 @@ describe("admin SettingsView payment visible method controls", () => {
       skin: 'neubrutalism', mode: 'dark', accent_color: '#112233'
     } }));
     expect(fetchPublicSettings).toHaveBeenCalledWith(true);
+    wrapper.unmount();
+  });
+
+  it('disables the accent editor for monochrome but still submits the stored accent', async () => {
+    expect(zhCommon.common.monochromeSkin).toBe('极简黑白');
+    expect(enCommon.common.monochromeSkin).toBe('Monochrome');
+    expect(zhSettings.settings.site.appearanceMonochromeHint).toContain('强调色');
+    expect(enSettings.settings.site.appearanceMonochromeHint).toContain('accent');
+
+    const wrapper = mountView();
+    await flushPromises();
+    const accent = wrapper.get('[data-testid="site-appearance-accent"]');
+    const swatch = wrapper.get('[data-testid="site-appearance-accent-color"]');
+    await accent.setValue('#112233');
+    await wrapper.get('[data-testid="site-appearance-skin"]').setValue('monochrome');
+    await wrapper.get('[data-testid="site-appearance-mode"]').setValue('dark');
+
+    expect((accent.element as HTMLInputElement).disabled).toBe(true);
+    expect((swatch.element as HTMLInputElement).disabled).toBe(true);
+    expect(wrapper.get('[data-testid="site-appearance-accent-hint"]').text()).toContain('MONOCHROME_ACCENT_HINT');
+    // The stored value is not cleared by disabling the editor.
+    expect((accent.element as HTMLInputElement).value).toBe('#112233');
+
+    await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
+    expect(updateSettings).toHaveBeenCalledWith(expect.objectContaining({ site_appearance: {
+      skin: 'monochrome', mode: 'dark', accent_color: '#112233'
+    } }));
+
+    // Returning to a legacy skin re-enables the accent editor.
+    await wrapper.get('[data-testid="site-appearance-skin"]').setValue('neubrutalism');
+    expect((accent.element as HTMLInputElement).disabled).toBe(false);
+    expect(wrapper.find('[data-testid="site-appearance-accent-hint"]').exists()).toBe(false);
     wrapper.unmount();
   });
 

@@ -445,10 +445,10 @@ const granularityOptions = computed(() => [
   { value: 'hour', label: t('admin.dashboard.hour') }
 ])
 
-const { skin, isDark: isDarkMode, distributionColors, chartMuted } = useChartTheme()
+const { isNeutral, isDark: isDarkMode, distributionColors, chartMuted } = useChartTheme()
 
 // Chart colors
-const chartColors = computed(() => skin.value === 'neubrutalism' ? {
+const chartColors = computed(() => isNeutral.value ? {
   text: chartMuted.value,
   grid: isDarkMode.value ? '#4e4e4e' : '#dcdcdc'
 } : {
@@ -549,7 +549,7 @@ const userTrendChartData = computed(() => {
   })
 
   const sortedDates = Array.from(allDates).sort()
-  const colors = skin.value === 'neubrutalism' ? distributionColors.value : [
+  const colors = isNeutral.value ? distributionColors.value : [
     '#3b82f6',
     '#10b981',
     '#f59e0b',
@@ -569,7 +569,7 @@ const userTrendChartData = computed(() => {
     data: sortedDates.map((date) => group.data.get(date) || 0),
     borderColor: colors[idx % colors.length],
     backgroundColor: `${colors[idx % colors.length]}20`,
-    borderDash: skin.value === 'neubrutalism' ? [[], [6, 3], [2, 3], [8, 3, 2, 3]][idx % 4] : [],
+    borderDash: isNeutral.value ? [[], [6, 3], [2, 3], [8, 3, 2, 3]][idx % 4] : [],
     fill: false,
     tension: 0.3
   }))

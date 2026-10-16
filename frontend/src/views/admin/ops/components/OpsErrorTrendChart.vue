@@ -35,15 +35,15 @@ const emit = defineEmits<{
 }>()
 const { t } = useI18n()
 
-const { skin, isDark: isDarkMode, chartMuted, chartGrid, lineStyle, lineLegend, tooltipTheme } = useChartTheme()
+const { isNeutral, isDark: isDarkMode, chartMuted, chartGrid, lineStyle, lineLegend, tooltipTheme } = useChartTheme()
 const colors = computed(() => ({
   red: '#ef4444',
   redAlpha: '#ef444420',
   purple: '#8b5cf6',
   purpleAlpha: '#8b5cf620',
   gray: '#9ca3af',
-  grid: skin.value === 'neubrutalism' ? chartGrid.value : isDarkMode.value ? '#374151' : '#f3f4f6',
-  text: skin.value === 'neubrutalism' ? chartMuted.value : isDarkMode.value ? '#9ca3af' : '#6b7280'
+  grid: isNeutral.value ? chartGrid.value : isDarkMode.value ? '#374151' : '#f3f4f6',
+  text: isNeutral.value ? chartMuted.value : isDarkMode.value ? '#9ca3af' : '#6b7280'
 }))
 
 const totalRequestErrors = computed(() => sumNumbers(props.points.map((p) => p.error_count_sla ?? 0)))

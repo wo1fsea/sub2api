@@ -6,6 +6,7 @@ import ChartSkinPreview from './ChartSkinPreview.vue'
 import '../src/style.css'
 import '../src/styles/neubrutalism-skin.css'
 import '../src/styles/neubrutalism-components.css'
+import '../src/styles/monochrome-skin.css'
 
 initSkin()
 await initI18n()

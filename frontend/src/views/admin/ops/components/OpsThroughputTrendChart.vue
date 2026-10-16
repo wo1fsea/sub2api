@@ -44,14 +44,14 @@ watch(
   }
 )
 
-const { skin, isDark: isDarkMode, chartMuted, chartGrid, lineStyle, lineLegend, tooltipTheme } = useChartTheme()
+const { skin, isNeutral, isDark: isDarkMode, chartMuted, chartGrid, lineStyle, lineLegend, tooltipTheme } = useChartTheme()
 const colors = computed(() => ({
   blue: '#3b82f6',
   blueAlpha: '#3b82f620',
   green: '#10b981',
   greenAlpha: '#10b98120',
-  grid: skin.value === 'neubrutalism' ? chartGrid.value : isDarkMode.value ? '#374151' : '#f3f4f6',
-  text: skin.value === 'neubrutalism' ? chartMuted.value : isDarkMode.value ? '#9ca3af' : '#6b7280'
+  grid: isNeutral.value ? chartGrid.value : isDarkMode.value ? '#374151' : '#f3f4f6',
+  text: isNeutral.value ? chartMuted.value : isDarkMode.value ? '#9ca3af' : '#6b7280'
 }))
 
 const totalRequests = computed(() => sumNumbers(props.points.map((p) => p.request_count)))
@@ -154,7 +154,7 @@ const options = computed(() => {
         display: true,
         position: 'right' as const,
         grid: { display: false },
-        ticks: { color: skin.value === 'neubrutalism' ? chartMuted.value : c.green, font: { size: 10 } }
+        ticks: { color: isNeutral.value ? chartMuted.value : c.green, font: { size: 10 } }
       }
     }
   }
@@ -193,8 +193,8 @@ function downloadChart() {
         data-testid="throughput-chart-toolbar"
         class="flex w-full min-w-0 flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400 sm:w-auto sm:justify-end"
       >
-        <span class="flex shrink-0 items-center gap-1"><span :class="skin === 'neubrutalism' ? 'skin-chart-line' : 'h-2 w-2 rounded-full bg-blue-500'"></span>QPS</span>
-        <span class="flex shrink-0 items-center gap-1"><span :class="skin === 'neubrutalism' ? 'skin-chart-line skin-chart-line-dashed' : 'h-2 w-2 rounded-full bg-green-500'"></span>{{ t('admin.ops.tpsK') }}</span>
+        <span class="flex shrink-0 items-center gap-1"><span :class="skin !== 'original' ? 'skin-chart-line' : 'h-2 w-2 rounded-full bg-blue-500'"></span>QPS</span>
+        <span class="flex shrink-0 items-center gap-1"><span :class="skin !== 'original' ? 'skin-chart-line skin-chart-line-dashed' : 'h-2 w-2 rounded-full bg-green-500'"></span>{{ t('admin.ops.tpsK') }}</span>
         <template v-if="!props.fullscreen">
           <button
             type="button"

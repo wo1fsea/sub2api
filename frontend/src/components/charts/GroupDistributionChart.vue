@@ -62,7 +62,7 @@
                   :title="group.group_name || String(group.group_id)"
                 >
                   <span class="inline-flex items-center gap-1">
-                    <span v-if="skin === 'neubrutalism'" class="skin-chart-swatch" :style="distributionSwatches[index % distributionSwatches.length]" aria-hidden="true"></span>
+                    <span v-if="skin !== 'original'" class="skin-chart-swatch" :style="distributionSwatches[index % distributionSwatches.length]" aria-hidden="true"></span>
                     <svg v-if="enableBreakdown && group.group_id > 0 && expandedKey === `group-${group.group_id}`" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     <svg v-else-if="enableBreakdown && group.group_id > 0" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                     {{ group.group_name || t('admin.dashboard.noGroup') }}
@@ -122,7 +122,7 @@ import { useChartTheme } from '@/composables/useChartTheme'
 ChartJS.register(ArcElement, Tooltip, Legend)
 
 const { t } = useI18n()
-const { skin, distributionFills, distributionSwatches, chartInk, tooltipTheme } = useChartTheme()
+const { skin, isNeutral, distributionFills, distributionSwatches, chartInk, tooltipTheme } = useChartTheme()
 
 type DistributionMetric = 'tokens' | 'actual_cost'
 
@@ -190,7 +190,7 @@ const originalChartColors = [
   '#6366f1',
   '#84cc16'
 ]
-const chartColors = computed(() => skin.value === 'original' ? originalChartColors : distributionFills.value)
+const chartColors = computed(() => isNeutral.value ? distributionFills.value : originalChartColors)
 
 const displayGroupStats = computed(() => {
   if (!props.groupStats?.length) return []
@@ -208,8 +208,8 @@ const chartData = computed(() => {
       {
         data: displayGroupStats.value.map((g) => toFiniteNumber(props.metric === 'actual_cost' ? g.actual_cost : g.total_tokens)),
         backgroundColor: displayGroupStats.value.map((_, index) => chartColors.value[index % chartColors.value.length]),
-        borderColor: skin.value === 'neubrutalism' ? chartInk.value : undefined,
-        borderWidth: skin.value === 'neubrutalism' ? 1 : 0
+        borderColor: isNeutral.value ? chartInk.value : undefined,
+        borderWidth: isNeutral.value ? 1 : 0
       }
     ]
   }

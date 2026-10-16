@@ -6459,6 +6459,7 @@
                     {{ t('admin.settings.site.appearanceSkin') }}
                     <select v-model="form.site_appearance.skin" class="input mt-2" data-testid="site-appearance-skin">
                       <option value="neubrutalism">{{ t('common.neubrutalismSkin') }}</option>
+                      <option value="monochrome">{{ t('common.monochromeSkin') }}</option>
                       <option value="original">{{ t('admin.settings.site.appearanceOriginal') }}</option>
                     </select>
                   </label>
@@ -6472,9 +6473,12 @@
                   <label class="input-label">
                     {{ t('admin.settings.site.appearanceAccent') }}
                     <div class="mt-2 flex gap-2">
-                      <input v-model="form.site_appearance.accent_color" type="color" class="h-10 w-12 shrink-0 cursor-pointer border border-gray-300 bg-white p-1 dark:border-dark-600 dark:bg-dark-800" :aria-label="t('admin.settings.site.appearanceAccent')" />
-                      <input v-model="form.site_appearance.accent_color" type="text" pattern="#[0-9a-fA-F]{6}" maxlength="7" required class="input font-mono" data-testid="site-appearance-accent" />
+                      <input v-model="form.site_appearance.accent_color" type="color" class="h-10 w-12 shrink-0 cursor-pointer border border-gray-300 bg-white p-1 dark:border-dark-600 dark:bg-dark-800" :aria-label="t('admin.settings.site.appearanceAccent')" :disabled="isMonochromeSkin" data-testid="site-appearance-accent-color" />
+                      <input v-model="form.site_appearance.accent_color" type="text" pattern="#[0-9a-fA-F]{6}" maxlength="7" required class="input font-mono" data-testid="site-appearance-accent" :disabled="isMonochromeSkin" />
                     </div>
+                    <p v-if="isMonochromeSkin" class="mt-1.5 text-xs text-gray-500 dark:text-gray-400" data-testid="site-appearance-accent-hint">
+                      {{ t('admin.settings.site.appearanceMonochromeHint') }}
+                    </p>
                   </label>
                 </div>
               </section>
@@ -10103,6 +10107,10 @@ const form = reactive<SettingsForm>({
   // Allow user view error requests
   allow_user_view_error_requests: false,
 });
+
+// Monochrome derives its action colors from light/dark mode, so the stored accent
+// is retained for the other skins but has no effect here.
+const isMonochromeSkin = computed(() => form.site_appearance.skin === 'monochrome');
 
 // 人机验证 UI 状态：单卡片「总开关 + 服务商单选」，落库仍是三个独立
 // enabled 键（与上游一致），由下面的映射保证同一时间至多一家启用。

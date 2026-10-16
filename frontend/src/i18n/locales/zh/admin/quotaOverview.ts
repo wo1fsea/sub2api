@@ -55,7 +55,7 @@ export default {
     modelScopeNote: '模型限额仅影响对应模型，不代表整个账号不可用。',
     noForecast: '重置时间来自额度窗口，不是预计耗尽时间。',
     noPooling: '不同账号、提供商和窗口的额度分别判断，不合并成一个总额度池。',
-    legend: { used: '斜线：已使用', remaining: '留白：剩余额度', attention: '荧光：优先关注' },
+    legend: { used: '斜线：已使用', remaining: '留白：剩余额度', attention: '荧光：优先关注', monochromeUsed: '灰色：已使用', monochromeAttention: '强调：优先关注' },
     windowRemaining: '剩余 {percent}%',
     windowUsage: '{window}：已用 {used}%，剩余 {remaining}%',
     windowUnknown: '{window}：额度未知',

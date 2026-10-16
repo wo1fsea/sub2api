@@ -5,6 +5,7 @@ import { parseArgs } from 'node:util'
 const { values } = parseArgs({ options: {
   port: { type: 'string', default: '18381' },
   role: { type: 'string', default: 'admin' },
+  skin: { type: 'string', default: 'neubrutalism' },
   appearance: { type: 'string', default: 'light' },
   'quota-preview': { type: 'boolean', default: false },
   'quota-scenario': { type: 'string', default: 'mixed' }
@@ -12,6 +13,8 @@ const { values } = parseArgs({ options: {
 const port = Number(values.port)
 if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('Invalid preview port')
 if (!['light', 'dark'].includes(values.appearance)) throw new Error('Invalid preview appearance')
+const previewSkin = values.skin || 'neubrutalism'
+if (!['original', 'neubrutalism', 'monochrome'].includes(previewSkin)) throw new Error('Invalid preview skin')
 if (!['mixed', 'empty', 'failed'].includes(values['quota-scenario'])) throw new Error('Invalid quota preview scenario')
 const quotaPreview = values['quota-preview']
 const quotaScenario = values['quota-scenario']
@@ -25,7 +28,7 @@ const user = {
   subscriptions: [], created_at: timestamp, updated_at: timestamp, run_mode: 'standard'
 }
 const settings = {
-  site_appearance: { skin: 'neubrutalism', mode: values.appearance, accent_color: '#d4ff3f' },
+  site_appearance: { skin: previewSkin, mode: values.appearance, accent_color: '#d4ff3f' },
   site_name: 'Sub2API', site_logo: '', site_subtitle: 'AI API Gateway', api_base_url: '',
   contact_info: '', doc_url: '', home_content: '', compact_home_enabled: true,
   registration_enabled: false, email_verify_enabled: false, password_reset_enabled: false,
@@ -135,8 +138,80 @@ const sampleUsage = (date, factor) => ({
   cache_creation_tokens: 1200 * factor, cache_read_tokens: 2400 * factor,
   total_tokens: 23600 * factor, cost: factor, actual_cost: factor * 0.7
 })
+const sumUsage = rows => rows.reduce((acc, row) => ({
+  requests: acc.requests + row.requests,
+  input_tokens: acc.input_tokens + row.input_tokens,
+  output_tokens: acc.output_tokens + row.output_tokens,
+  cache_creation_tokens: acc.cache_creation_tokens + row.cache_creation_tokens,
+  cache_read_tokens: acc.cache_read_tokens + row.cache_read_tokens,
+  total_tokens: acc.total_tokens + row.total_tokens,
+  cost: +(acc.cost + row.cost).toFixed(4),
+  actual_cost: +(acc.actual_cost + row.actual_cost).toFixed(4)
+}), { requests: 0, input_tokens: 0, output_tokens: 0, cache_creation_tokens: 0, cache_read_tokens: 0, total_tokens: 0, cost: 0, actual_cost: 0 })
+
+// The user dashboard loads stats, trend, models and recent usage in parallel;
+// without these fixtures the view renders blank content for role=user.
+const userTrend = [6, 8, 5, 9, 7, 4, 8].map((factor, index) => sampleUsage(`2026-10-0${index + 1}`, factor))
+const userTrendTotals = sumUsage(userTrend)
+const userModels = ['claude-sonnet-4-6', 'gpt-5.4', 'gemini-3-pro', 'deepseek-v3']
+  .map((model, index) => ({ model, ...sampleUsage('2026-10-07', 9 - index * 2) }))
+const userDashboardStats = {
+  total_api_keys: 4, active_api_keys: 3,
+  ...userTrendTotals, total_cost: 426.8, total_actual_cost: 296.4,
+  total_requests: userTrendTotals.requests, total_input_tokens: userTrendTotals.input_tokens,
+  total_output_tokens: userTrendTotals.output_tokens, total_cache_creation_tokens: userTrendTotals.cache_creation_tokens,
+  total_cache_read_tokens: userTrendTotals.cache_read_tokens,
+  today_requests: userTrend.at(-1).requests, today_input_tokens: userTrend.at(-1).input_tokens,
+  today_output_tokens: userTrend.at(-1).output_tokens, today_cache_creation_tokens: userTrend.at(-1).cache_creation_tokens,
+  today_cache_read_tokens: userTrend.at(-1).cache_read_tokens, today_tokens: userTrend.at(-1).total_tokens,
+  today_cost: userTrend.at(-1).cost, today_actual_cost: userTrend.at(-1).actual_cost,
+  average_duration_ms: 1260, rpm: 24, tpm: 4800,
+  by_platform: [
+    { platform: 'anthropic', ...sumUsage([userTrend[0], userTrend[1]]), today_requests: 620, today_tokens: 145000, today_actual_cost: 6.4 },
+    { platform: 'openai', ...sumUsage([userTrend[2], userTrend[3]]), today_requests: 512, today_tokens: 118000, today_actual_cost: 5.2 }
+  ]
+}
+const sampleUsageLog = (id, model, factor, hour) => ({
+  id, user_id: user.id, api_key_id: 1, account_id: 1, request_id: `synthetic-${id}`, model,
+  service_tier: 'default', reasoning_effort: 'medium',
+  inbound_endpoint: '/v1/messages', upstream_endpoint: 'https://api.example.invalid',
+  group_id: null, subscription_id: null,
+  input_tokens: 12000 * factor, output_tokens: 8000 * factor,
+  cache_creation_tokens: 1200 * factor, cache_read_tokens: 2400 * factor,
+  cache_creation_5m_tokens: 1200 * factor, cache_creation_1h_tokens: 0,
+  input_cost: factor, output_cost: +(factor * 0.75).toFixed(4),
+  cache_creation_cost: +(factor * 0.25).toFixed(4), cache_read_cost: +(factor * 0.2).toFixed(4),
+  total_cost: +(factor * 2.2).toFixed(4), actual_cost: +(factor * 1.54).toFixed(4),
+  rate_multiplier: 1, long_context_billing_applied: false, billing_type: 0,
+  request_type: 'sync', stream: false, openai_ws_mode: false, native_compaction_v2: false,
+  duration_ms: 1260 * factor, first_token_ms: 420 * factor,
+  image_count: 0, image_size: null, image_input_size: null, image_output_size: null,
+  image_size_source: null, image_size_breakdown: null,
+  image_input_tokens: 0, image_input_cost: 0, image_output_tokens: 0, image_output_cost: 0,
+  user_agent: 'synthetic-preview', ip_address: null, cache_ttl_overridden: false, billing_mode: null,
+  created_at: `2026-10-07T${String(hour).padStart(2, '0')}:15:00Z`
+})
+const usageLogItems = [
+  ['claude-sonnet-4-6', 9, 7, 14], ['gpt-5.4', 7, 8, 13],
+  ['gemini-3-pro', 5, 9, 12], ['deepseek-v3', 4, 10, 11],
+  ['claude-sonnet-4-6', 3, 11, 10], ['o3-pro', 2, 12, 9]
+].map(([model, factor, _index, hour], position) => sampleUsageLog(position + 1, model, factor, hour))
+const usagePage = params => {
+  const pageSize = Math.min(Number(params.get('page_size')) || 20, 1000)
+  const page = Math.max(Number(params.get('page')) || 1, 1)
+  return {
+    items: usageLogItems.slice((page - 1) * pageSize, page * pageSize),
+    total: usageLogItems.length, page, page_size: pageSize, pages: Math.ceil(usageLogItems.length / pageSize)
+  }
+}
 const fixtures = new Map([
   ['/setup/status', { needs_setup: false, step: 'complete' }],
+  ['/api/v1/usage/dashboard/stats', userDashboardStats],
+  ['/api/v1/usage/dashboard/trend', {
+    trend: userTrend, start_date: '2026-10-01', end_date: '2026-10-07', granularity: 'day'
+  }],
+  ['/api/v1/usage/dashboard/models', { models: userModels, start_date: '2026-10-07', end_date: '2026-10-07' }],
+  ['/api/v1/user/platform-quotas', { platform_quotas: [] }],
   ['/api/v1/settings/public', settings],
   ['/api/v1/auth/me', user],
   ['/api/v1/admin/settings', settings],
@@ -256,7 +331,7 @@ const previewPlugin = {
         req.on('end', () => {
           try {
             const appearance = JSON.parse(body).site_appearance
-            if (!['original', 'neubrutalism'].includes(appearance?.skin) || !['light', 'dark'].includes(appearance?.mode) || !/^#[\da-f]{6}$/i.test(appearance?.accent_color)) throw new Error('Invalid appearance')
+            if (!['original', 'neubrutalism', 'monochrome'].includes(appearance?.skin) || !['light', 'dark'].includes(appearance?.mode) || !/^#[\da-f]{6}$/i.test(appearance?.accent_color)) throw new Error('Invalid appearance')
             settings.site_appearance = appearance
             res.end(JSON.stringify({ code: 0, data: settings }))
           } catch { res.statusCode = 400; res.end(JSON.stringify({ code: 400, message: 'Invalid synthetic appearance' })) }
@@ -270,7 +345,9 @@ const previewPlugin = {
       }
       const data = quotaPreview && path === '/api/v1/admin/accounts'
         ? quotaAccountPage(url.searchParams)
-        : path === '/api/v1/auth/me' && previewRole === 'user' ? { ...user, role: 'user' } : fixtures.get(path)
+        : path === '/api/v1/usage'
+          ? usagePage(url.searchParams)
+          : path === '/api/v1/auth/me' && previewRole === 'user' ? { ...user, role: 'user' } : fixtures.get(path)
       res.statusCode = data === undefined ? 404 : 200
       res.end(JSON.stringify({ code: data === undefined ? 404 : 0,
         message: data === undefined ? 'No preview fixture for this endpoint' : 'Synthetic preview', data: data ?? null }))
@@ -296,7 +373,7 @@ const server = await createServer({ root, plugins: [previewPlugin], server: {
   host: '127.0.0.1', port, strictPort: true
 } })
 await server.listen()
-console.log(`Isolated skin preview (appearance writes are in memory only): http://127.0.0.1:${port}/admin/${quotaPreview ? 'quota-overview' : 'dashboard'}${quotaPreview ? ` [quota: ${quotaScenario}]` : ''}`)
+console.log(`Isolated skin preview (skin: ${previewSkin}, appearance writes are in memory only): http://127.0.0.1:${port}/admin/${quotaPreview ? 'quota-overview' : 'dashboard'}${quotaPreview ? ` [quota: ${quotaScenario}]` : ''}`)
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.once(signal, async () => { await server.close(); process.exit(0) })
 }

@@ -131,7 +131,7 @@
                   :title="model.model"
                 >
                   <span class="inline-flex items-center gap-1">
-                    <span v-if="skin === 'neubrutalism'" class="skin-chart-swatch" :style="distributionSwatches[index % distributionSwatches.length]" aria-hidden="true"></span>
+                    <span v-if="skin !== 'original'" class="skin-chart-swatch" :style="distributionSwatches[index % distributionSwatches.length]" aria-hidden="true"></span>
                     <svg v-if="enableBreakdown && expandedKey === `model-${model.model}`" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     <svg v-else-if="enableBreakdown" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                     {{ model.model }}
@@ -209,7 +209,7 @@
             >
               <td class="py-1.5">
                 <div class="flex min-w-0 items-center gap-2">
-                  <span v-if="skin === 'neubrutalism'" class="skin-chart-swatch" :style="distributionSwatches[index % distributionSwatches.length]" aria-hidden="true"></span>
+                  <span v-if="skin !== 'original'" class="skin-chart-swatch" :style="distributionSwatches[index % distributionSwatches.length]" aria-hidden="true"></span>
                   <span class="shrink-0 text-[11px] font-semibold text-gray-500 dark:text-gray-400">
                     {{ item.isOther ? 'Σ' : `#${index + 1}` }}
                   </span>
@@ -258,7 +258,7 @@ import { useChartTheme } from '@/composables/useChartTheme'
 ChartJS.register(ArcElement, Tooltip, Legend)
 
 const { t } = useI18n()
-const { skin, distributionFills, distributionSwatches, chartInk, tooltipTheme } = useChartTheme()
+const { skin, isNeutral, distributionFills, distributionSwatches, chartInk, tooltipTheme } = useChartTheme()
 
 type DistributionMetric = 'tokens' | 'actual_cost'
 type ModelSource = 'requested' | 'upstream' | 'mapping'
@@ -358,7 +358,7 @@ const originalChartColors = [
   '#a855f7'
 ]
 
-const chartColors = computed(() => skin.value === 'original' ? originalChartColors : distributionFills.value)
+const chartColors = computed(() => isNeutral.value ? distributionFills.value : originalChartColors)
 
 const displayModelStats = computed(() => {
   const sourceStats = props.source === 'upstream'
@@ -381,8 +381,8 @@ const chartData = computed(() => {
       {
         data: displayModelStats.value.map((m) => toFiniteNumber(props.metric === 'actual_cost' ? m.actual_cost : m.total_tokens)),
         backgroundColor: displayModelStats.value.map((_, index) => chartColors.value[index % chartColors.value.length]),
-        borderColor: skin.value === 'neubrutalism' ? chartInk.value : undefined,
-        borderWidth: skin.value === 'neubrutalism' ? 1 : 0
+        borderColor: isNeutral.value ? chartInk.value : undefined,
+        borderWidth: isNeutral.value ? 1 : 0
       }
     ]
   }
@@ -398,7 +398,7 @@ const rankingChartData = computed(() => {
   if (otherRankingItem.value) {
     labels.push(t('admin.dashboard.spendingRankingOther'))
     data.push(otherRankingItem.value.actual_cost)
-    backgroundColor.push(skin.value === 'neubrutalism' ? chartColors.value[props.rankingItems.length % chartColors.value.length] : '#94a3b8')
+    backgroundColor.push(isNeutral.value ? chartColors.value[props.rankingItems.length % chartColors.value.length] : '#94a3b8')
   }
 
   return {
@@ -407,8 +407,8 @@ const rankingChartData = computed(() => {
       {
         data,
         backgroundColor,
-        borderColor: skin.value === 'neubrutalism' ? chartInk.value : undefined,
-        borderWidth: skin.value === 'neubrutalism' ? 1 : 0
+        borderColor: isNeutral.value ? chartInk.value : undefined,
+        borderWidth: isNeutral.value ? 1 : 0
       }
     ]
   }

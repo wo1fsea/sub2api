@@ -137,6 +137,7 @@ deploy/docker-compose.override.yml
 vite.config.js
 docs/*
 !docs/NEUBRUTALISM_SKIN.md
+!docs/MONOCHROME_THEME.md
 !docs/LOCAL_UPGRADE.md
 !docs/LOCAL_DELIVERY_CLASH_2.md
 !docs/LOCAL_DELIVERY_0.2.13.md

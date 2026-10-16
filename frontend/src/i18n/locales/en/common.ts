@@ -53,6 +53,7 @@ export default {
     toggleMenu: 'Toggle menu',
     userMenu: 'User menu',
     neubrutalismSkin: 'Restrained Neubrutalism',
+    monochromeSkin: 'Monochrome',
     useOriginalSkin: 'Use original skin',
     useNeubrutalismSkin: 'Use Restrained Neubrutalism',
     pageNotFound: 'Page not found',

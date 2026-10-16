@@ -55,7 +55,7 @@ export default {
     modelScopeNote: 'A model limit applies only to that model, not to the entire account.',
     noForecast: 'Reset times come from quota windows, not predicted exhaustion times.',
     noPooling: 'Quotas are assessed separately by account, provider, and window; they are not one shared pool.',
-    legend: { used: 'Hatched: used', remaining: 'Unfilled: remaining', attention: 'Accent: needs attention' },
+    legend: { used: 'Hatched: used', remaining: 'Unfilled: remaining', attention: 'Accent: needs attention', monochromeUsed: 'Gray: used', monochromeAttention: 'Emphasis: needs attention' },
     windowRemaining: '{percent}% remaining',
     windowUsage: '{window}: {used}% used, {remaining}% remaining',
     windowUnknown: '{window}: quota unknown',

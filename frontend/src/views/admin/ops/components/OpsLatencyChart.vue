@@ -19,11 +19,11 @@ interface Props {
 const props = defineProps<Props>()
 const { t } = useI18n()
 
-const { skin, isDark: isDarkMode, distributionFills, chartInk, chartMuted, chartGrid, tooltipTheme } = useChartTheme()
+const { isNeutral, isDark: isDarkMode, distributionFills, chartInk, chartMuted, chartGrid, tooltipTheme } = useChartTheme()
 const colors = computed(() => ({
   blue: '#3b82f6',
-  grid: skin.value === 'neubrutalism' ? chartGrid.value : isDarkMode.value ? '#374151' : '#f3f4f6',
-  text: skin.value === 'neubrutalism' ? chartMuted.value : isDarkMode.value ? '#9ca3af' : '#6b7280'
+  grid: isNeutral.value ? chartGrid.value : isDarkMode.value ? '#374151' : '#f3f4f6',
+  text: isNeutral.value ? chartMuted.value : isDarkMode.value ? '#9ca3af' : '#6b7280'
 }))
 
 const hasData = computed(() => (props.latencyData?.total_requests ?? 0) > 0)
@@ -43,10 +43,10 @@ const chartData = computed(() => {
       {
         label: t('admin.ops.requests'),
         data: props.latencyData.buckets.map((b) => b.count),
-        backgroundColor: skin.value === 'neubrutalism' ? distributionFills.value[0] : c.blue,
-        borderColor: skin.value === 'neubrutalism' ? chartInk.value : undefined,
-        borderWidth: skin.value === 'neubrutalism' ? 1 : 0,
-        borderRadius: skin.value === 'neubrutalism' ? 0 : 4,
+        backgroundColor: isNeutral.value ? distributionFills.value[0] : c.blue,
+        borderColor: isNeutral.value ? chartInk.value : undefined,
+        borderWidth: isNeutral.value ? 1 : 0,
+        borderRadius: isNeutral.value ? 0 : 4,
         barPercentage: 0.6
       }
     ]

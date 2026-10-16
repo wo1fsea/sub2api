@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
+import type { SiteSkin } from '@/types'
 let useChartTheme: typeof import('../useChartTheme').useChartTheme
 let applySiteAppearance: typeof import('../useSkin').applySiteAppearance
-const setSkin = (skin: 'original' | 'neubrutalism') => applySiteAppearance({ skin, mode: document.documentElement.classList.contains('dark') ? 'dark' : 'light' })
+const setSkin = (skin: SiteSkin) => applySiteAppearance({ skin, mode: document.documentElement.classList.contains('dark') ? 'dark' : 'light' })
 
 const Probe = defineComponent({
   setup: () => useChartTheme(),
@@ -112,6 +113,58 @@ describe('shared chart theme', () => {
     } finally {
       wrapper.unmount()
     }
+  })
+
+  it('renders monochrome as flat gray fills and follows both mode directions', async () => {
+    const contexts: Array<{ fillStyle: string; strokeStyle: string; lineWidth: number; moveTo: ReturnType<typeof vi.fn>; lineTo: ReturnType<typeof vi.fn> }> = []
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => {
+      const context = {
+        fillStyle: '', strokeStyle: '', lineWidth: 0,
+        fillRect: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), stroke: vi.fn(),
+        createPattern: vi.fn(() => ({ hatch: contexts.length }))
+      }
+      contexts.push(context)
+      return context as unknown as CanvasRenderingContext2D
+    })
+    const wrapper = mount(Probe)
+    setSkin('monochrome')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.vm.skin).toBe('monochrome')
+    expect(wrapper.vm.isNeutral).toBe(true)
+    expectGrayscale(wrapper.vm.distributionColors)
+    // Solid fills, not canvas patterns.
+    expect(wrapper.vm.distributionFills).toEqual(wrapper.vm.distributionColors)
+    expect(wrapper.vm.distributionFills.every(value => typeof value === 'string')).toBe(true)
+    for (const swatch of wrapper.vm.distributionSwatches) {
+      expect(swatch.backgroundImage).toBeUndefined()
+      expect(swatch.backgroundColor).toMatch(/^#[0-9a-f]{6}$/)
+    }
+    expect(wrapper.vm.lineStyle(1)).toMatchObject({ fill: false, borderDash: [7, 4] })
+    const lightFills = [...wrapper.vm.distributionFills]
+    const lightTooltip = { ...wrapper.vm.tooltipTheme }
+    expect(lightTooltip.cornerRadius).toBe(8)
+    document.documentElement.classList.add('dark')
+    await vi.waitFor(() => expect(wrapper.vm.isDark).toBe(true))
+    expectGrayscale(wrapper.vm.distributionColors)
+    expect(wrapper.vm.distributionFills).not.toEqual(lightFills)
+    expect(wrapper.vm.chartInk).toBe('#f5f5f5')
+    expect(wrapper.vm.chartGrid).toBe('#404040')
+    expect(wrapper.vm.tooltipTheme.cornerRadius).toBe(8)
+    expect(wrapper.vm.tooltipTheme.backgroundColor).toBe('#262626')
+    // Returning to neubrutalism restores the hatched patterns and cornerRadius 0.
+    setSkin('neubrutalism')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.vm.distributionFills.every(value => typeof value !== 'string')).toBe(true)
+    expect(contexts.length).toBe(12)
+    expect(wrapper.vm.distributionSwatches[0].backgroundImage).toContain('135deg')
+    expect(wrapper.vm.tooltipTheme.cornerRadius).toBe(0)
+    // The original skin keeps its own untouched appearance contract.
+    setSkin('original')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.vm.lineStyle(0)).toEqual({})
+    expect(wrapper.vm.tooltipTheme).toEqual({})
+    expect(wrapper.vm.isNeutral).toBe(false)
+    wrapper.unmount()
   })
 
   it('falls back to neutral fills if a canvas context is unavailable', () => {

@@ -16,13 +16,13 @@
       </div>
       <div class="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 text-xs text-gray-500 dark:text-gray-400 sm:w-auto">
         <span class="flex shrink-0 items-center gap-1">
-          <span :class="skin === 'neubrutalism' ? 'skin-chart-line' : 'h-2 w-2 rounded-full bg-red-500'"></span>{{ t('channelMonitorV2.chart.errorLegend') }}
+          <span :class="skin !== 'original' ? 'skin-chart-line' : 'h-2 w-2 rounded-full bg-red-500'"></span>{{ t('channelMonitorV2.chart.errorLegend') }}
         </span>
         <span class="flex shrink-0 items-center gap-1">
-          <span :class="skin === 'neubrutalism' ? 'skin-chart-line skin-chart-line-dashed' : 'h-2 w-2 rounded-full bg-emerald-500'"></span>{{ t('channelMonitorV2.chart.cacheLegend') }}
+          <span :class="skin !== 'original' ? 'skin-chart-line skin-chart-line-dashed' : 'h-2 w-2 rounded-full bg-emerald-500'"></span>{{ t('channelMonitorV2.chart.cacheLegend') }}
         </span>
         <span class="flex shrink-0 items-center gap-1">
-          <span :class="skin === 'neubrutalism' ? 'skin-chart-line skin-chart-line-dotted' : 'h-2 w-2 rounded-full bg-sky-500'"></span>{{ t('channelMonitorV2.chart.ttftLegend') }}
+          <span :class="skin !== 'original' ? 'skin-chart-line skin-chart-line-dotted' : 'h-2 w-2 rounded-full bg-sky-500'"></span>{{ t('channelMonitorV2.chart.ttftLegend') }}
         </span>
         <span class="badge badge-gray shrink-0">{{ bucketLabel }}</span>
         <button
@@ -99,7 +99,7 @@ const chartRef = ref<HTMLElement | null>(null)
 const zoom = ref<ZoomState>(resetZoom())
 const zoomed = computed(() => isZoomed(zoom.value))
 
-const { skin, isDark, chartMuted, chartGrid, lineStyle, tooltipTheme } = useChartTheme()
+const { skin, isNeutral, isDark, chartMuted, chartGrid, lineStyle, tooltipTheme } = useChartTheme()
 
 const bucketLabel = computed(() => {
   const seconds = props.coverage?.bucket_seconds || 60
@@ -207,8 +207,8 @@ function smoothTrend(values: Array<number | null>): Array<number | null> {
 }
 
 const chartOptions = computed(() => {
-  const text = skin.value === 'neubrutalism' ? chartMuted.value : isDark.value ? '#9ca3af' : '#6b7280'
-  const grid = skin.value === 'neubrutalism' ? chartGrid.value : isDark.value ? '#374151' : '#f3f4f6'
+  const text = isNeutral.value ? chartMuted.value : isDark.value ? '#9ca3af' : '#6b7280'
+  const grid = isNeutral.value ? chartGrid.value : isDark.value ? '#374151' : '#f3f4f6'
   const tooltipBg = isDark.value ? '#1f2937' : '#ffffff'
   const tooltipTitle = isDark.value ? '#f3f4f6' : '#111827'
   const tooltipBody = isDark.value ? '#d1d5db' : '#4b5563'
@@ -263,12 +263,12 @@ const chartOptions = computed(() => {
         position: 'right' as const,
         min: 0,
         ticks: {
-          color: skin.value === 'neubrutalism' ? chartMuted.value : '#0ea5e9',
+          color: isNeutral.value ? chartMuted.value : '#0ea5e9',
           font: { size: 10 },
           callback: (v: string | number) => formatMonitorMs(Number(v)),
         },
         grid: { display: false },
-        title: { display: true, text: t('channelMonitorV2.metrics.ttftP50'), color: skin.value === 'neubrutalism' ? chartMuted.value : '#0ea5e9', font: { size: 11 } },
+        title: { display: true, text: t('channelMonitorV2.metrics.ttftP50'), color: isNeutral.value ? chartMuted.value : '#0ea5e9', font: { size: 11 } },
       },
     },
   }

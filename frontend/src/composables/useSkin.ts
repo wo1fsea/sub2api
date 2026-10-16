@@ -11,7 +11,7 @@ const isDark = computed(() => currentAppearance.value.mode === 'dark')
 
 export function normalizeSiteAppearance(value?: Partial<SiteAppearance> | null): SiteAppearance {
   return {
-    skin: value?.skin === 'original' ? 'original' : 'neubrutalism',
+    skin: value?.skin === 'original' ? 'original' : value?.skin === 'monochrome' ? 'monochrome' : 'neubrutalism',
     mode: value?.mode === 'dark' ? 'dark' : 'light',
     accent_color: /^#[\da-f]{6}$/i.test(value?.accent_color || '')
       ? value!.accent_color! : DEFAULT_SITE_APPEARANCE.accent_color

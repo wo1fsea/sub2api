@@ -425,7 +425,7 @@ import { sanitizeUrl } from '@/utils/url'
 import { resolveBrandLogo } from '@/utils/branding'
 
 const { t, locale } = useI18n()
-const { skin, distributionColors } = useChartTheme()
+const { isNeutral, distributionColors } = useChartTheme()
 const appStore = useAppStore()
 const subscriptionFeatureEnabled = computed(() => resolveFeatureFlag(appStore.cachedPublicSettings, FeatureFlags.subscription))
 
@@ -521,7 +521,7 @@ function setDailyUsageDays(days: 7 | 30 | 90) {
 // ==================== Ring Animation ====================
 
 const CIRCUMFERENCE = 2 * Math.PI * 68
-const RING_GRADIENTS = computed(() => skin.value === 'neubrutalism'
+const RING_GRADIENTS = computed(() => isNeutral.value
   ? distributionColors.value.slice(0, 4).map(color => ({ from: color, to: color }))
   : [
   { from: '#14b8a6', to: '#5eead4' },

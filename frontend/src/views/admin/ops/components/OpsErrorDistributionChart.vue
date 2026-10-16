@@ -22,7 +22,7 @@ const emit = defineEmits<{
 }>()
 const { t } = useI18n()
 
-const { skin, isDark: isDarkMode, distributionFills, distributionSwatches, chartInk, tooltipTheme } = useChartTheme()
+const { skin, isNeutral, isDark: isDarkMode, distributionFills, distributionSwatches, chartInk, tooltipTheme } = useChartTheme()
 const colors = computed(() => ({
   blue: '#3b82f6',
   red: '#ef4444',
@@ -89,9 +89,9 @@ const chartData = computed(() => {
     datasets: [
       {
         data: categories.value.map((c) => c.count),
-        backgroundColor: categories.value.map((c) => skin.value === 'neubrutalism' ? distributionFills.value[c.hatch] : c.color),
-        borderColor: skin.value === 'neubrutalism' ? chartInk.value : undefined,
-        borderWidth: skin.value === 'neubrutalism' ? 1 : 0
+        backgroundColor: categories.value.map((c) => isNeutral.value ? distributionFills.value[c.hatch] : c.color),
+        borderColor: isNeutral.value ? chartInk.value : undefined,
+        borderWidth: isNeutral.value ? 1 : 0
       }
     ]
   }
@@ -145,11 +145,11 @@ const options = computed(() => ({
         </div>
         <div class="mt-4 flex shrink-0 flex-col items-center gap-2">
           <div v-if="topReason" class="text-xs font-bold text-gray-900 dark:text-white">
-            {{ t('admin.ops.top') }}: <span :style="{ color: skin === 'neubrutalism' ? chartInk : topReason.color }">{{ topReason.label }}</span>
+            {{ t('admin.ops.top') }}: <span :style="{ color: skin !== 'original' ? chartInk : topReason.color }">{{ topReason.label }}</span>
           </div>
           <div class="flex flex-wrap justify-center gap-3">
             <div v-for="item in categories" :key="item.label" class="flex items-center gap-1.5 text-xs">
-              <span :class="skin === 'neubrutalism' ? 'skin-chart-swatch' : 'h-2 w-2 rounded-full'" :style="skin === 'neubrutalism' ? distributionSwatches[item.hatch] : { backgroundColor: item.color }" aria-hidden="true"></span>
+              <span :class="skin !== 'original' ? 'skin-chart-swatch' : 'h-2 w-2 rounded-full'" :style="skin !== 'original' ? distributionSwatches[item.hatch] : { backgroundColor: item.color }" aria-hidden="true"></span>
               <span class="text-gray-500 dark:text-gray-400">{{ item.label }} {{ item.count }}</span>
             </div>
           </div>

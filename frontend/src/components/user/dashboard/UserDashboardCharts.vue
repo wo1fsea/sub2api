@@ -45,7 +45,7 @@
               </thead>
               <tbody>
                 <tr v-for="(model, index) in models" :key="model.model" class="border-t border-gray-100 dark:border-dark-700">
-                  <td class="max-w-[100px] truncate py-1.5 font-medium text-gray-900 dark:text-white" :title="model.model"><span class="inline-flex items-center gap-1"><span v-if="skin === 'neubrutalism'" class="skin-chart-swatch" :style="distributionSwatches[index % distributionSwatches.length]" aria-hidden="true"></span>{{ model.model }}</span></td>
+                  <td class="max-w-[100px] truncate py-1.5 font-medium text-gray-900 dark:text-white" :title="model.model"><span class="inline-flex items-center gap-1"><span v-if="skin !== 'original'" class="skin-chart-swatch" :style="distributionSwatches[index % distributionSwatches.length]" aria-hidden="true"></span>{{ model.model }}</span></td>
                   <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">{{ formatNumber(model.requests) }}</td>
                   <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">{{ formatTokens(model.total_tokens) }}</td>
                   <td class="py-1.5 text-right text-green-600 dark:text-green-400">${{ formatCost(model.actual_cost) }}</td>
@@ -80,17 +80,17 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcEleme
 const props = defineProps<{ loading: boolean, startDate: string, endDate: string, granularity: string, trend: TrendDataPoint[], models: ModelStat[] }>()
 defineEmits(['update:startDate', 'update:endDate', 'update:granularity', 'dateRangeChange', 'granularityChange', 'refresh'])
 const { t } = useI18n()
-const { skin, distributionFills, distributionSwatches, chartInk, tooltipTheme } = useChartTheme()
+const { skin, isNeutral, distributionFills, distributionSwatches, chartInk, tooltipTheme } = useChartTheme()
 const originalColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16']
 
 const modelData = computed(() => !props.models?.length ? null : {
   labels: props.models.map((m: ModelStat) => m.model),
   datasets: [{
     data: props.models.map((m: ModelStat) => m.total_tokens),
-    backgroundColor: props.models.map((_, index) => skin.value === 'neubrutalism'
+    backgroundColor: props.models.map((_, index) => isNeutral.value
       ? distributionFills.value[index % distributionFills.value.length] : originalColors[index % originalColors.length]),
-    borderColor: skin.value === 'neubrutalism' ? chartInk.value : undefined,
-    borderWidth: skin.value === 'neubrutalism' ? 1 : 2
+    borderColor: isNeutral.value ? chartInk.value : undefined,
+    borderWidth: isNeutral.value ? 1 : 2
   }]
 })
 

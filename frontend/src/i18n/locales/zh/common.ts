@@ -53,6 +53,7 @@ export default {
     toggleMenu: '切换菜单',
     userMenu: '用户菜单',
     neubrutalismSkin: '克制的新粗野主义',
+    monochromeSkin: '极简黑白',
     useOriginalSkin: '切换到原版皮肤',
     useNeubrutalismSkin: '切换到 克制的新粗野主义',
     pageNotFound: '页面不存在',
