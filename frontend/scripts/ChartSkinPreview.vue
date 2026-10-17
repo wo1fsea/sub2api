@@ -29,6 +29,7 @@ const opsOverview = computed<OpsDashboardOverview>(() => ({
   token_consumed: 98000000, sla: .9936, error_rate: .0064, upstream_error_rate: .0119,
   upstream_error_count_excl_429_529: 13, upstream_429_count: 0, upstream_529_count: 0,
   qps: { current: .3, peak: .4, avg: .3 }, tps: { current: 30875.7, peak: 30847.7, avg: 27249.3 },
+  output_tps: { p5: 12.4, p10: 18.7, p50: 46.8, avg: 52.3, sample_count: 1093 },
   duration: { p50_ms: 8452, p95_ms: 37796, p99_ms: 67450, max_ms: 195805, avg_ms: 13302 },
   ttft: { p50_ms: 2790, p95_ms: 21309, p99_ms: 42597, max_ms: 193940, avg_ms: 5492 }
 }))

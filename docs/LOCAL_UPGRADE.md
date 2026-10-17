@@ -1,8 +1,14 @@
 # Sub2API Local Upgrade
 
-This package combines upstream `v0.2.13` with **Restrained Neubrutalism**, our OpenJev-inspired appearance with grayscale hatch charts. The application version is exactly `0.2.13`; the source SHA and image ID identify our local build separately. Do not suppress legitimate future upstream updates. Packaging alone never changes the running service, production database, secrets, or entry. The Cursor experiment is excluded.
+Current source combines upstream `v0.2.17` with our local appearance, quota overview and scheduler compatibility changes. Application `VERSION` and immutable build inputs are `0.2.17`; the source SHA and image ID distinguish each custom build. See [UPSTREAM_SYNC_0.2.17.md](UPSTREAM_SYNC_0.2.17.md) for merge decisions and validation. Packaging alone never changes the running service, production database, secrets, or entry. The Cursor experiment is excluded.
 
-## Current local upgrade: monochrome appearance
+## Source update versus installed release
+
+The 2026-10-18 upstream sync is a source update only. The installed Mac release remains `0.2.13`, source `7b8b60c7827b5bcf8a594b770b02d22e30a81883`. Its recovery checkout remains `/Users/clawbotbot/Projects/sub2api-neubrutalism`. This sync includes five new SQL migration files and Go `1.27.2`; the historical statements below about no migrations apply only to their original releases.
+
+`upgrade-current.mjs` still explicitly guards the installed `0.2.13` workflow. It is not a qualified `0.2.17` activation tool. A future rollout must review migration and rollback compatibility, qualify the exact image and fresh restored database, and update/test that version guard as part of the rollout. Do not remove the guard merely to deploy this source merge.
+
+## Installed local release: monochrome appearance (0.2.13)
 
 The third skin, `monochrome`, adds consistent light/dark black, white and gray surfaces, solid grayscale charts and inverted primary actions. Its second iteration unifies remaining component colors and refines headers, settings chapters, control shapes and readable interaction states. The existing administrator appearance contract and both previous skins remain available. Version stays `0.2.13`, with no migration or dependency changes. See [MONOCHROME_THEME.md](MONOCHROME_THEME.md) for design, review and local-only rollout scope. Resolve the current rollback image from fresh deployment state; the historical quota release below is not the second iteration's rollback target. Packaging alone does not establish deployment.
 

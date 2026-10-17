@@ -1,7 +1,7 @@
 {
-  "upstreamTag": "v0.2.13",
-  "upstreamCommit": "3040209f205472038c1ba745a1bedd2edd9053b1",
-  "version": "0.2.13",
+  "upstreamTag": "v0.2.17",
+  "upstreamCommit": "060d0160417782cd962a0c7f460f6cd4565d4916",
+  "version": "0.2.17",
   "platform": "linux/arm64",
   "pnpmVersion": "9.15.9",
   "buildResources": {
@@ -19,7 +19,7 @@
   },
   "baseImages": {
     "NODE_IMAGE": "node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1",
-    "GOLANG_IMAGE": "golang:1.27.0-alpine@sha256:4c9fe60190a2a3350ddc51de80d0224b8a6698d12bdfc999fee45ea9d6c46dbc",
+    "GOLANG_IMAGE": "golang:1.27.2-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d",
     "ALPINE_IMAGE": "alpine:3.21@sha256:ce64758a109eb420d874a118f87920e625e12d3634e03b4a5573fd9f6e5d3507",
     "POSTGRES_IMAGE": "postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873"
   }

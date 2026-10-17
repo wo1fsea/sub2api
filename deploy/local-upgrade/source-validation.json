@@ -1,82 +1,9 @@
 {
-  "status": "source-checks-passed-not-production-approved",
-  "recordedDate": "2026-10-17",
-  "qualifiedApplicationCommit": "4f0b1abbf0f618e8c072f416ac5f78bb6df1320e",
-  "backendTree": "4dbf014232a19c5df6ec1387cb0c9a698e1ae3b8",
-  "frontendTree": "bca10a64b83966393fb43ad098c9d24ac6b00e49",
-  "qualificationScope": "Second monochrome iteration: shared neutral component tokens, flat headers/settings chapters, distinct control shapes, readable summaries and selected/payment states; synthetic fixtures and reusable browser audit. Existing original/neubrutalism skins remain. Backend tree is identical to the first monochrome release; no migration, dependency, account, credential or routing changes.",
-  "toolchain": "go1.27.1 darwin/arm64 for local tests; pinned go1.27.0 linux/arm64 during immutable packaging",
-  "backendUnit": {
-    "evidenceStatus": "inherited-from-178f1bb325a7-identical-backend-tree-not-rerun",
-    "passed": true,
-    "packagesPassed": 2,
-    "topLevelTestsPassed": 6,
-    "testsSkipped": 0,
-    "testFilter": "Test.*(SiteAppearance|Monochrome|RejectsInvalidAppearance)",
-    "scope": "internal/service and internal/handler/admin; GOMAXPROCS=2 GOMEMLIMIT=768MiB go test -p 1 -tags=unit -count=1 -json",
-    "privateReport": "/Users/clawbotbot/Projects/sub2api-monochrome/frontend/tmp/monochrome/backend-tests.json"
-  },
-  "backendIntegration": {
-    "status": "not-run-for-current-trees"
-  },
-  "backendLint": {
-    "status": "not-rerun",
-    "scope": "Changed Go files gofmt clean; go test default vet completed. No fresh full golangci-lint claim."
-  },
-  "frontend": {
-    "evidenceStatus": "199-test baseline on fa822b818; focused ops and settings patch requalification below",
-    "settingsPatch": {
-      "testFilesPassed": 3,
-      "testsPassed": 59,
-      "testsFailed": 0,
-      "testsSkipped": 0,
-      "scope": "SettingsView, siteAppearance and useChartTheme; hidden-accent save/preserve/legacy restoration and existing settings behavior. Ops files were not selected by this run and retain separate 18-test evidence below.",
-      "privateTestReport": "/Users/clawbotbot/Projects/sub2api-monochrome/frontend/tmp/monochrome-v2/settings-patch-tests.json",
-      "typecheck": "passed",
-      "lint": "five-changed-Vue-TS-JS-files-passed"
-    },
-    "finalPatch": {
-      "testFilesPassed": 4,
-      "testsPassed": 18,
-      "testsFailed": 0,
-      "testsSkipped": 0,
-      "scope": "siteAppearance/useChartTheme and OpsErrorScopeCharts/OpsThroughputTrendChart; only OpsDashboardHeader, monochrome CSS and synthetic previews changed after the 199-test run",
-      "privateTestReport": "/Users/clawbotbot/Projects/sub2api-monochrome/frontend/tmp/monochrome-v2/ops-patch-tests.json",
-      "typecheck": "passed",
-      "lint": "three-changed-Vue-JS-files-passed"
-    },
-    "testFilesPassed": 19,
-    "testsPassed": 199,
-    "testsFailed": 0,
-    "testsSkipped": 0,
-    "scope": "siteAppearance, useChartTheme, branding, SettingsView, DashboardView, chart consumers, SiteAppearanceLink, AppSidebar, PlazaModelPricingTable, AliyunCaptchaWidget, UserDashboardStats, UsageStatsCards, account creation and payment components; independent final single-worker run. Immutable packaging separately runs i18n checks.",
-    "privateTestReport": "/Users/clawbotbot/Projects/sub2api-monochrome/frontend/tmp/monochrome-v2/final-vitest.json",
-    "typecheck": "passed",
-    "lint": "changed-files-passed",
-    "lintFilesChecked": 22,
-    "lintScope": "ESLint without fix on every changed JS/TS/Vue file, including preview scripts and the browser audit; zero warnings/errors.",
-    "productionBuild": "required-during-immutable-packaging",
-    "fullSuite": "not-run",
-    "securityAudit": {
-      "status": "not-rerun",
-      "note": "Dependency manifests unchanged."
-    }
-  },
-  "browser": {
-    "settingsPatch": "User-reported production active-tab/icon cascade, truncated English tab and misleading accent control fixed. Independently verified synthetic save/reload/retained accent and legacy return, all nine tabs and keyboard navigation, 1440/1920/390/320 layouts, light/dark screenshots, sticky alignment and 1152px content cap. Preview banner offset corrected. Production candidate built-CSS inspection is required before activation; chroma scans alone missed the original defect.",
-    "finalPatch": "Live populated operations header exposed colored health ring and low-contrast window choice; fixed and verified with synthetic populated header at scores 95/62/35 in both modes, window switching/hover, canvas and mobile390. 37 authenticated live route requests (disabled features may redirect) found no other color/contrast/overflow issues. First-stage release is not final-patch live signoff.",
-    "passed": true,
-    "scope": "43 synthetic routes in both modes: no app-owned color findings, page overflow or unresolved candidate text contrast. Nine settings tabs, save/reload and both legacy skins; charts/canvas, account selected states, date picker, two-factor/announcement/tooltip, synthetic payment QR and waiting states; desktop1440/native1442, header1024, mobile390/320. Final affected-page API/pageerror checks empty. Empty optional pages and disabled ops dashboard are not populated-production acceptance; no external checkout/identity/CAPTCHA or real payment verification. Not a live deployment check or full WCAG certification.",
-    "privateEvidence": "/Users/clawbotbot/Projects/sub2api-monochrome/frontend/tmp/monochrome-v2/"
-  },
-  "operationsTests": {
-    "evidenceStatus": "freshly-rerun-after-bounded-historical-asset-cap-fix-a65637979",
-    "passed": true,
-    "testsPassed": 50,
-    "scope": "upgrade-current, service-recovery and live-gateway Node tests"
-  },
-  "realGatewayCallsTested": false,
+  "status": "source-checks-pending-integration-build",
+  "recordedDate": "2026-10-18",
+  "version": "0.2.17",
+  "upstreamMergeCommit": "b0a02a3304a0a78cdd003ddda1dd23ba02c03084",
+  "note": "The 0.2.13 qualification is historical. This 0.2.17 merge requires a new record tied to its backend/frontend trees after integration and build checks complete. See docs/UPSTREAM_SYNC_0.2.17.md for completed unit/frontend/browser checks.",
   "productionDeploymentPerformed": false,
-  "liveTestCredentialsInherited": false,
-  "note": "This record qualifies source only. Packaging runs exact committed frontend i18n/typecheck/Vite and embedded Go build. Exact-image smoke, fresh backup, isolated old/new restore comparison, real Responses completion, traffic switch, historical resources and recovery pin checks are separate required release evidence. The prior 2026-10-08 qualification remains in Git history and is not relabeled as current validation."
+  "liveTestCredentialsInherited": false
 }
