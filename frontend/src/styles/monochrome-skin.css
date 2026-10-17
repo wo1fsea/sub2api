@@ -23,6 +23,16 @@
   --skin-settings-shadow: none;
   --skin-settings-hover: var(--skin-hover);
   --skin-settings-indicator: var(--skin-ink);
+  --skin-settings-active-background: transparent;
+  --skin-settings-active-color: var(--skin-ink);
+  --skin-settings-active-icon-background: transparent;
+  --skin-settings-active-icon-color: var(--skin-ink);
+  --skin-settings-tabs-width: max-content;
+  --skin-settings-tab-min-width: max-content;
+  --skin-settings-tab-flex: 0 0 auto;
+  --skin-settings-tab-overflow: visible;
+  /* AppHeader contains a 64px row plus its 1px bottom divider. */
+  --skin-settings-sticky-top: 65px;
   --skin-focus-border: var(--skin-ink);
   --skin-focus-shadow: 0 0 0 2px var(--skin-bg), 0 0 0 4px var(--skin-ink);
   --skin-skeleton: linear-gradient(90deg, var(--skin-line-soft) 25%, var(--skin-secondary) 50%, var(--skin-line-soft) 75%);
@@ -788,10 +798,20 @@ html:root[data-skin='monochrome'] :is(.skin-dialog-panel, .select-dropdown-porta
 }
 
 /* Component exceptions use shared tokens, including CSS loaded after navigation. */
+:root[data-skin='monochrome'] .settings-page {
+  min-width: 0;
+}
+
+:root[data-skin='monochrome'] .settings-form {
+  min-width: 0;
+  max-width: 100%;
+}
+
 :root[data-skin='monochrome'] .settings-tabs-shell {
   margin-inline: 0;
   padding: 0;
   background: var(--skin-bg);
+  isolation: isolate;
   border: 0;
   border-bottom: 1px solid var(--skin-line);
   border-radius: 0;
@@ -805,8 +825,12 @@ html:root[data-skin='monochrome'] :is(.skin-dialog-panel, .select-dropdown-porta
   border-radius: 0;
 }
 
+:root[data-skin='monochrome'] .settings-tab-label {
+  overflow: visible;
+  text-overflow: clip;
+}
+
 :root[data-skin='monochrome'] .settings-tab-active {
-  background: transparent;
   color: var(--skin-ink);
 }
 
@@ -866,7 +890,6 @@ html:root[data-skin='monochrome'] :is(.skin-dialog-panel, .select-dropdown-porta
 }
 
 :root[data-skin='monochrome'] .settings-tab-icon {
-  background: transparent;
   color: inherit;
 }
 

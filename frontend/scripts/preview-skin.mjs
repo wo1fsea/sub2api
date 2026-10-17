@@ -464,7 +464,7 @@ const previewPlugin = {
         localStorage.setItem('admin_guide_1_admin_v4_interactive','true');
         localStorage.setItem('user_guide_1_user_v4_interactive','true');
         if(!localStorage.getItem('sub2api_locale'))localStorage.setItem('sub2api_locale','zh');</script>`
-      return html.replace('</head>', `${script}<style>body{padding-top:30px}.sidebar{top:30px!important}.skin-app-header{top:30px!important}</style></head>`).replace('<body>',
+      return html.replace('</head>', `${script}<style>body{padding-top:30px}.sidebar{top:30px!important}.skin-app-header{top:30px!important}html:root .settings-tabs-shell{top:calc(var(--skin-settings-sticky-top, 4.75rem) + 30px)}</style></head>`).replace('<body>',
         '<body><div style="height:30px;padding:6px 16px;background:#171813;color:#fffefa;font:12px/1.5 system-ui;position:fixed;top:0;left:0;right:0;z-index:60">本地演示 / Synthetic data / 主题设置仅存于演示内存</div>')
     }
   }

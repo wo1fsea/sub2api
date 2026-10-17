@@ -6454,7 +6454,7 @@
               <section id="site-appearance" class="scroll-mt-32 border-t border-gray-100 pt-5 dark:border-dark-700">
                 <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.settings.site.appearanceTitle') }}</h3>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.settings.site.appearanceDescription') }}</p>
-                <div class="mt-4 grid gap-4 md:grid-cols-3">
+                <div class="mt-4 grid min-w-0 gap-6" :class="isMonochromeSkin ? 'md:grid-cols-2' : 'md:grid-cols-3'" data-testid="site-appearance-fields">
                   <label class="input-label">
                     {{ t('admin.settings.site.appearanceSkin') }}
                     <select v-model="form.site_appearance.skin" class="input mt-2" data-testid="site-appearance-skin">
@@ -6470,17 +6470,17 @@
                       <option value="dark">{{ t('nav.darkMode') }}</option>
                     </select>
                   </label>
-                  <label class="input-label">
+                  <label v-if="!isMonochromeSkin" class="input-label" data-testid="site-appearance-accent-editor">
                     {{ t('admin.settings.site.appearanceAccent') }}
                     <div class="mt-2 flex gap-2">
-                      <input v-model="form.site_appearance.accent_color" type="color" class="h-10 w-12 shrink-0 cursor-pointer border border-gray-300 bg-white p-1 dark:border-dark-600 dark:bg-dark-800" :aria-label="t('admin.settings.site.appearanceAccent')" :disabled="isMonochromeSkin" data-testid="site-appearance-accent-color" />
-                      <input v-model="form.site_appearance.accent_color" type="text" pattern="#[0-9a-fA-F]{6}" maxlength="7" required class="input font-mono" data-testid="site-appearance-accent" :disabled="isMonochromeSkin" />
+                      <input v-model="form.site_appearance.accent_color" type="color" class="h-10 w-12 shrink-0 cursor-pointer border border-gray-300 bg-white p-1 dark:border-dark-600 dark:bg-dark-800" :aria-label="t('admin.settings.site.appearanceAccent')" data-testid="site-appearance-accent-color" />
+                      <input v-model="form.site_appearance.accent_color" type="text" pattern="#[0-9a-fA-F]{6}" maxlength="7" required class="input font-mono" data-testid="site-appearance-accent" />
                     </div>
-                    <p v-if="isMonochromeSkin" class="mt-1.5 text-xs text-gray-500 dark:text-gray-400" data-testid="site-appearance-accent-hint">
-                      {{ t('admin.settings.site.appearanceMonochromeHint') }}
-                    </p>
                   </label>
                 </div>
+                <p v-if="isMonochromeSkin" class="mt-3 text-sm text-gray-500 dark:text-gray-400" data-testid="site-appearance-accent-hint">
+                  {{ t('admin.settings.site.appearanceMonochromeHint') }}
+                </p>
               </section>
 
               <!-- API Base URL -->
@@ -13356,7 +13356,7 @@ watch(
 /* ============ 系统设置 Tab 导航 ============ */
 .settings-tabs-shell {
   @apply sticky z-20 -mx-1 rounded-2xl border border-white/80 bg-white/90 p-1.5 backdrop-blur-xl;
-  top: 4.75rem;
+  top: var(--skin-settings-sticky-top, 4.75rem);
   background: var(--skin-settings-background, rgb(255 255 255 / 0.9));
   border-color: var(--skin-settings-border, rgb(255 255 255 / 0.8));
   box-shadow: var(--skin-settings-shadow,
@@ -13366,6 +13366,8 @@ watch(
 
 .settings-tabs-scroll {
   @apply overflow-x-auto;
+  min-width: 0;
+  max-width: 100%;
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
@@ -13384,11 +13386,14 @@ watch(
 
 @media (min-width: 768px) {
   .settings-tabs {
-    @apply min-w-full;
+    min-width: var(--skin-settings-tabs-width, 100%);
   }
 
   .settings-tab {
-    @apply min-w-0 flex-1 basis-0 overflow-hidden px-2 text-[13px];
+    @apply px-2 text-[13px];
+    min-width: var(--skin-settings-tab-min-width, 0px);
+    flex: var(--skin-settings-tab-flex, 1 1 0%);
+    overflow: var(--skin-settings-tab-overflow, hidden);
   }
 
   .settings-tab-icon {
@@ -13412,7 +13417,9 @@ watch(
 }
 
 .settings-tab-active {
-  @apply border-primary-200/80 bg-white text-primary-700 shadow-sm dark:border-primary-400/30 dark:bg-dark-700/95 dark:text-primary-200;
+  @apply border-primary-200/80 shadow-sm dark:border-primary-400/30;
+  background: var(--skin-settings-active-background, rgb(var(--skin-white, 255 255 255)));
+  color: var(--skin-settings-active-color, rgb(var(--skin-primary-700, 15 118 110)));
   box-shadow: var(--skin-settings-shadow,
     0 8px 18px rgb(15 23 42 / 0.08),
     0 1px 0 rgb(255 255 255 / 0.92) inset);
@@ -13443,7 +13450,8 @@ watch(
 }
 
 .settings-tab-active .settings-tab-icon {
-  @apply bg-primary-50 text-primary-600 dark:bg-primary-400/10 dark:text-primary-300;
+  background: var(--skin-settings-active-icon-background, rgb(var(--skin-primary-50, 240 253 250)));
+  color: var(--skin-settings-active-icon-color, rgb(var(--skin-primary-600, 13 148 136)));
 }
 
 .settings-tab-label {
@@ -13467,9 +13475,16 @@ watch(
   background: var(--skin-settings-hover, linear-gradient(135deg, rgb(30 41 59 / 0.9), rgb(51 65 85 / 0.62)));
 }
 
-.dark .settings-tab-active {
+.dark .settings-tab.settings-tab-active {
+  background: var(--skin-settings-active-background, rgb(var(--skin-dark-700, 51 65 85) / 0.95));
+  color: var(--skin-settings-active-color, rgb(var(--skin-primary-200, 153 246 228)));
   box-shadow: var(--skin-settings-shadow,
     0 12px 26px rgb(0 0 0 / 0.22),
     0 1px 0 rgb(255 255 255 / 0.08) inset);
+}
+
+.dark .settings-tab-active .settings-tab-icon {
+  background: var(--skin-settings-active-icon-background, rgb(var(--skin-primary-400, 45 212 191) / 0.1));
+  color: var(--skin-settings-active-icon-color, rgb(var(--skin-primary-300, 94 234 212)));
 }
 </style>

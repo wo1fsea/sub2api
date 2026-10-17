@@ -782,25 +782,23 @@ describe("admin SettingsView payment visible method controls", () => {
     wrapper.unmount();
   });
 
-  it('disables the accent editor for monochrome but still submits the stored accent', async () => {
+  it('hides the monochrome accent editor, preserves its payload and restores it for legacy skins', async () => {
     expect(zhCommon.common.monochromeSkin).toBe('极简黑白');
     expect(enCommon.common.monochromeSkin).toBe('Monochrome');
-    expect(zhSettings.settings.site.appearanceMonochromeHint).toContain('强调色');
-    expect(enSettings.settings.site.appearanceMonochromeHint).toContain('accent');
+    expect(zhSettings.settings.site.appearanceMonochromeHint).toContain('反转');
+    expect(enSettings.settings.site.appearanceMonochromeHint).toContain('invert');
 
     const wrapper = mountView();
     await flushPromises();
-    const accent = wrapper.get('[data-testid="site-appearance-accent"]');
-    const swatch = wrapper.get('[data-testid="site-appearance-accent-color"]');
-    await accent.setValue('#112233');
+    await wrapper.get('[data-testid="site-appearance-accent"]').setValue('#112233');
     await wrapper.get('[data-testid="site-appearance-skin"]').setValue('monochrome');
     await wrapper.get('[data-testid="site-appearance-mode"]').setValue('dark');
 
-    expect((accent.element as HTMLInputElement).disabled).toBe(true);
-    expect((swatch.element as HTMLInputElement).disabled).toBe(true);
+    expect(wrapper.find('[data-testid="site-appearance-accent-editor"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="site-appearance-accent"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="site-appearance-accent-color"]').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="site-appearance-fields"]').classes()).toContain('md:grid-cols-2');
     expect(wrapper.get('[data-testid="site-appearance-accent-hint"]').text()).toContain('MONOCHROME_ACCENT_HINT');
-    // The stored value is not cleared by disabling the editor.
-    expect((accent.element as HTMLInputElement).value).toBe('#112233');
 
     await wrapper.find('form').trigger('submit.prevent');
     await flushPromises();
@@ -808,10 +806,22 @@ describe("admin SettingsView payment visible method controls", () => {
       skin: 'monochrome', mode: 'dark', accent_color: '#112233'
     } }));
 
-    // Returning to a legacy skin re-enables the accent editor.
-    await wrapper.get('[data-testid="site-appearance-skin"]').setValue('neubrutalism');
-    expect((accent.element as HTMLInputElement).disabled).toBe(false);
-    expect(wrapper.find('[data-testid="site-appearance-accent-hint"]').exists()).toBe(false);
+    for (const skin of ['neubrutalism', 'original']) {
+      await wrapper.get('[data-testid="site-appearance-skin"]').setValue(skin);
+      const accent = wrapper.get('[data-testid="site-appearance-accent"]');
+      const swatch = wrapper.get('[data-testid="site-appearance-accent-color"]');
+      expect((accent.element as HTMLInputElement).disabled).toBe(false);
+      expect((accent.element as HTMLInputElement).value).toBe('#112233');
+      expect((swatch.element as HTMLInputElement).value).toBe('#112233');
+      expect(wrapper.get('[data-testid="site-appearance-fields"]').classes()).toContain('md:grid-cols-3');
+      expect(wrapper.find('[data-testid="site-appearance-accent-hint"]').exists()).toBe(false);
+    }
+    await wrapper.get('[data-testid="site-appearance-accent"]').setValue('#445566');
+    await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
+    expect(updateSettings).toHaveBeenLastCalledWith(expect.objectContaining({ site_appearance: {
+      skin: 'original', mode: 'dark', accent_color: '#445566'
+    } }));
     wrapper.unmount();
   });
 
