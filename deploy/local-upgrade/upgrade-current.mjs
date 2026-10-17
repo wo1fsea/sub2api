@@ -393,7 +393,9 @@ export function mergeAssetInventory(previous, graphs) {
     assets.push(item)
     additions.push({ path, bytes })
   }
-  check(assets.length <= 1000 && assets.reduce((total, item) => total + item.bytes, 0) < (96 << 20), 'Historical frontend cache exceeds its retention budget')
+  // Retain several fingerprinted builds for open browser tabs. The aggregate
+  // file budget is separate from the unchanged 1000-file per-build graph cap.
+  check(assets.length <= 1500 && assets.reduce((total, item) => total + item.bytes, 0) < (96 << 20), 'Historical frontend cache exceeds its retention budget')
   return { assets, additions }
 }
 async function cacheAssets(graphs) {

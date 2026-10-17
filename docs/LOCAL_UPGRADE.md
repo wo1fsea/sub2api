@@ -31,6 +31,8 @@ An interrupted preparation may be retried with the same manifest only when its r
 
 Rollback restores the prior application image/configuration and route without overwriting newer database data with a pre-upgrade snapshot. Keep the previous image, package, private configuration and data backup. Client reconnects are accepted under the owner's existing switch policy; a partially delivered stream is not automatically replayed or guaranteed to resume losslessly.
 
+The historical frontend cache retains up to 1500 fingerprinted files and less than 96MiB in aggregate. Each individual build still has a 1000-file/64MiB graph cap, and each resource is capped at 8MiB. The count was raised from 1000 for the second monochrome rollout after inspecting the combined inventory; no old resources were deleted. A future cap failure requires another inventory/capacity review, not an unbounded cache or silent pruning of active browser resources.
+
 When rolling back to a pre-monochrome binary, restore the saved prior site appearance first because that binary does not recognize the third skin. A second-to-first monochrome rollback does not need this setting change: both binaries support the skin. Preserve the actual current mode and stored accent; do not infer them from an older delivery note.
 
 For the independently backed-up HK environment, use [REMOTE_STANDBY.md](REMOTE_STANDBY.md). A software rollout does not synchronize its business data with Mac or change standby roles.

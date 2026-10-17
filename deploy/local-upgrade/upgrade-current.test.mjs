@@ -277,8 +277,17 @@ test('asset cache byte budgets are checked on the full merged inventory before a
   assert.throws(() => mergeAssetInventory(entries(12), []), /retention budget/)
   assert.throws(() => mergeAssetInventory([{ ...entries(1)[0], bytes: (8 << 20) + 1 }], []))
   assert.throws(() => mergeAssetInventory([], [new Map([['/assets/TooLarge-aBc_1234.js', Buffer.alloc((8 << 20) + 1)]])]))
-  const small = Array.from({ length: 1001 }, (_, index) => ({ ...entries(1)[0], path: `/assets/Chunk${index}-aBc_1234.js`, bytes: 1 }))
-  assert.throws(() => mergeAssetInventory(small, []), /retention budget/)
+})
+
+test('retained builds may cross the per-build file count but the aggregate cap stays bounded', () => {
+  const previous = Array.from({ length: 1499 }, (_, index) => ({ path: `/assets/Chunk${index}-aBc_1234.js`, sha256: 'a'.repeat(64), bytes: 1 }))
+  const next = new Map([['/assets/Next-aBc_1234.js', Buffer.from('x')]])
+  const merged = mergeAssetInventory(previous, [next])
+  assert.equal(merged.assets.length, 1500)
+  assert.equal(merged.additions.length, 1)
+  next.set('/assets/Extra-aBc_1234.js', Buffer.from('y'))
+  assert.throws(() => mergeAssetInventory(previous, [next]), /retention budget/)
+  assert.equal(previous.length, 1499)
 })
 
 const steps = ['verifyCandidate', 'routeCandidate', 'verifyEntryCandidate', 'replaceCurrent', 'verifyCurrent', 'routeCurrent', 'verifyEntryCurrent', 'commit', 'cleanupCandidate']
