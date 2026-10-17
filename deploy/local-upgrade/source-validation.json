@@ -1,9 +1,84 @@
 {
-  "status": "source-checks-pending-integration-build",
+  "status": "source-checks-passed-not-production-approved",
   "recordedDate": "2026-10-18",
   "version": "0.2.17",
+  "qualifiedApplicationCommit": "01807b4d32e346392adcf75a70757fce06247f64",
   "upstreamMergeCommit": "b0a02a3304a0a78cdd003ddda1dd23ba02c03084",
-  "note": "The 0.2.13 qualification is historical. This 0.2.17 merge requires a new record tied to its backend/frontend trees after integration and build checks complete. See docs/UPSTREAM_SYNC_0.2.17.md for completed unit/frontend/browser checks.",
+  "backendTree": "0e5816cb2f647a92f3421db9363978cad729a110",
+  "frontendTree": "068ba40c347d5895303543a934b9faf2ddc47a4b",
+  "qualificationScope": "Merge official 0.2.17 into local skins, quota overview, compact home and scheduler compatibility. Five new upstream SQL files; no production migration or rollout.",
+  "toolchain": "Go 1.27.2; local Node 26.7.0; pnpm 10.11.0 test/install and pinned 9.15.9 build commands. GitHub frontend uses Node 20/pnpm 9.",
+  "backendUnit": {
+    "passed": true,
+    "packagesPassed": 57,
+    "testsPassed": 23337,
+    "testsSkipped": 18,
+    "counting": "test and nested subtest pass events",
+    "scope": "go test -tags=unit -p 2 -parallel 2 -count=1 ./...",
+    "privateReport": "frontend/tmp/backend-tests/run-lmoHPq/report.json"
+  },
+  "backendIntegration": {
+    "passed": true,
+    "packagesPassed": 51,
+    "testsPassed": 14331,
+    "testsSkipped": 16,
+    "counting": "test and nested subtest pass events",
+    "scope": "go test -tags=integration -p 1 -parallel 2 -count=1 ./...; sanitized environment; isolated testcontainers; no optional live-provider or audit DSN credentials",
+    "privateReport": "frontend/tmp/backend-tests/run-2gLOTp/report.json"
+  },
+  "backendLint": {
+    "status": "passed-in-GitHub-CI",
+    "tool": "golangci-lint v2.14.0",
+    "runUrl": "https://github.com/wo1fsea/sub2api/actions/runs/39056418612",
+    "scope": "qualified application commit; changed Go files also gofmt clean locally"
+  },
+  "frontend": {
+    "testFilesPassed": 380,
+    "testsPassed": 2927,
+    "testsFailed": 0,
+    "testsSkipped": 0,
+    "fullSuite": "passed-single-worker",
+    "typecheck": "passed",
+    "lint": "full-suite-passed",
+    "lintFilesChecked": 940,
+    "lintErrors": 0,
+    "lintWarnings": 0,
+    "postPreviewFixtureLint": "passed",
+    "productionBuild": "passed-i18n-vue-tsc-b-vite",
+    "buildWarnings": "upstream large chunks and stale Browserslist data; no build errors",
+    "privateReport": "frontend/tmp/upstream-sync-20261018/full-check-summary.md"
+  },
+  "browser": {
+    "passed": true,
+    "scope": "Synthetic settings anchor/light-dark save-reload/accent preservation/legacy return and keyboard tab cycle; dynamic Command Code/Cline account selection; populated seven-card Ops metrics/window cycle. 1440 desktop, 390 mobile and settings320. No page errors or stable horizontal overflow; screenshots and grayscale checks reviewed.",
+    "compiledSettings": "Production Vite assets with isolated synthetic API fixtures; 1440/390 light and dark, save/reload and transparent active tab/icon checked.",
+    "limitations": "Focused merge regression, not full production/all-route or external payment/provider acceptance.",
+    "privateEvidence": "frontend/tmp/upstream-sync-20261018/"
+  },
+  "build": {
+    "passed": true,
+    "platform": "linux/arm64",
+    "embeddedFrontend": true,
+    "versionOutput": "Sub2API 0.2.17 (commit: 01807b4d32e346392adcf75a70757fce06247f64, built: unknown)",
+    "scope": "Bounded CGO-disabled Go compile and no-network/read-only temporary-container -version check. Exact application trees; pending documentation edits marked compile-check VCS metadata dirty. Not immutable Docker packaging or application smoke.",
+    "privateBinary": ".out/upstream-sync-20261018/sub2api-linux-arm64"
+  },
+  "operationsTests": {
+    "passed": true,
+    "testsPassed": 50,
+    "scope": "upgrade-current, service-recovery, live-gateway Node tests; upstream shell checks also passed"
+  },
+  "securityAudit": {
+    "status": "passed-in-GitHub",
+    "runUrl": "https://github.com/wo1fsea/sub2api/actions/runs/39056418618",
+    "scope": "govulncheck and pnpm production audit with existing exceptions on qualified application commit"
+  },
+  "gitHubCI": {
+    "runUrl": "https://github.com/wo1fsea/sub2api/actions/runs/39056418612",
+    "status": "backend-test-job-in-progress-at-recording; frontend/shell/lint/release-helpers passed"
+  },
+  "realGatewayCallsTested": false,
   "productionDeploymentPerformed": false,
-  "liveTestCredentialsInherited": false
+  "liveTestCredentialsInherited": false,
+  "note": "Source qualification only. Current Mac runtime remains 0.2.13. The five new migration files require exact-image smoke, fresh backup/restore compatibility and updated activation tooling before a future rollout. Existing upgrade-current version guard is retained."
 }
