@@ -1,12 +1,13 @@
 {
   "status": "source-checks-passed-not-production-approved",
   "recordedDate": "2026-10-17",
-  "qualifiedApplicationCommit": "37a36628137a02745df01655270fe5cdd6d7fd54",
+  "qualifiedApplicationCommit": "fa822b818cd10a1fa475054e38af2053100bdf71",
   "backendTree": "4dbf014232a19c5df6ec1387cb0c9a698e1ae3b8",
-  "frontendTree": "b69486d9481a88bfd78093fcba8870cecc56b958",
-  "qualificationScope": "Third monochrome site skin with light/dark tokens, settings, default branding, charts, quota legends and narrow-screen user stats. Existing original/neubrutalism skins and default remain. No migration, dependency, account, credential or routing changes.",
+  "frontendTree": "228f6b8a441bb0f50d7d77d2f966761af1fb7f63",
+  "qualificationScope": "Second monochrome iteration: shared neutral component tokens, flat headers/settings chapters, distinct control shapes, readable summaries and selected/payment states; synthetic fixtures and reusable browser audit. Existing original/neubrutalism skins remain. Backend tree is identical to the first monochrome release; no migration, dependency, account, credential or routing changes.",
   "toolchain": "go1.27.1 darwin/arm64 for local tests; pinned go1.27.0 linux/arm64 during immutable packaging",
   "backendUnit": {
+    "evidenceStatus": "inherited-from-178f1bb325a7-identical-backend-tree-not-rerun",
     "passed": true,
     "packagesPassed": 2,
     "topLevelTestsPassed": 6,
@@ -23,16 +24,16 @@
     "scope": "Changed Go files gofmt clean; go test default vet completed. No fresh full golangci-lint claim."
   },
   "frontend": {
-    "testFilesPassed": 21,
-    "testsPassed": 163,
+    "testFilesPassed": 19,
+    "testsPassed": 199,
     "testsFailed": 0,
     "testsSkipped": 0,
-    "scope": "siteAppearance, useChartTheme, branding, SettingsView, all i18n tests, chart consumers, quota helper/composable/view and UserDashboardStats; final single-worker run after implementation fixes.",
-    "privateTestReport": "/Users/clawbotbot/Projects/sub2api-monochrome/frontend/tmp/monochrome/final-vitest.json",
+    "scope": "siteAppearance, useChartTheme, branding, SettingsView, DashboardView, chart consumers, SiteAppearanceLink, AppSidebar, PlazaModelPricingTable, AliyunCaptchaWidget, UserDashboardStats, UsageStatsCards, account creation and payment components; independent final single-worker run. Immutable packaging separately runs i18n checks.",
+    "privateTestReport": "/Users/clawbotbot/Projects/sub2api-monochrome/frontend/tmp/monochrome-v2/final-vitest.json",
     "typecheck": "passed",
     "lint": "changed-files-passed",
-    "lintFilesChecked": 38,
-    "lintScope": "ESLint without fix on modified JS/TS/Vue files; later preview and stats edits checked again with zero warnings/errors.",
+    "lintFilesChecked": 22,
+    "lintScope": "ESLint without fix on every changed JS/TS/Vue file, including preview scripts and the browser audit; zero warnings/errors.",
     "productionBuild": "required-during-immutable-packaging",
     "fullSuite": "not-run",
     "securityAudit": {
@@ -42,10 +43,11 @@
   },
   "browser": {
     "passed": true,
-    "scope": "Synthetic desktop1440 and mobile390/320: light/dark dashboard and quota, user table, homepage/login, settings save/reload/legacy return, ordinary-user inheritance, date popup, quota detail, two-factor dialog, availability legend. Fixed observed contrast and narrow-screen issues; final observed pageerror empty. Not a live deployment check.",
-    "privateEvidence": "/Users/clawbotbot/Projects/sub2api-monochrome/frontend/tmp/monochrome/"
+    "scope": "43 synthetic routes in both modes: no app-owned color findings, page overflow or unresolved candidate text contrast. Nine settings tabs, save/reload and both legacy skins; charts/canvas, account selected states, date picker, two-factor/announcement/tooltip, synthetic payment QR and waiting states; desktop1440/native1442, header1024, mobile390/320. Final affected-page API/pageerror checks empty. Empty optional pages and disabled ops dashboard are not populated-production acceptance; no external checkout/identity/CAPTCHA or real payment verification. Not a live deployment check or full WCAG certification.",
+    "privateEvidence": "/Users/clawbotbot/Projects/sub2api-monochrome/frontend/tmp/monochrome-v2/"
   },
   "operationsTests": {
+    "evidenceStatus": "inherited-from-178f1bb325a7-unchanged-operational-code-not-rerun",
     "passed": true,
     "testsPassed": 49,
     "scope": "upgrade-current, service-recovery and live-gateway Node tests"
