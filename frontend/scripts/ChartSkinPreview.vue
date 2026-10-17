@@ -16,6 +16,22 @@ import PaymentMethodChart from '../src/components/admin/payment/PaymentMethodCha
 import DailyRevenueChart from '../src/components/admin/payment/DailyRevenueChart.vue'
 import AccountStatsModal from '../src/components/admin/account/AccountStatsModal.vue'
 import UsageProgressBar from '../src/components/account/UsageProgressBar.vue'
+import OpsDashboardHeader from '../src/views/admin/ops/components/OpsDashboardHeader.vue'
+import { useAdminSettingsStore } from '../src/stores'
+import type { OpsDashboardOverview } from '../src/api/admin/ops'
+
+useAdminSettingsStore().setOpsRealtimeMonitoringEnabledLocal(true)
+const healthScore = ref(62)
+const opsOverview = computed<OpsDashboardOverview>(() => ({
+  start_time: '2026-10-17T08:00:00Z', end_time: '2026-10-17T09:00:00Z', platform: 'openai',
+  health_score: healthScore.value, success_count: 1093, error_count_total: 7,
+  business_limited_count: 3, error_count_sla: 7, request_count_total: 1100, request_count_sla: 1100,
+  token_consumed: 98000000, sla: .9936, error_rate: .0064, upstream_error_rate: .0119,
+  upstream_error_count_excl_429_529: 13, upstream_429_count: 0, upstream_529_count: 0,
+  qps: { current: .3, peak: .4, avg: .3 }, tps: { current: 30875.7, peak: 30847.7, avg: 27249.3 },
+  duration: { p50_ms: 8452, p95_ms: 37796, p99_ms: 67450, max_ms: 195805, avg_ms: 13302 },
+  ttft: { p50_ms: 2790, p95_ms: 21309, p99_ms: 42597, max_ms: 193940, avg_ms: 5492 }
+}))
 
 const section = ref('分布图')
 const state = ref('数据')
@@ -85,6 +101,12 @@ function toggleDark() {
       <EndpointDistributionChart v-model:metric="metric" v-model:source="source" :endpoint-stats="endpoints" :upstream-endpoint-stats="endpoints.slice().reverse()" :endpoint-path-stats="endpoints.slice(0, 2)" :show-source-toggle="true" :show-metric-toggle="true" :loading="loading" />
     </div>
     <UserDashboardCharts v-if="section === '用户'" :models="models" :trend="trend" :loading="loading" start-date="2026-10-01" end-date="2026-10-08" granularity="day" @refresh="events = '已刷新'" />
+    <template v-if="section === '运维'">
+      <label class="flex items-center gap-3">健康分数
+        <select v-model.number="healthScore" aria-label="健康分数" class="input w-auto"><option :value="95">95 健康</option><option :value="62">62 风险</option><option :value="35">35 严重</option></select>
+      </label>
+      <OpsDashboardHeader :overview="opsOverview" platform="" :group-id="null" time-range="1h" query-mode="auto" :loading="loading" :last-updated="null" />
+    </template>
     <div v-if="section === '运维'" class="grid grid-cols-1 gap-6 lg:grid-cols-2">
       <div class="h-96"><OpsErrorDistributionChart :data="distribution" :loading="loading" @open-details="events = '错误详情'" /></div>
       <div class="h-96"><OpsLatencyChart :latency-data="latency" :loading="loading" /></div>

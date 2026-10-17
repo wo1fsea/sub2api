@@ -333,6 +333,7 @@ const optionalFixtures = [
   ['/admin/payment/orders', emptyPage], ['/admin/payment/plans', []],
   ['/payment/orders/my', emptyPage], ['/payment/orders/refund-eligible-providers', { provider_instance_ids: [] }],
   ['/payment/orders/9001', { id: 9001, status: 'PENDING', amount: 10, pay_amount: 10, currency: 'USD', out_trade_no: 'synthetic-preview' }],
+  ['/admin/ops/realtime-traffic', { enabled: true, summary: { window: '1min', start_time: '2026-10-17T08:59:00Z', end_time: '2026-10-17T09:00:00Z', platform: '', qps: { current: .3, peak: .4, avg: .3 }, tps: { current: 30875.7, peak: 30847.7, avg: 27249.3 } } }],
   ['/payment/checkout-info', { methods: { stripe: { currency: 'USD', daily_limit: 1000, daily_used: 0, daily_remaining: 1000, single_min: 1, single_max: 100, fee_rate: 0, available: true } }, global_min: 1, global_max: 100, plans: [], balance_disabled: false, balance_recharge_multiplier: 1, subscription_usd_to_cny_rate: 0, recharge_fee_rate: 0, help_text: 'Synthetic preview — no payment can be submitted', help_image_url: '', stripe_publishable_key: '' }],
   ['/channels/available', []],
   ['/user/aff', { user_id: 1, aff_code: 'preview', inviter_id: null, aff_count: 0, aff_quota: 0, aff_frozen_quota: 0, aff_history_quota: 0, effective_rebate_rate_percent: 0, invitees: [] }],

@@ -649,6 +649,42 @@ html:root[data-skin='monochrome'] :is(.skin-dialog-panel, .select-dropdown-porta
   backdrop-filter: none;
 }
 
+/* Ops header keeps its layout while sharing the console's quiet surfaces and type. */
+:root[data-skin='monochrome'] .skin-ops-header {
+  background: var(--skin-surface);
+  border-radius: var(--skin-card-radius);
+  box-shadow: none;
+}
+
+:root[data-skin='monochrome'] .skin-ops-header :is(h1, h2, h3, .font-black) {
+  font-weight: 500;
+}
+
+:root[data-skin='monochrome'] .skin-ops-header :is(.rounded-2xl.bg-gray-50, .rounded-xl.bg-gray-50) {
+  background: var(--skin-secondary);
+  border-radius: var(--skin-card-radius);
+}
+
+:root[data-skin='monochrome'] .skin-ops-window {
+  background: var(--skin-secondary);
+  color: var(--skin-muted);
+}
+
+:root[data-skin='monochrome'] .skin-ops-window[aria-pressed='false']:hover {
+  background: var(--skin-hover);
+  color: var(--skin-ink);
+}
+
+:root[data-skin='monochrome'] .skin-ops-window[aria-pressed='true'] {
+  background: var(--skin-ink);
+  color: var(--skin-bg);
+}
+
+:root[data-skin='monochrome'] .skin-ops-window[aria-pressed='true']:hover {
+  background: var(--skin-primary-hover);
+  color: var(--skin-bg);
+}
+
 /* Component accents and data details. */
 :root[data-skin='monochrome'] :is(.chip-tinted, .chip-tinted:hover) {
   background: var(--skin-secondary);
