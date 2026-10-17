@@ -1,9 +1,9 @@
 {
   "status": "source-checks-passed-not-production-approved",
   "recordedDate": "2026-10-17",
-  "qualifiedApplicationCommit": "fa822b818cd10a1fa475054e38af2053100bdf71",
+  "qualifiedApplicationCommit": "8e0ad11b7df1e3fa93cff04634e3ac8720ab371e",
   "backendTree": "4dbf014232a19c5df6ec1387cb0c9a698e1ae3b8",
-  "frontendTree": "228f6b8a441bb0f50d7d77d2f966761af1fb7f63",
+  "frontendTree": "e8789da66b6de2fcec20f5adde07801e383d02f8",
   "qualificationScope": "Second monochrome iteration: shared neutral component tokens, flat headers/settings chapters, distinct control shapes, readable summaries and selected/payment states; synthetic fixtures and reusable browser audit. Existing original/neubrutalism skins remain. Backend tree is identical to the first monochrome release; no migration, dependency, account, credential or routing changes.",
   "toolchain": "go1.27.1 darwin/arm64 for local tests; pinned go1.27.0 linux/arm64 during immutable packaging",
   "backendUnit": {
@@ -24,6 +24,17 @@
     "scope": "Changed Go files gofmt clean; go test default vet completed. No fresh full golangci-lint claim."
   },
   "frontend": {
+    "evidenceStatus": "199-test baseline on fa822b818; focused final ops patch requalification below",
+    "finalPatch": {
+      "testFilesPassed": 4,
+      "testsPassed": 18,
+      "testsFailed": 0,
+      "testsSkipped": 0,
+      "scope": "siteAppearance/useChartTheme and OpsErrorScopeCharts/OpsThroughputTrendChart; only OpsDashboardHeader, monochrome CSS and synthetic previews changed after the 199-test run",
+      "privateTestReport": "/Users/clawbotbot/Projects/sub2api-monochrome/frontend/tmp/monochrome-v2/ops-patch-tests.json",
+      "typecheck": "passed",
+      "lint": "three-changed-Vue-JS-files-passed"
+    },
     "testFilesPassed": 19,
     "testsPassed": 199,
     "testsFailed": 0,
@@ -42,14 +53,15 @@
     }
   },
   "browser": {
+    "finalPatch": "Live populated operations header exposed colored health ring and low-contrast window choice; fixed and verified with synthetic populated header at scores 95/62/35 in both modes, window switching/hover, canvas and mobile390. 37 authenticated live route requests (disabled features may redirect) found no other color/contrast/overflow issues. First-stage release is not final-patch live signoff.",
     "passed": true,
     "scope": "43 synthetic routes in both modes: no app-owned color findings, page overflow or unresolved candidate text contrast. Nine settings tabs, save/reload and both legacy skins; charts/canvas, account selected states, date picker, two-factor/announcement/tooltip, synthetic payment QR and waiting states; desktop1440/native1442, header1024, mobile390/320. Final affected-page API/pageerror checks empty. Empty optional pages and disabled ops dashboard are not populated-production acceptance; no external checkout/identity/CAPTCHA or real payment verification. Not a live deployment check or full WCAG certification.",
     "privateEvidence": "/Users/clawbotbot/Projects/sub2api-monochrome/frontend/tmp/monochrome-v2/"
   },
   "operationsTests": {
-    "evidenceStatus": "inherited-from-178f1bb325a7-unchanged-operational-code-not-rerun",
+    "evidenceStatus": "freshly-rerun-after-bounded-historical-asset-cap-fix-a65637979",
     "passed": true,
-    "testsPassed": 49,
+    "testsPassed": 50,
     "scope": "upgrade-current, service-recovery and live-gateway Node tests"
   },
   "realGatewayCallsTested": false,
