@@ -12,7 +12,7 @@
           type="button"
           class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40 disabled:grayscale"
           :class="p === 'all' ? chipClass(platform === 'all') : platform === p ? 'chip-tinted-active' : 'chip-tinted'"
-          :style="p === 'all' ? undefined : { '--chip-accent': platformAccentColor(p) }"
+          :style="p === 'all' ? undefined : { '--chip-accent': `var(--skin-plaza-accent, ${platformAccentColor(p)})` }"
           :disabled="p !== 'all' && !platformEnabled(p)"
           @click="$emit('update:platform', p)"
         >
@@ -42,7 +42,7 @@
           type="button"
           class="rounded-lg px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40 disabled:grayscale"
           :class="groupId === g.id ? 'chip-tinted-active' : 'chip-tinted'"
-          :style="{ '--chip-accent': platformAccentColor(g.platform) }"
+          :style="{ '--chip-accent': `var(--skin-plaza-accent, ${platformAccentColor(g.platform)})` }"
           :disabled="!groupEnabled(g)"
           @click="$emit('update:groupId', g.id)"
         >

@@ -81,13 +81,14 @@
           <div class="flex flex-col items-center space-y-4 py-4 text-center">
             <div
               v-if="deepLinkState === 'launching'"
-              class="h-10 w-10 animate-spin rounded-full border-4 border-[#00AEEF] border-t-transparent"
+              class="skin-payment-spinner h-10 w-10 animate-spin rounded-full border-4"
+              style="border-color: var(--skin-chrome-ink, #00AEEF); border-top-color: transparent"
             ></div>
             <div
               v-else
               class="flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950/30"
             >
-              <Icon name="checkCircle" size="lg" class="text-[#00AEEF]" />
+              <Icon name="checkCircle" size="lg" style="color: var(--skin-chrome-ink, #00AEEF)" />
             </div>
             <p class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ deepLinkState === 'backgrounded' ? t('payment.qr.alipayContinueInApp') : t('payment.qr.alipayOpening') }}
@@ -302,15 +303,15 @@ const isMobileAlipayDeepLink = computed(() => props.mobileAlipayDeepLink === tru
 const showQRCode = computed(() => !!qrUrl.value && (!isMobileAlipayDeepLink.value || deepLinkFallbackVisible.value))
 
 const qrBorderClass = computed(() => {
-  if (isAlipay.value) return 'border-[#00AEEF] bg-blue-50 dark:border-[#00AEEF]/70 dark:bg-blue-950/20'
-  if (isWxpay.value) return 'border-[#2BB741] bg-green-50 dark:border-[#2BB741]/70 dark:bg-green-950/20'
+  if (isAlipay.value) return 'border-[var(--skin-chrome-line,#00AEEF)] bg-blue-50 dark:border-[color:var(--skin-chrome-line,rgb(0_174_239_/_0.7))] dark:bg-blue-950/20'
+  if (isWxpay.value) return 'border-[var(--skin-chrome-line,#2BB741)] bg-green-50 dark:border-[color:var(--skin-chrome-line,rgb(43_183_65_/_0.7))] dark:bg-green-950/20'
   return 'border-gray-200 bg-white dark:border-dark-600 dark:bg-dark-800'
 })
 
 const qrLogoBgClass = computed(() => {
-  if (isAlipay.value) return 'bg-[#00AEEF]'
-  if (isWxpay.value) return 'bg-[#2BB741]'
-  return 'bg-gray-400'
+  if (isAlipay.value) return 'skin-payment-qr-badge bg-[var(--skin-chrome-badge,#00AEEF)]'
+  if (isWxpay.value) return 'skin-payment-qr-badge bg-[var(--skin-chrome-badge,#2BB741)]'
+  return 'skin-payment-qr-badge bg-gray-400'
 })
 
 const qrLogoIcon = computed(() => {

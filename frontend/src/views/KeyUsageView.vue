@@ -936,8 +936,8 @@ onUnmounted(() => {
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 .input-ring:focus {
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.2);
-  border-color: #14b8a6;
+  box-shadow: var(--skin-focus-shadow, 0 0 0 3px rgba(20, 184, 166, 0.2));
+  border-color: var(--skin-focus-border, #14b8a6);
   outline: none;
 }
 
@@ -954,13 +954,13 @@ onUnmounted(() => {
   100% { background-position: 200% 0; }
 }
 .skeleton {
-  background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+  background: var(--skin-skeleton, linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%));
   background-size: 200% 100%;
   animation: shimmer-kv 1.8s ease-in-out infinite;
   border-radius: 8px;
 }
 :global(.dark) .skeleton {
-  background: linear-gradient(90deg, #334155 25%, #1e293b 50%, #334155 75%);
+  background: var(--skin-skeleton, linear-gradient(90deg, #334155 25%, #1e293b 50%, #334155 75%));
   background-size: 200% 100%;
 }
 

@@ -4,7 +4,7 @@ This package combines upstream `v0.2.13` with **Restrained Neubrutalism**, our O
 
 ## Current local upgrade: monochrome appearance
 
-The third skin, `monochrome`, adds consistent light/dark black, white and gray surfaces, solid grayscale charts and inverted primary actions. The existing administrator appearance contract and both previous skins remain available. Version stays `0.2.13`, with no migration or dependency changes. See [MONOCHROME_THEME.md](MONOCHROME_THEME.md) for design, review and local-only rollout scope. The historical quota release below remains the pre-upgrade rollback target; packaging alone does not establish deployment.
+The third skin, `monochrome`, adds consistent light/dark black, white and gray surfaces, solid grayscale charts and inverted primary actions. Its second iteration unifies remaining component colors and refines headers, settings chapters, control shapes and readable interaction states. The existing administrator appearance contract and both previous skins remain available. Version stays `0.2.13`, with no migration or dependency changes. See [MONOCHROME_THEME.md](MONOCHROME_THEME.md) for design, review and local-only rollout scope. Resolve the current rollback image from fresh deployment state; the historical quota release below is not the second iteration's rollback target. Packaging alone does not establish deployment.
 
 ## Previous upgrade: subscription quota overview
 
@@ -31,7 +31,7 @@ An interrupted preparation may be retried with the same manifest only when its r
 
 Rollback restores the prior application image/configuration and route without overwriting newer database data with a pre-upgrade snapshot. Keep the previous image, package, private configuration and data backup. Client reconnects are accepted under the owner's existing switch policy; a partially delivered stream is not automatically replayed or guaranteed to resume losslessly.
 
-If `monochrome` has been enabled, restore the saved prior site appearance before rolling back to the older binary, which does not recognize the third skin. The theme change preserves the actual current mode and stored accent; do not infer them from an older delivery note.
+When rolling back to a pre-monochrome binary, restore the saved prior site appearance first because that binary does not recognize the third skin. A second-to-first monochrome rollback does not need this setting change: both binaries support the skin. Preserve the actual current mode and stored accent; do not infer them from an older delivery note.
 
 For the independently backed-up HK environment, use [REMOTE_STANDBY.md](REMOTE_STANDBY.md). A software rollout does not synchronize its business data with Mac or change standby roles.
 

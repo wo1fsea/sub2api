@@ -1,4 +1,4 @@
-/* Monochrome: neutral black/white/gray product chrome, no filters or ornament. */
+/* Foundation: preserve Tailwind's radius scale; role-specific radii are separate. */
 :root[data-skin='monochrome'] {
   --skin-bg: #ffffff;
   --skin-secondary: #f7f7f7;
@@ -12,15 +12,36 @@
   --skin-primary-hover: #333333;
   /* Accent is intentionally unused in monochrome; keep the variable neutral. */
   --skin-lime: var(--skin-ink);
-  --site-flat-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  --site-flat-shadow: none;
   --site-backdrop-blur: 0px;
-  --skin-radius: 10px;
+  --skin-card-radius: 14px;
+  --skin-control-radius: 8px;
+  --skin-pill-radius: 9999px;
+  --skin-settings-background: var(--skin-bg);
+  --skin-sidebar-divider: var(--skin-line);
+  --skin-settings-border: var(--skin-line);
+  --skin-settings-shadow: none;
+  --skin-settings-hover: var(--skin-hover);
+  --skin-settings-indicator: var(--skin-ink);
+  --skin-focus-border: var(--skin-ink);
+  --skin-focus-shadow: 0 0 0 2px var(--skin-bg), 0 0 0 4px var(--skin-ink);
+  --skin-skeleton: linear-gradient(90deg, var(--skin-line-soft) 25%, var(--skin-secondary) 50%, var(--skin-line-soft) 75%);
+  --skin-plaza-accent: var(--skin-ink);
+  --skin-chrome-ink: var(--skin-ink);
+  --skin-chrome-line: var(--skin-line);
+  --skin-chrome-surface: var(--skin-secondary);
+  --skin-chrome-hover: var(--skin-hover);
+  --skin-chrome-badge: #171717;
+  --skin-chrome-badge-ink: #ffffff;
+  --skin-scrollbar-track: var(--skin-secondary);
+  --skin-scrollbar-thumb: var(--skin-muted);
+  --skin-scrollbar-hover: var(--skin-ink);
   --skin-white: 255 255 255;
   --skin-gray-50: 247 247 247;
   --skin-gray-100: 245 245 245;
   --skin-gray-200: 229 229 229;
   --skin-gray-300: 211 211 211;
-  --skin-gray-400: 117 117 117;
+  --skin-gray-400: 107 107 107;
   --skin-gray-500: 97 97 97;
   --skin-gray-600: 82 82 82;
   --skin-gray-700: 60 60 60;
@@ -106,9 +127,6 @@
   --skin-dark-950: 23 23 23;
   --skin-dark-100: 245 245 245;
   --skin-dark-50: 247 247 247;
-}
-
-:root.dark[data-skin='monochrome'] {
   --skin-tone-300: 214 214 214;
   --skin-tone-400: 180 180 180;
   --skin-tone-500: 180 180 180;
@@ -153,25 +171,28 @@
   box-shadow: var(--site-flat-shadow);
 }
 
-[data-skin='monochrome'] :is(.card, .glass-card, .card-glass, .glass, .modal-content, .dialog-container, .dropdown, .stat-card, .table-container) {
+/* Data surfaces: flat cards and quiet dividers. */
+[data-skin='monochrome'] :is(.card, .glass-card, .card-glass, .modal-content, .dialog-container, .dropdown, .stat-card, .table-container) {
   background: var(--skin-surface);
   border: 1px solid var(--skin-line);
-  border-radius: var(--skin-radius);
+  border-radius: var(--skin-card-radius);
   box-shadow: var(--site-flat-shadow);
   backdrop-filter: none;
 }
 
 [data-skin='monochrome'] .card-hover:hover {
   border-color: var(--skin-line);
-  box-shadow: 0 2px 6px rgb(0 0 0 / 0.06);
+  box-shadow: none;
+  transform: none;
 }
 
-:root[data-skin='monochrome'] :is(.input, .btn, .select-trigger, .switch, .tabs, .badge, .skeleton, .progress, .qo-button, .qo-filter, .qo-track) {
-  border-radius: var(--skin-radius);
+/* Actions/forms: cards, fields, pills and true circles retain different shapes. */
+:root[data-skin='monochrome'] :is(.input, .select-trigger, .tabs, .skeleton, .qo-filter) {
+  border-radius: var(--skin-control-radius);
 }
 
-:root[data-skin='monochrome'] :is(.badge, .skin-chart-swatch) {
-  border-radius: 6px;
+:root[data-skin='monochrome'] :is(.btn, .badge, .qo-button, .skin-primary-action, .skin-home-action, .date-picker-apply) {
+  border-radius: var(--skin-pill-radius);
 }
 
 :root[data-skin='monochrome'] :is(.spinner, .animate-spin, .loading-spinner, .switch-thumb, .progress-bar, .skin-usage-bar, .qo-used, .qo-swatch) {
@@ -185,8 +206,8 @@
 }
 
 [data-skin='monochrome'] .input:focus {
-  border-color: var(--skin-ink);
-  box-shadow: 0 0 0 3px rgb(23 23 23 / 0.08);
+  border-color: var(--skin-focus-border);
+  box-shadow: var(--skin-focus-shadow);
 }
 
 /* The stored color remains in the text field; the inactive swatch stays neutral. */
@@ -198,11 +219,18 @@
   background-color: var(--skin-muted) !important;
 }
 
-:root.dark[data-skin='monochrome'] .input:focus {
-  box-shadow: 0 0 0 3px rgb(245 245 245 / 0.12);
+/* Native controls bypass utility palette substitution. */
+:root[data-skin='monochrome'] :is(input[type='checkbox'], input[type='radio']) {
+  accent-color: var(--skin-ink);
 }
 
-:root[data-skin='monochrome'] :is(button, a, input, select, textarea, .skin-switcher):focus-visible {
+:root[data-skin='monochrome'] :is(.input, .select-trigger, select):disabled {
+  background-color: var(--skin-secondary);
+  color: var(--skin-muted);
+  cursor: not-allowed;
+}
+
+:root[data-skin='monochrome'] :is(button, a, input, select, textarea, [tabindex], .skin-switcher):focus-visible {
   outline: 2px solid var(--skin-ink);
   outline-offset: 2px;
   box-shadow: none;
@@ -245,8 +273,24 @@
   box-shadow: none;
 }
 
-:root[data-skin='monochrome'] :is(.btn-danger, .btn-warning, .btn-success):hover:not(:disabled) {
-  background: var(--skin-neutral);
+:root[data-skin='monochrome'] :is(.btn-danger, .btn-warning, .btn-success, .btn-stripe, .btn-airwallex, .btn-alipay, .btn-wxpay):hover:not(:disabled) {
+  background: var(--skin-hover);
+  color: var(--skin-ink);
+}
+
+:root[data-skin='monochrome'] .btn-danger {
+  border-color: var(--skin-muted);
+  border-style: dashed;
+}
+
+:root[data-skin='monochrome'] .btn {
+  box-shadow: none;
+  transform: none;
+}
+
+/* Keep nested utility-colored icons readable on inverted actions in either mode. */
+:root[data-skin='monochrome'] :is(.btn-primary, .skin-primary-action, .skin-home-action, .date-picker-apply, .btn-danger, .btn-warning, .btn-success, .btn-stripe, .btn-airwallex, .btn-alipay, .btn-wxpay) :is(svg, [class*='text-']) {
+  color: inherit;
 }
 
 [data-skin='monochrome'] .btn-ghost:hover {
@@ -267,26 +311,62 @@
   color: var(--skin-ink);
 }
 
+/* Shared segmented choices keep state distinct from the surrounding gray track. */
+:root[data-skin='monochrome'] .skin-account-choice {
+  background: transparent;
+  color: var(--skin-muted);
+  box-shadow: none;
+}
+
+:root[data-skin='monochrome'] .skin-account-choice[aria-pressed='false']:hover {
+  background: var(--skin-hover);
+  color: var(--skin-ink);
+}
+
+:root[data-skin='monochrome'] .skin-account-choice[aria-pressed='true'] {
+  background: var(--skin-ink);
+  color: var(--skin-bg);
+  box-shadow: none;
+}
+
+/* QR provider marks remain white on a stable ink badge in both appearance modes. */
+:root[data-skin='monochrome'] .skin-payment-qr-badge {
+  background: var(--skin-chrome-badge);
+  color: var(--skin-chrome-badge-ink);
+}
+
+:root[data-skin='monochrome'] .skin-payment-qr-badge > svg {
+  color: inherit;
+}
+
 :root[data-skin='monochrome'] .text-gradient {
   background: none;
   -webkit-text-fill-color: var(--skin-ink);
   color: var(--skin-ink);
 }
 
-:root[data-skin='monochrome'] [style*='--plaza-accent'],
-:root[data-skin='monochrome'] [style*='--chip-accent'] {
-  --plaza-accent: var(--skin-muted);
-  --chip-accent: var(--skin-muted);
+/* Accent values originate in the component and fall back to legacy platform colors. */
+
+[data-skin='monochrome'] .sidebar {
+  background: var(--skin-secondary);
+  border-color: var(--skin-line-soft);
+  box-shadow: none;
 }
 
-[data-skin='monochrome'] :is(.sidebar, .skin-app-header) {
-  background: var(--skin-secondary);
-  border-color: var(--skin-line);
+/* Shell is separate from the generic .glass card treatment. */
+:root[data-skin='monochrome'] :is(.skin-app-header, .skin-public-header) {
+  background: var(--skin-bg);
+  border: 0;
+  border-bottom: 1px solid var(--skin-line-soft);
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 [data-skin='monochrome'] .sidebar-link {
   color: var(--skin-muted);
-  border-radius: var(--skin-radius);
+  border-radius: var(--skin-control-radius);
+  font-weight: 400;
 }
 
 [data-skin='monochrome'] .sidebar-link:hover {
@@ -324,8 +404,13 @@
 
 [data-skin='monochrome'] :is(.skin-app-header h1, .page-title) {
   color: var(--skin-ink);
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+:root[data-skin='monochrome'] .page-title {
+  font-size: clamp(1.5rem, 2vw, 1.75rem);
+  line-height: 1.25;
 }
 
 [data-skin='monochrome'] :is(.modal-content, .dialog-container, .dropdown, .date-picker-dropdown, .skin-dialog-panel) {
@@ -343,7 +428,7 @@
   backdrop-filter: none;
 }
 
-:root[data-skin='monochrome'] :is(.skin-dialog-panel, .select-dropdown-portal, .pulse-tooltip, .matrix-floating-tooltip, .skin-tooltip, .skin-toast) {
+html:root[data-skin='monochrome'] :is(.skin-dialog-panel, .select-dropdown-portal, .pulse-tooltip, .matrix-floating-tooltip, .skin-tooltip, .skin-toast) {
   background: var(--skin-surface);
   color: var(--skin-ink);
   border: 1px solid var(--skin-line);
@@ -361,7 +446,7 @@
   font-weight: 600;
 }
 
-:root[data-skin='monochrome'] :is(.skin-dialog-rule, .settings-tab-active) {
+:root[data-skin='monochrome'] .skin-dialog-rule {
   background: var(--skin-surface);
   border-color: var(--skin-line);
 }
@@ -370,16 +455,11 @@
   background: var(--skin-neutral);
 }
 
-:root[data-skin='monochrome'] .settings-tab-active::after {
-  background: var(--skin-ink);
-  border-radius: 6px;
-}
-
 :root[data-skin='monochrome'] .driver-popover.theme-tour-popover {
   background: var(--skin-surface) !important;
   color: var(--skin-ink) !important;
   border: 1px solid var(--skin-line) !important;
-  border-radius: var(--skin-radius) !important;
+  border-radius: var(--skin-card-radius) !important;
   box-shadow: 0 6px 20px rgb(0 0 0 / 0.1) !important;
 }
 
@@ -391,7 +471,7 @@
   background: var(--skin-surface) !important;
   color: var(--skin-ink) !important;
   border: 1px solid var(--skin-line) !important;
-  border-radius: var(--skin-radius) !important;
+  border-radius: var(--skin-control-radius) !important;
   box-shadow: none !important;
 }
 
@@ -402,8 +482,9 @@
 :root[data-skin='monochrome'] .terminal-window {
   background: var(--skin-surface);
   border: 1px solid var(--skin-line);
-  border-radius: var(--skin-radius);
+  border-radius: var(--skin-card-radius);
   box-shadow: var(--site-flat-shadow);
+  transform: none;
 }
 
 :root[data-skin='monochrome'] :is(.terminal-header, .code-success) {
@@ -445,6 +526,7 @@
   height: 12px;
   flex-shrink: 0;
   border: 1px solid var(--skin-line);
+  border-radius: 3px;
 }
 
 :root[data-skin='monochrome'] .skin-chart-line {
@@ -474,17 +556,11 @@
   background: var(--skin-surface);
 }
 
-:root[data-skin='monochrome'] .skin-score-segment {
-  display: block;
-  flex: 1;
-  height: 100%;
-}
-
 :root[data-skin='monochrome'] :is([class*='health-score'], .health-healthy, .health-warning, .health-critical) {
   background-color: color-mix(in srgb, var(--skin-ink) var(--health-density, 50%), var(--skin-surface));
   background-image: none;
   box-shadow: inset 0 0 0 1px var(--skin-line);
-  border-radius: var(--skin-radius);
+  border-radius: 3px;
 }
 
 :root[data-skin='monochrome'] :is(.health-score0, .health-score1) { --health-density: 90%; }
@@ -494,16 +570,19 @@
 :root[data-skin='monochrome'] :is(.health-score8, .health-score9) { --health-density: 30%; }
 :root[data-skin='monochrome'] :is(.health-score10, .health-healthy) { --health-density: 15%; }
 
-:root[data-skin='monochrome'] .skin-score-segment { border-radius: 0; }
+:root[data-skin='monochrome'] .skin-score-segment {
+  display: block;
+  flex: 1;
+  height: 100%;
+  border-radius: 0;
+}
 
 :root[data-skin='monochrome'] .health-unknown {
   background-color: var(--skin-muted);
   background-image: repeating-linear-gradient(135deg, var(--skin-surface) 0 1px, transparent 1px 4px);
 }
 
-:root[data-skin='monochrome'] .model-icon path {
-  fill: var(--skin-ink);
-}
+/* Model/provider SVG paths are third-party marks; preserve their original fills. */
 
 :root[data-skin='monochrome'] .model-icon-fallback {
   background: var(--skin-neutral);
@@ -519,8 +598,16 @@
   --qo-accent: var(--skin-ink);
 }
 
-:root[data-skin='monochrome'] :is(.qo-account, .qo-empty, .qo-card-open, .qo-sort select) {
-  border-radius: var(--skin-radius);
+:root[data-skin='monochrome'] :is(.qo-account, .qo-empty) {
+  border-radius: var(--skin-card-radius);
+}
+
+:root[data-skin='monochrome'] .qo-sort select {
+  border-radius: var(--skin-control-radius);
+}
+
+:root[data-skin='monochrome'] .qo-card-open {
+  border-radius: var(--skin-pill-radius);
 }
 
 :root[data-skin='monochrome'] .qo-refresh {
@@ -541,6 +628,340 @@
 :root[data-skin='monochrome'] .quota-overview h1 {
   font-weight: 600;
   letter-spacing: -0.03em;
+}
+
+/* Summary surfaces pair explicit text roles with the neutral background. */
+:root[data-skin='monochrome'] .skin-summary-card {
+  background: var(--skin-secondary);
+  color: var(--skin-ink);
+}
+
+:root[data-skin='monochrome'] :is(.skin-summary-value, .skin-summary-icon, .skin-usage-amount) {
+  color: var(--skin-ink);
+}
+
+:root[data-skin='monochrome'] :is(.skin-summary-muted, .skin-usage-cost-detail, .skin-usage-account-cost) {
+  color: var(--skin-muted);
+}
+
+:root[data-skin='monochrome'] .skin-summary-icon-frame {
+  background: transparent;
+  backdrop-filter: none;
+}
+
+/* Component accents and data details. */
+:root[data-skin='monochrome'] :is(.chip-tinted, .chip-tinted:hover) {
+  background: var(--skin-secondary);
+  color: var(--skin-ink);
+  box-shadow: inset 0 0 0 1px var(--skin-line);
+}
+
+:root[data-skin='monochrome'] :is(.chip-tinted-active, .chip-tinted-active:hover) {
+  background: var(--skin-ink);
+  color: var(--skin-bg);
+  box-shadow: none;
+}
+
+:root[data-skin='monochrome'] :is(.progress, .progress-bar, .qo-track, .qo-used, .status-dot) {
+  border-radius: var(--skin-pill-radius);
+}
+
+/* Sticky cells must match the surrounding opaque table surface in dark mode. */
+:root[data-skin='monochrome'] .table-wrapper tbody .sticky-col {
+  background: var(--skin-surface);
+}
+
+:root[data-skin='monochrome'] .table-wrapper tbody tr:hover .sticky-col {
+  background: var(--skin-secondary);
+}
+
+/* Shell and hierarchy: cap reading width without squeezing scrollable tables. */
+:root[data-skin='monochrome'] .skin-app-main {
+  min-width: 0;
+}
+
+:root[data-skin='monochrome'] .skin-app-content {
+  width: 100%;
+  max-width: 1600px;
+  min-width: 0;
+  margin-inline: auto;
+  padding: 28px 32px 40px;
+}
+
+:root[data-skin='monochrome'] .skin-app-header > div {
+  padding-inline: 32px;
+}
+
+:root[data-skin='monochrome'] :is(.sidebar-header, .sidebar-footer) {
+  border-color: var(--skin-line-soft);
+}
+
+:root[data-skin='monochrome'] .sidebar-brand-title {
+  font-weight: 500;
+}
+
+:root[data-skin='monochrome'] .sidebar-link-active {
+  font-weight: 500;
+  box-shadow: none;
+}
+
+:root[data-skin='monochrome'] .sidebar-section-title::after {
+  background: var(--skin-line);
+}
+
+:root[data-skin='monochrome'] .skin-app-content :is(h1, h2, h3) {
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+:root[data-skin='monochrome'] .skin-app-content h1 {
+  font-size: clamp(1.5rem, 2vw, 1.75rem);
+  line-height: 1.25;
+}
+
+:root[data-skin='monochrome'] :is(.card-header, .card-body, .card-footer) {
+  border-color: var(--skin-line-soft);
+}
+
+:root[data-skin='monochrome'] :is(.card-header, .skin-app-content .card h2, .skin-app-content .card h3) {
+  font-size: 1rem;
+}
+
+:root[data-skin='monochrome'] :is(.stat-value, .skin-metric-icon + div .text-xl, .user-dashboard-stats .text-xl, .user-dashboard-stats .text-sm.font-semibold) {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.025em;
+}
+
+:root[data-skin='monochrome'] :is(.skin-metric-icon, .stat-icon, .user-dashboard-stats .card > .flex > .rounded-lg) {
+  background: transparent;
+  color: var(--skin-muted);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 4px;
+}
+
+:root[data-skin='monochrome'] :is(.stat-icon, .skin-metric-icon) {
+  width: 32px;
+  height: 32px;
+}
+
+:root[data-skin='monochrome'] .table-scroll-container {
+  background: var(--skin-surface);
+  box-shadow: none;
+}
+
+/* Component exceptions use shared tokens, including CSS loaded after navigation. */
+:root[data-skin='monochrome'] .settings-tabs-shell {
+  margin-inline: 0;
+  padding: 0;
+  background: var(--skin-bg);
+  border: 0;
+  border-bottom: 1px solid var(--skin-line);
+  border-radius: 0;
+  backdrop-filter: none;
+}
+
+:root[data-skin='monochrome'] .settings-tab {
+  height: 48px;
+  color: var(--skin-muted);
+  border: 0;
+  border-radius: 0;
+}
+
+:root[data-skin='monochrome'] .settings-tab-active {
+  background: transparent;
+  color: var(--skin-ink);
+}
+
+:root[data-skin='monochrome'] .settings-tab-active::after {
+  bottom: 0;
+  background: var(--skin-ink);
+  border-radius: 0;
+}
+
+/* Only direct chapter panels are flattened; nested alerts, fields and dialogs keep surfaces. */
+:root[data-skin='monochrome'] .settings-form > .space-y-6 {
+  margin-top: 32px;
+}
+
+:root[data-skin='monochrome'] .settings-form > .space-y-6 > .card {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--skin-line-soft);
+  border-radius: 0;
+  padding-bottom: 32px;
+  margin-top: 32px;
+  box-shadow: none;
+}
+
+:root[data-skin='monochrome'] .settings-form > .space-y-6 > .card:first-child {
+  margin-top: 0;
+}
+
+:root[data-skin='monochrome'] .settings-form > .space-y-6 > .card > .skin-dialog-header {
+  background: transparent;
+  border: 0;
+  padding: 0 0 20px;
+}
+
+:root[data-skin='monochrome'] .settings-form > .space-y-6 > .card > :is(.p-6, .card-body) {
+  padding: 0;
+}
+
+:root[data-skin='monochrome'] .settings-page h2 {
+  font-size: 1rem;
+}
+
+/* Inverted tracks need inverted thumbs in dark mode, including the shared Toggle. */
+:root[data-skin='monochrome'] :is(.switch, [role='switch']) {
+  border-radius: var(--skin-pill-radius);
+  background: var(--skin-muted);
+}
+
+:root[data-skin='monochrome'] :is(.switch-active, [role='switch'][aria-checked='true']) {
+  background: var(--skin-ink);
+}
+
+:root[data-skin='monochrome'] :is(.switch-thumb, [role='switch'] > span) {
+  background: var(--skin-bg);
+  border-radius: 50%;
+  box-shadow: none;
+}
+
+:root[data-skin='monochrome'] .settings-tab-icon {
+  background: transparent;
+  color: inherit;
+}
+
+:root[data-skin='monochrome'] :is(.settings-tab:hover, .settings-tab:focus-visible) .settings-tab-icon {
+  color: var(--skin-ink);
+}
+
+html:root[data-skin='monochrome'] :is(.pulse-tooltip-line, .matrix-floating-tooltip-line) {
+  color: var(--skin-muted);
+}
+
+html:root[data-skin='monochrome'] :is(.pulse-tooltip-title, .matrix-floating-tooltip-title) {
+  color: var(--skin-ink);
+}
+
+:root[data-skin='monochrome'] :is(.pulse-cell.has-data:hover, .pulse-cell.has-data:focus-visible) {
+  outline-color: var(--skin-ink);
+}
+
+:root[data-skin='monochrome'] .rank-trophy path {
+  fill: var(--skin-muted);
+}
+
+:root[data-skin='monochrome'] .rank-trophy path:nth-child(even) {
+  fill: var(--skin-ink);
+}
+
+:root[data-skin='monochrome'] :is(.terminal-buttons .btn-close, .terminal-buttons .btn-minimize, .terminal-buttons .btn-maximize, .cursor) {
+  background: var(--skin-muted);
+  box-shadow: none;
+}
+
+:root[data-skin='monochrome'] :is(.code-number, .code-string) {
+  color: var(--skin-ink);
+}
+
+:root[data-skin='monochrome'] .terminal-window:hover {
+  box-shadow: none;
+  transform: none;
+}
+
+:root[data-skin='monochrome'] .aliyun-captcha-button {
+  background: var(--skin-secondary);
+  color: var(--skin-ink);
+  border-color: var(--skin-line);
+  border-radius: var(--skin-control-radius);
+}
+
+:root[data-skin='monochrome'] .aliyun-captcha-button:hover:not(:disabled) {
+  background: var(--skin-hover);
+  border-color: var(--skin-muted);
+}
+
+:root[data-skin='monochrome'] .aliyun-captcha-button--verified {
+  border-color: var(--skin-ink);
+}
+
+/* The tour library uses !important itself; keep these exceptions contained. */
+:root[data-skin='monochrome'] .driver-active-element {
+  outline-color: var(--skin-ink) !important;
+}
+
+:root[data-skin='monochrome'] .theme-tour-popover .driver-popover-footer {
+  background: var(--skin-secondary) !important;
+  border-color: var(--skin-line) !important;
+}
+
+:root[data-skin='monochrome'] .theme-tour-popover .shortcut-item {
+  color: var(--skin-muted) !important;
+}
+
+:root[data-skin='monochrome'] .driver-popover-arrow-side-left.driver-popover-arrow {
+  border-left-color: var(--skin-surface) !important;
+}
+
+:root[data-skin='monochrome'] .driver-popover-arrow-side-right.driver-popover-arrow {
+  border-right-color: var(--skin-surface) !important;
+}
+
+:root[data-skin='monochrome'] .driver-popover-arrow-side-top.driver-popover-arrow {
+  border-top-color: var(--skin-surface) !important;
+}
+
+:root[data-skin='monochrome'] .driver-popover-arrow-side-bottom.driver-popover-arrow {
+  border-bottom-color: var(--skin-surface) !important;
+}
+
+@media (min-width: 1024px) {
+  :root[data-skin='monochrome'] .skin-header-leading {
+    min-width: 0;
+    flex: 1 1 0%;
+  }
+
+  :root[data-skin='monochrome'] .skin-header-heading {
+    min-width: 0;
+  }
+
+  :root[data-skin='monochrome'] :is(.skin-header-heading h1, .skin-header-description) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  :root[data-skin='monochrome'] .skin-header-actions {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  :root[data-skin='monochrome'] .skin-app-content {
+    padding: 24px;
+  }
+
+  :root[data-skin='monochrome'] .skin-app-header > div {
+    padding-inline: 24px;
+  }
+}
+
+@media (max-width: 767px) {
+  :root[data-skin='monochrome'] .skin-app-content {
+    padding: 20px 16px 28px;
+  }
+
+  :root[data-skin='monochrome'] .skin-app-header > div {
+    padding-inline: 8px;
+  }
+
+  :root[data-skin='monochrome'] :is(.card-body, .card-header, .card-footer) {
+    padding-inline: 16px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

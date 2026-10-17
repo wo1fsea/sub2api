@@ -7,6 +7,7 @@ const { values } = parseArgs({ options: {
   role: { type: 'string', default: 'admin' },
   skin: { type: 'string', default: 'neubrutalism' },
   appearance: { type: 'string', default: 'light' },
+  'all-features': { type: 'boolean', default: false },
   'quota-preview': { type: 'boolean', default: false },
   'quota-scenario': { type: 'string', default: 'mixed' }
 } })
@@ -42,6 +43,11 @@ const settings = {
   custom_menu_items: [], custom_endpoints: [], table_default_page_size: 20,
   table_page_size_options: [20, 50, 100], ops_monitoring_enabled: false,
   ops_realtime_monitoring_enabled: false, version: 'skin-preview'
+}
+if (values['all-features']) {
+  for (const key of ['payment_enabled', 'risk_control_enabled', 'subscription_enabled',
+    'channel_monitor_enabled', 'available_channels_enabled', 'model_plaza_enabled',
+    'plugin_management_enabled', 'affiliate_enabled', 'service_quota_enabled']) settings[key] = true
 }
 const stats = {
   total_users: 24, today_new_users: 2, active_users: 18, hourly_active_users: 8,
@@ -249,6 +255,90 @@ const fixtures = new Map([
   ['/api/v1/admin/proxies', emptyPage]
 ])
 fixtures.set('/api/v1/admin/dashboard/user-breakdown', { users: [] })
+// Explicit synthetic read fixtures let visual QA inspect the real forms/tables
+// instead of accepting pages hidden behind missing-endpoint toasts. Unknown
+// endpoints still fail closed below; no request is forwarded to a live backend.
+const previewGroup = {
+  id: 1, name: 'Preview · 标准模型组', description: 'Synthetic review group', platform: 'openai',
+  status: 'active', rate_multiplier: 1, is_exclusive: false, subscription_type: 'standard',
+  daily_limit_usd: null, weekly_limit_usd: null, monthly_limit_usd: null,
+  model_pricing: [], model_routing: {}, model_routing_enabled: false,
+  account_count: 3, active_account_count: 2, rate_limited_account_count: 1,
+  supported_model_scopes: [], model_allowlist: [], created_at: timestamp, updated_at: timestamp
+}
+const previewKey = {
+  id: 1, user_id: 1, key: 'sk-synthetic-preview-not-a-real-key', name: 'Preview application',
+  group_id: 1, group: previewGroup, status: 'active', ip_whitelist: [], ip_blacklist: [],
+  last_used_at: timestamp, last_used_ip: null, quota: 100, quota_used: 28.5,
+  expires_at: null, created_at: timestamp, updated_at: timestamp, current_concurrency: 0,
+  rate_limit_5h: 0, rate_limit_1d: 0, rate_limit_7d: 0, usage_5h: 0, usage_1d: 0, usage_7d: 0
+}
+const supportFixtures = [
+  ['/admin/groups', { ...emptyPage, items: [previewGroup], total: 1 }],
+  ['/admin/groups/all', [previewGroup]],
+  ['/groups/available', [previewGroup]], ['/groups/rates', {}],
+  ['/admin/groups/live-capability', { supported: false, reason: 'Synthetic preview' }],
+  ['/admin/groups/0/model-allowlist-candidates', { models: ['gpt-6-astra', 'gpt-6.1-sol'] }],
+  ['/admin/groups/usage-summary', {}], ['/admin/groups/capacity-summary', {}],
+  ['/admin/channels', emptyPage], ['/admin/announcements', emptyPage],
+  ['/admin/proxies/all', []], ['/admin/redeem-codes', emptyPage], ['/admin/promo-codes', emptyPage],
+  ['/admin/usage', { ...emptyPage, items: usageLogItems, total: usageLogItems.length }],
+  ['/admin/usage/stats', stats], ['/admin/dashboard/models', { models: userModels }],
+  ['/admin/audit-logs', emptyPage],
+  ['/admin/user-attributes', []],
+  ['/admin/settings/admin-api-key', { exists: false, masked_key: '' }],
+  ['/admin/accounts/upstream-billing-probe/settings', { enabled: false, interval_minutes: 60 }],
+  ['/admin/accounts/ollama-cloud-usage/settings', { enabled: false, interval_minutes: 60, debounce_minutes: 5 }],
+  ['/admin/accounts/opencode-go-usage/settings', { enabled: false, interval_minutes: 60, debounce_minutes: 5 }],
+  ['/admin/settings/overload-cooldown', { enabled: false, cooldown_minutes: 10 }],
+  ['/admin/settings/rate-limit-429-cooldown', { enabled: false, cooldown_seconds: 60 }],
+  ['/admin/settings/panel-rate-limit', { enabled: false, user_rpm: 120, heavy_rpm: 30, exempt_admin: true, public_ip_rpm: 60 }],
+  ['/admin/settings/stream-timeout', { enabled: false, action: 'none', temp_unsched_minutes: 5, threshold_count: 3, threshold_window_minutes: 10 }],
+  ['/admin/settings/rectifier', { enabled: false, thinking_signature_enabled: false, thinking_budget_enabled: false, apikey_signature_enabled: false, apikey_signature_patterns: [] }],
+  ['/admin/settings/beta-policy', { rules: [] }],
+  ['/admin/payment/providers', []],
+  ['/admin/settings/email-templates', { events: [], locales: ['zh', 'en'], templates: [], placeholders: [] }],
+  ['/admin/backups/s3-config', { endpoint: '', region: '', bucket: '', access_key_id: '', prefix: '', force_path_style: false }],
+  ['/admin/backups/image-storage', { config: { enabled: false, reuse_backup_s3: false, bucket: '', prefix: '', public_base_url: '', presign_expiry_hours: 24, max_download_bytes: 10485760, endpoint: '', region: '', access_key_id: '', force_path_style: false }, secret_configured: false }],
+  ['/admin/backups/schedule', { enabled: false, cron_expr: '0 3 * * *', retain_days: 7, retain_count: 3, monthly_archive: { enabled: false, days: [1], include_month_end: false, retain_count: 0 } }],
+  ['/admin/backups', { items: [] }],
+  ['/keys', { ...emptyPage, items: [previewKey], total: 1 }],
+  ['/usage/stats', stats],
+  ['/usage/dashboard/snapshot-v2', { generated_at: timestamp, start_date: '2026-10-01', end_date: '2026-10-07', granularity: 'day', trend: userTrend, models: userModels, groups: [] }],
+  ['/redeem/history', emptyPage], ['/user/totp/status', { enabled: false }]
+]
+for (const [path, data] of supportFixtures) fixtures.set(`/api/v1${path}`, data)
+const moderationConfig = {
+  engine: 'openai', enabled: false, mode: 'off', base_url: '', model: '', proxy_id: null,
+  api_key_configured: false, api_key_masked: '', api_key_count: 0, api_key_masks: [], api_key_statuses: [],
+  timeout_ms: 5000, sample_rate: 1, all_groups: true, group_ids: [], record_non_hits: false,
+  thresholds: {}, worker_count: 1, queue_size: 10, block_status: 403, block_message: 'Synthetic review',
+  email_on_hit: false, auto_ban_enabled: false, ban_threshold: 3, violation_window_hours: 24,
+  retry_count: 0, hit_retention_days: 7, non_hit_retention_days: 1, pre_hash_check_enabled: false,
+  blocked_keywords: [], keyword_blocking_mode: 'api_only', model_filter: { type: 'all', models: [] },
+  cyber_policy_exclude_from_ban_count: false
+}
+const optionalFixtures = [
+  ['/admin/channel-monitors', emptyPage], ['/channel-monitors', { items: [] }],
+  ['/admin/subscriptions', emptyPage], ['/subscriptions', []], ['/admin/plugins', []],
+  ['/admin/risk-control/config', moderationConfig],
+  ['/admin/risk-control/logs', emptyPage],
+  ['/admin/risk-control/status', { ...moderationConfig, risk_control_enabled: true, active_workers: 0, queue_length: 0, queue_usage_percent: 0, processed: 0, errors: 0, pre_block_api_key_loads: [], flagged_hash_count: 0 }],
+  ['/admin/prompt-audit/config', { enabled: false, blocking_enabled: false, blocking_latest_turn_only: true, store_pass_events: false, effective_mode: 'off', strategy: 'priority', worker_count: 1, queue_capacity: 10, scanners: [], all_groups: true, group_ids: [], endpoints: [], config_version: 1, updated_at: timestamp, updated_by: 1, change_summary: 'Synthetic preview' }],
+  ['/admin/prompt-audit/runtime', { process_status: 'disabled', effective_mode: 'off', expected_config_version: 1, active_config_version: 1, worker_total: 0, worker_active: 0, queue_capacity: 10, queue: { staging: 0, queued: 0, processing: 0, retry: 0, done: 0, failed: 0, active: 0 }, processed_total: 0, failed_total: 0, enqueued_total: 0, dropped_total: 0, database_status: 'ok', redis_status: 'ok', endpoints: {}, guard_metrics: {} }],
+  ['/admin/prompt-audit/events', emptyPage],
+  ['/admin/affiliates/invites', emptyPage], ['/admin/affiliates/rebates', emptyPage], ['/admin/affiliates/transfers', emptyPage],
+  ['/admin/affiliates/users', emptyPage],
+  ['/admin/payment/dashboard', { today_amount: { USD: 42 }, total_amount: { USD: 210 }, today_count: 3, total_count: 15, avg_amount: { USD: 14 }, daily_series: [], payment_methods: [], top_users: {} }],
+  ['/admin/payment/orders', emptyPage], ['/admin/payment/plans', []],
+  ['/payment/orders/my', emptyPage], ['/payment/orders/refund-eligible-providers', { provider_instance_ids: [] }],
+  ['/payment/orders/9001', { id: 9001, status: 'PENDING', amount: 10, pay_amount: 10, currency: 'USD', out_trade_no: 'synthetic-preview' }],
+  ['/payment/checkout-info', { methods: { stripe: { currency: 'USD', daily_limit: 1000, daily_used: 0, daily_remaining: 1000, single_min: 1, single_max: 100, fee_rate: 0, available: true } }, global_min: 1, global_max: 100, plans: [], balance_disabled: false, balance_recharge_multiplier: 1, subscription_usd_to_cny_rate: 0, recharge_fee_rate: 0, help_text: 'Synthetic preview — no payment can be submitted', help_image_url: '', stripe_publishable_key: '' }],
+  ['/channels/available', []],
+  ['/user/aff', { user_id: 1, aff_code: 'preview', inviter_id: null, aff_count: 0, aff_quota: 0, aff_frozen_quota: 0, aff_history_quota: 0, effective_rebate_rate_percent: 0, invitees: [] }],
+  ['/model-plaza', { description: 'Synthetic model catalog', groups: [{ ...previewGroup, models: ['gpt-6-astra', 'gpt-6.1-sol'].map(name => ({ name, platform: 'openai', pricing: null, official_pricing: null })) }] }]
+]
+for (const [path, data] of optionalFixtures) fixtures.set(`/api/v1${path}`, data)
 fixtures.set('/api/v1/admin/accounts/1/stats', {
   account_id: 1, account_name: 'Synthetic account', days: 30,
   summary: { total_cost: 12, total_user_cost: 18, total_standard_cost: 24, total_requests: 600, total_tokens: 240000,
@@ -338,6 +428,16 @@ const previewPlugin = {
         })
         return
       }
+      // These POST endpoints are batch reads; return explicit empty synthetic
+      // statistics without forwarding, mutating state or relaxing other writes.
+      if (req.method === 'POST' && [
+        '/api/v1/admin/accounts/today-stats/batch',
+        '/api/v1/usage/dashboard/api-keys-usage'
+      ].includes(path)) {
+        req.resume()
+        res.end(JSON.stringify({ code: 0, data: { stats: {} } }))
+        return
+      }
       if (req.method !== 'GET' && req.method !== 'HEAD') {
         res.statusCode = 405
         res.end(JSON.stringify({ code: 405, message: 'Read-only synthetic preview', data: null }))
@@ -361,6 +461,7 @@ const previewPlugin = {
         else{const u=${JSON.stringify(user)};if(new URLSearchParams(location.search).get('role')==='user')u.role='user';localStorage.setItem('auth_token',u.role==='user'?'synthetic-user-preview':'synthetic-preview-only');localStorage.setItem('auth_user',JSON.stringify(u));}
         localStorage.setItem('ops_monitoring_enabled_cached','false');
         localStorage.setItem('admin_guide_1_admin_v4_interactive','true');
+        localStorage.setItem('user_guide_1_user_v4_interactive','true');
         if(!localStorage.getItem('sub2api_locale'))localStorage.setItem('sub2api_locale','zh');</script>`
       return html.replace('</head>', `${script}<style>body{padding-top:30px}.sidebar{top:30px!important}.skin-app-header{top:30px!important}</style></head>`).replace('<body>',
         '<body><div style="height:30px;padding:6px 16px;background:#171813;color:#fffefa;font:12px/1.5 system-ui;position:fixed;top:0;left:0;right:0;z-index:60">本地演示 / Synthetic data / 主题设置仅存于演示内存</div>')

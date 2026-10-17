@@ -8,9 +8,13 @@ The stored accent color remains available when returning to another skin. Monoch
 
 ## Review and acceptance
 
-Implementation is delegated to the existing Herdr `qwen-pi` agent (`default`, pane `w1:p7`) using `sub2api/qwen3.8-flash-next-iq2_xs`, high reasoning, in the isolated `sub2api-monochrome` worktree. An initial standalone pi attempt was stopped and its partial changes handed over after the user clarified the required agent. Codex owns the design, independent review, browser acceptance and deployment.
+The first iteration used Herdr `qwen-pi`. The second iteration is implemented by the explicitly requested existing Herdr `pi-61sol` agent (`default`, pane `w1:p9`, `sub2api/gpt-6.1-sol`, medium reasoning) in the isolated `sub2api-monochrome` worktree. Codex owns design, synthetic preview fixtures, independent review, browser acceptance and deployment.
+
+The second review found that palette replacement alone missed scoped CSS, inline SVG/chart colors and browser control accents. Generic glass/card rules also framed the header, flattened all corner radii and retained heavy nested panels. Shared monochrome tokens now cover those exceptions while preserving legacy fallback values. Headers are flat, settings use separated chapters, metric icon tiles are lighter, actions are pills, and fields/cards/circles retain distinct shapes. Contrast and selected-state checks supplement residual-color scanning.
 
 Required checks include settings save/reload and both theme directions, original-skin fallback, server-authoritative appearance, light/dark charts and tooltips, home/login, navigation, tables, quota overview, forms and overlays. Use realistic fixtures at desktop and mobile widths; inspect contrast, keyboard focus, horizontal fit and long content. Preview writes stay in memory and must not be forwarded to the live service.
+
+`scripts/monochrome-audit.mjs` provides reusable read-only checks for 43 routes, computed colors (including pseudo elements), canvas pixels and candidate text-contrast issues. `scripts/preview-skin.mjs --skin monochrome --appearance dark --quota-preview --all-features` enables synthetic optional pages without changing live feature settings. Unknown APIs still fail and writes remain blocked except documented in-memory fixtures. Empty optional pages and the disabled operations dashboard do not establish populated production coverage; charts have their own synthetic preview. Provider logos, user images, external checkout/identity frames and real payment flows are outside recoloring/checkout signoff.
 
 ## Local rollout
 
@@ -18,4 +22,4 @@ After review and qualification, fast-forward the clean canonical release worktre
 
 Build one fixed ARM64 package with the existing resource-limited builder. Run exact-image smoke, take a fresh private backup and restore it in isolation, then use `upgrade-current.mjs prepare/activate/status` as described in [LOCAL_UPGRADE.md](LOCAL_UPGRADE.md). A real Responses completion must succeed before switching traffic; retain the previous image, protected configuration and historical assets. This task deploys only the local Mac service.
 
-The running image, exact source revision, validation results, cutover time and rollback command are recorded in the Vault note `Sub2API - 极简黑白主题与本地上线`. Packaging or mock browser checks alone are not production signoff.
+The first deployment is recorded in the Vault note `Sub2API - 极简黑白主题与本地上线`; the second iteration's exact image, source, validation, cutover and rollback evidence are recorded in `Sub2API - 黑白主题第二轮统一与视觉验收`. Packaging or mock browser checks alone are not production signoff.

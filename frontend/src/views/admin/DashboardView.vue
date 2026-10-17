@@ -445,12 +445,12 @@ const granularityOptions = computed(() => [
   { value: 'hour', label: t('admin.dashboard.hour') }
 ])
 
-const { isNeutral, isDark: isDarkMode, distributionColors, chartMuted } = useChartTheme()
+const { skin, isNeutral, isDark: isDarkMode, distributionColors, chartMuted, chartGrid, tooltipTheme } = useChartTheme()
 
 // Chart colors
 const chartColors = computed(() => isNeutral.value ? {
   text: chartMuted.value,
-  grid: isDarkMode.value ? '#4e4e4e' : '#dcdcdc'
+  grid: skin.value === 'monochrome' ? chartGrid.value : isDarkMode.value ? '#4e4e4e' : '#dcdcdc'
 } : {
   text: isDarkMode.value ? '#e5e7eb' : '#374151',
   grid: isDarkMode.value ? '#374151' : '#e5e7eb'
@@ -478,6 +478,7 @@ const lineOptions = computed(() => ({
       }
     },
     tooltip: {
+      ...(skin.value === 'monochrome' ? tooltipTheme.value : {}),
       itemSort: (a: any, b: any) => {
         const aValue = typeof a?.raw === 'number' ? a.raw : Number(a?.parsed?.y ?? 0)
         const bValue = typeof b?.raw === 'number' ? b.raw : Number(b?.parsed?.y ?? 0)

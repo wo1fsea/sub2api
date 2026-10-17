@@ -10,11 +10,14 @@ import { useAppStore } from '../src/stores/app'
 import { applySiteAppearance, useSkin } from '../src/composables/useSkin'
 import { resolveBrandLogo } from '../src/utils/branding'
 import RelayPulseMatrix from '../src/features/channel-monitor-v2/RelayPulseMatrix.vue'
+import PaymentStatusPanel from '../src/components/payment/PaymentStatusPanel.vue'
 import type { MonitorHealth, MonitorMetric } from '../src/api/channelMonitorV2'
 
 const app = useAppStore()
 const { appearance } = useSkin()
 const open = ref('')
+const paymentPreview = ref('')
+const paymentExpiresAt = new Date(Date.now() + 20 * 60 * 1000).toISOString()
 const announcement = { title: '上线公告 / Announcement', content: '## 清晰的灰度层级\n正文与 **重点**，少量荧光色用于操作。\n\n| 字段 | 数值 |\n| --- | --- |\n| 请求 | 42 |', created_at: '2026-10-07T08:00:00Z' }
 const matrixMetric: MonitorMetric = {
   success_requests: 99, error_requests: 1, request_count: 100, token_count: 1000,
@@ -49,6 +52,16 @@ function tour() {
       <HelpTooltip content="悬浮说明：清晰文字、细边框和硬阴影。" trigger="click"><template #trigger><button class="btn btn-secondary">提示</button></template></HelpTooltip>
     </div>
     <RelayPulseMatrix :rows="matrixRows" :coverage="matrixCoverage" health-mode="overall" />
+    <label class="flex items-center gap-3">合成支付状态
+      <select v-model="paymentPreview" class="input w-auto" aria-label="合成支付状态">
+        <option value="">隐藏</option><option value="alipay">支付宝二维码</option>
+        <option value="wxpay">微信二维码</option><option value="waiting">等待付款</option>
+      </select>
+    </label>
+    <PaymentStatusPanel v-if="paymentPreview" :key="paymentPreview" class="mx-auto max-w-md"
+      :order-id="9001" :amount="10" :pay-amount="10" currency="USD"
+      :qr-code="paymentPreview === 'waiting' ? '' : 'https://example.invalid/synthetic-payment'"
+      :expires-at="paymentExpiresAt" :payment-type="paymentPreview" @done="paymentPreview = ''" />
     <AnnouncementPopup v-if="open === 'announcement'" :announcement="announcement" preview @close="open = ''" />
     <LoginAgreementPrompt :accepted="false" :documents="[{ id: 'terms', title: '服务条款' }, { id: 'privacy', title: '隐私政策' }]" mode="modal" :visible="open === 'agreement'" @open="open = 'agreement'" @accept="open = ''" @reject="open = ''" />
     <TotpLoginModal v-if="open === 'totp'" temp-token="synthetic" user-email-masked="p***@example.invalid" @cancel="open = ''" @success="open = ''" />

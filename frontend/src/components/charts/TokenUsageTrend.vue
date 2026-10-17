@@ -49,14 +49,22 @@ ChartJS.register(
 )
 
 const { t } = useI18n()
-const { isNeutral, isDark: isDarkMode, chartMuted, lineLegend, tooltipTheme } = useChartTheme()
+const { skin, isNeutral, isDark: isDarkMode, chartMuted, chartGrid, chartInk, distributionColors, lineLegend, tooltipTheme } = useChartTheme()
 
 const props = defineProps<{
   trendData: TrendDataPoint[]
   loading?: boolean
 }>()
 
-const chartColors = computed(() => isNeutral.value ? {
+const chartColors = computed(() => skin.value === 'monochrome' ? {
+  text: chartMuted.value,
+  grid: chartGrid.value,
+  input: distributionColors.value[0],
+  output: distributionColors.value[1],
+  cacheCreation: distributionColors.value[2],
+  cacheRead: distributionColors.value[3],
+  cacheHitRate: chartInk.value
+} : isNeutral.value ? {
   text: chartMuted.value,
   grid: isDarkMode.value ? '#4e4e4e' : '#dcdcdc',
   input: isDarkMode.value ? '#dddddd' : '#555555',

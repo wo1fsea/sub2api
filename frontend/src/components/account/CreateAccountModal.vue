@@ -74,6 +74,8 @@
           <button
             type="button"
             @click="form.platform = 'anthropic'"
+            class="skin-account-choice"
+            :aria-pressed="form.platform === 'anthropic'"
             :class="[
               'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
               form.platform === 'anthropic'
@@ -87,6 +89,8 @@
           <button
             type="button"
             @click="form.platform = 'openai'"
+            class="skin-account-choice"
+            :aria-pressed="form.platform === 'openai'"
             :class="[
               'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
               form.platform === 'openai'
@@ -112,6 +116,8 @@
           <button
             type="button"
             @click="form.platform = 'gemini'"
+            class="skin-account-choice"
+            :aria-pressed="form.platform === 'gemini'"
             :class="[
               'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
               form.platform === 'gemini'
@@ -137,6 +143,8 @@
           <button
             type="button"
             @click="form.platform = 'antigravity'"
+            class="skin-account-choice"
+            :aria-pressed="form.platform === 'antigravity'"
             :class="[
               'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
               form.platform === 'antigravity'
@@ -150,6 +158,8 @@
           <button
             type="button"
             @click="form.platform = 'grok'"
+            class="skin-account-choice"
+            :aria-pressed="form.platform === 'grok'"
             :class="[
               'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
               form.platform === 'grok'
@@ -166,6 +176,8 @@
           <button
             type="button"
             @click="selectCNPlatform('kimi')"
+            class="skin-account-choice"
+            :aria-pressed="form.platform === 'kimi'"
             :class="[
               'flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium transition-all',
               form.platform === 'kimi'
@@ -179,6 +191,8 @@
           <button
             type="button"
             @click="selectCNPlatform('zhipu')"
+            class="skin-account-choice"
+            :aria-pressed="form.platform === 'zhipu'"
             :class="[
               'flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium transition-all',
               form.platform === 'zhipu'
@@ -192,6 +206,8 @@
           <button
             type="button"
             @click="selectCNPlatform('deepseek')"
+            class="skin-account-choice"
+            :aria-pressed="form.platform === 'deepseek'"
             :class="[
               'flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium transition-all',
               form.platform === 'deepseek'
@@ -205,6 +221,8 @@
           <button
             type="button"
             @click="selectCNPlatform('minimax')"
+            class="skin-account-choice"
+            :aria-pressed="form.platform === 'minimax'"
             :class="[
               'flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium transition-all',
               form.platform === 'minimax'
@@ -218,6 +236,8 @@
           <button
             type="button"
             @click="selectOpenCodeGoPlatform()"
+            class="skin-account-choice"
+            :aria-pressed="form.platform === 'opencode_go'"
             :class="[
               'flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium transition-all',
               form.platform === 'opencode_go'
@@ -231,6 +251,8 @@
           <button
             type="button"
             @click="selectTypeSafePlatform()"
+            class="skin-account-choice"
+            :aria-pressed="form.platform === 'typesafe'"
             :class="[
               'flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium transition-all',
               form.platform === 'typesafe'
@@ -1478,6 +1500,8 @@
               <button
                 type="button"
                 @click="modelRestrictionMode = 'whitelist'"
+                class="skin-account-choice"
+                :aria-pressed="modelRestrictionMode === 'whitelist'"
                 :class="[
                   'flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-all',
                   modelRestrictionMode === 'whitelist'
@@ -1503,6 +1527,8 @@
               <button
                 type="button"
                 @click="modelRestrictionMode = 'mapping'"
+                class="skin-account-choice"
+                :aria-pressed="modelRestrictionMode === 'mapping'"
                 :class="[
                   'flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-all',
                   modelRestrictionMode === 'mapping'
@@ -1756,6 +1782,8 @@
                 :key="code.value"
                 type="button"
                 @click="toggleErrorCode(code.value)"
+                class="skin-account-choice"
+                :aria-pressed="selectedErrorCodes.includes(code.value)"
                 :class="[
                   'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
                   selectedErrorCodes.includes(code.value)
@@ -1992,6 +2020,8 @@
             <button
               type="button"
               @click="modelRestrictionMode = 'whitelist'"
+              class="skin-account-choice"
+              :aria-pressed="modelRestrictionMode === 'whitelist'"
               :class="[
                 'flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-all',
                 modelRestrictionMode === 'whitelist'
@@ -2004,6 +2034,8 @@
             <button
               type="button"
               @click="modelRestrictionMode = 'mapping'"
+              class="skin-account-choice"
+              :aria-pressed="modelRestrictionMode === 'mapping'"
               :class="[
                 'flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-all',
                 modelRestrictionMode === 'mapping'
@@ -2334,6 +2366,8 @@
             <button
               type="button"
               @click="modelRestrictionMode = 'whitelist'"
+              class="skin-account-choice"
+              :aria-pressed="modelRestrictionMode === 'whitelist'"
               :class="[
                 'flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-all',
                 modelRestrictionMode === 'whitelist'
@@ -2346,6 +2380,8 @@
             <button
               type="button"
               @click="modelRestrictionMode = 'mapping'"
+              class="skin-account-choice"
+              :aria-pressed="modelRestrictionMode === 'mapping'"
               :class="[
                 'flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-all',
                 modelRestrictionMode === 'mapping'
@@ -2810,6 +2846,8 @@
                 <button
                   type="button"
                   @click="rpmStrategy = 'tiered'"
+                  class="skin-account-choice"
+                  :aria-pressed="rpmStrategy === 'tiered'"
                   :class="[
                     'flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all',
                     rpmStrategy === 'tiered'
@@ -2825,6 +2863,8 @@
                 <button
                   type="button"
                   @click="rpmStrategy = 'sticky_exempt'"
+                  class="skin-account-choice"
+                  :aria-pressed="rpmStrategy === 'sticky_exempt'"
                   :class="[
                     'flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all',
                     rpmStrategy === 'sticky_exempt'
@@ -2864,6 +2904,8 @@
             <div class="flex space-x-2">
               <button type="button" v-for="opt in umqModeOptions" :key="opt.value"
                 @click="userMsgQueueMode = opt.value"
+                class="skin-account-choice"
+                :aria-pressed="userMsgQueueMode === opt.value"
                 :class="[
                   'px-3 py-1.5 text-sm rounded-md border transition-colors',
                   userMsgQueueMode === opt.value

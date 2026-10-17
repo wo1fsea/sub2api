@@ -312,12 +312,12 @@ onUnmounted(() => {
   justify-content: center;
   gap: 0.5rem;
   border-radius: 0.5rem;
-  border: 1px solid rgb(209 213 219);
-  background-color: rgb(249 250 251);
+  border: 1px solid var(--skin-chrome-line, rgb(209 213 219));
+  background-color: var(--skin-chrome-surface, rgb(249 250 251));
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
   font-weight: 500;
-  color: rgb(55 65 81);
+  color: var(--skin-chrome-ink, rgb(55 65 81));
   transition:
     border-color 0.15s ease,
     background-color 0.15s ease,
@@ -325,34 +325,34 @@ onUnmounted(() => {
 }
 
 .aliyun-captcha-button:hover:not(:disabled) {
-  border-color: rgb(156 163 175);
-  background-color: rgb(243 244 246);
+  border-color: var(--skin-chrome-line, rgb(156 163 175));
+  background-color: var(--skin-chrome-hover, rgb(243 244 246));
 }
 
 .aliyun-captcha-button--verified {
-  border-color: rgb(34 197 94);
-  background-color: rgb(240 253 244);
-  color: rgb(21 128 61);
+  border-color: var(--skin-chrome-ink, rgb(34 197 94));
+  background-color: var(--skin-chrome-surface, rgb(240 253 244));
+  color: var(--skin-chrome-ink, rgb(21 128 61));
 }
 
 :root.dark .aliyun-captcha-button,
 .dark .aliyun-captcha-button {
-  border-color: rgb(55 65 81);
-  background-color: rgb(31 41 55);
-  color: rgb(209 213 219);
+  border-color: var(--skin-chrome-line, rgb(55 65 81));
+  background-color: var(--skin-chrome-surface, rgb(31 41 55));
+  color: var(--skin-chrome-ink, rgb(209 213 219));
 }
 
 :root.dark .aliyun-captcha-button:hover:not(:disabled),
 .dark .aliyun-captcha-button:hover:not(:disabled) {
-  border-color: rgb(75 85 99);
-  background-color: rgb(55 65 81);
+  border-color: var(--skin-chrome-line, rgb(75 85 99));
+  background-color: var(--skin-chrome-hover, rgb(55 65 81));
 }
 
 :root.dark .aliyun-captcha-button--verified,
 .dark .aliyun-captcha-button--verified {
-  border-color: rgb(34 197 94);
-  background-color: rgb(20 83 45 / 0.3);
-  color: rgb(134 239 172);
+  border-color: var(--skin-chrome-ink, rgb(34 197 94));
+  background-color: var(--skin-chrome-surface, rgb(20 83 45 / 0.3));
+  color: var(--skin-chrome-ink, rgb(134 239 172));
 }
 
 .aliyun-captcha-icon {

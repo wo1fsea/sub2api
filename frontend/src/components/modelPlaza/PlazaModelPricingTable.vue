@@ -356,7 +356,7 @@ const props = defineProps<{
 const { t } = useI18n()
 
 /** 实付分区只从平台拿一个主色,浅底/标题/下划线全部由 scoped CSS 用 color-mix 派生。 */
-const accentStyle = computed(() => ({ '--plaza-accent': platformAccentColor(props.platform ?? '') }))
+const accentStyle = computed(() => ({ '--plaza-accent': `var(--skin-plaza-accent, ${platformAccentColor(props.platform ?? '')})` }))
 
 const PER_MILLION = 1_000_000
 

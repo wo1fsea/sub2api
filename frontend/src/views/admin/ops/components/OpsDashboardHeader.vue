@@ -1185,7 +1185,7 @@ function handleToolbarRefresh() {
                   <path
                     d="M0 16 Q 20 16, 40 16 T 80 16 T 120 10 T 160 22 T 200 16 T 240 16 T 280 16"
                     fill="none"
-                    stroke="#3b82f6"
+                    stroke="var(--skin-chrome-ink, #3b82f6)"
                     stroke-width="2"
                     vector-effect="non-scaling-stroke"
                   >
