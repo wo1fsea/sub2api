@@ -176,3 +176,4 @@ docs/local/*
 !docs/local/patches.md
 !docs/PLAN_SYNC_0.2.19.md
 !docs/UPSTREAM_SYNC_0.2.19.md
+!docs/LOCAL_DELIVERY_0.2.19.md
