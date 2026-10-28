@@ -19,14 +19,14 @@ print(json.dumps({'provider':c['model_provider'],'model':c['model'],'baseUrl':p[
   return { ...config, key: process.env[config.envKey] }
 }
 
-export async function liveGateway(baseUrl, expectedSlot, { config = currentCodex(), timeoutMs = 90_000 } = {}) {
+export async function liveGateway(baseUrl, expectedSlot, { config = currentCodex(), model = config.model, expectedModel, clientRequestId, timeoutMs = 90_000 } = {}) {
   const base = new URL(baseUrl)
   assert(['127.0.0.1', 'openclaw-macmini-ts.tailff52e6.ts.net', 'getcodex.pro'].includes(base.hostname), 'Do not send the key to another host')
   if (base.hostname !== '127.0.0.1') assert.equal(base.protocol, 'https:')
   const started = Date.now()
   const response = await fetch(`${baseUrl.replace(/\/$/, '')}/responses`, {
-    method: 'POST', headers: { Authorization: `Bearer ${config.key}`, 'Content-Type': 'application/json', Connection: 'close' },
-    body: JSON.stringify({ model: config.model, instructions: 'This is a connectivity check. Reply with exactly OK.',
+    method: 'POST', headers: { Authorization: `Bearer ${config.key}`, 'Content-Type': 'application/json', Connection: 'close', ...(clientRequestId ? { 'X-Client-Request-ID': clientRequestId } : {}) },
+    body: JSON.stringify({ model, instructions: 'This is a connectivity check. Reply with exactly OK.',
       input: [{ role: 'user', content: [{ type: 'input_text', text: 'Reply OK.' }] }],
       reasoning: { effort: 'low' }, max_output_tokens: 128, stream: true, store: false }),
     redirect: 'error', signal: AbortSignal.timeout(timeoutMs)
@@ -59,8 +59,10 @@ export async function liveGateway(baseUrl, expectedSlot, { config = currentCodex
   }
   assert(terminal && terminal.status === 'completed', 'Missing completed Responses terminal event')
   assert(output.trim().length > 0 && /\bOK\b/.test(output), 'The actual model did not return the expected check text')
-  return { checkedAt: new Date().toISOString(), model: config.model, httpStatus: response.status,
-    firstTokenMs, totalMs: Date.now() - started, outputCharacters: output.length,
+  if (expectedModel) assert.equal(terminal.model, expectedModel, 'The completed response model identity changed')
+  return { checkedAt: new Date().toISOString(), requestedModel: model, model: terminal.model,
+    requestId: clientRequestId ? `client:${clientRequestId}` : terminal.id, responseId: terminal.id,
+    httpStatus: response.status, firstTokenMs, totalMs: Date.now() - started, outputCharacters: output.length,
     completed: true, slot: response.headers.get('x-sub2api-slot'),
     inputTokens: terminal.usage?.input_tokens, outputTokens: terminal.usage?.output_tokens,
     eventTypes: [...types].filter(type => typeof type === 'string'), automaticRetries: 0 }

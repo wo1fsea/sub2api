@@ -1,12 +1,12 @@
 # Sub2API Local Upgrade
 
-Current source combines upstream `v0.2.17` with our local appearance, quota overview and scheduler compatibility changes. Application `VERSION` and immutable build inputs are `0.2.17`; the source SHA and image ID distinguish each custom build. See [UPSTREAM_SYNC_0.2.17.md](UPSTREAM_SYNC_0.2.17.md) for merge decisions and validation. Packaging alone never changes the running service, production database, secrets, or entry. The Cursor experiment is excluded.
+Current source combines upstream `v0.2.19` with our local appearance, quota overview, mixed-version scheduler compatibility and local-upgrade tooling. Application `VERSION` and immutable build inputs are `0.2.19`; the source SHA and image ID distinguish each custom build. See [UPSTREAM_SYNC_0.2.19.md](UPSTREAM_SYNC_0.2.19.md) for merge decisions, migration inventory, the migration-246 policy gate and validation. Packaging alone never changes the running service, production database, secrets, or entry. The Cursor experiment is excluded.
 
 ## Source update versus installed release
 
-The 2026-10-18 upstream sync is a source update only. The installed Mac release remains `0.2.13`, source `7b8b60c7827b5bcf8a594b770b02d22e30a81883`. Its recovery checkout remains `/Users/clawbotbot/Projects/sub2api-neubrutalism`. This sync includes five new SQL migration files and Go `1.27.2`; the historical statements below about no migrations apply only to their original releases.
+The 2026-10-28 upstream sync is a source update only. The installed Mac release remains `0.2.13`, source `7b8b60c7827b5bcf8a594b770b02d22e30a81883`, in `/Users/clawbotbot/Projects/sub2api-local/current-0.2.13`; the recovery checkout remains `/Users/clawbotbot/Projects/sub2api-neubrutalism`. The new worktree is `/Users/clawbotbot/Projects/sub2api-sync-20261028-v0219`. This path adds eight SQL migration files and requires Go `1.27.3`; historical statements below about no migrations apply only to their original releases.
 
-`upgrade-current.mjs` still explicitly guards the installed `0.2.13` workflow. It is not a qualified `0.2.17` activation tool. A future rollout must review migration and rollback compatibility, qualify the exact image and fresh restored database, and update/test that version guard as part of the rollout. Do not remove the guard merely to deploy this source merge.
+`upgrade-current.mjs` now explicitly accepts the installed `0.2.13` recovery identity and the fixed `0.2.19` target, while rejecting every other version. Candidate preparation still requires an exact immutable manifest, a fresh backup, an exact-image isolated restore report, successful candidate source-aware probes, and the migration-246 policy gate. Do not broaden the version allowlist merely to bypass these checks.
 
 ## Installed local release: monochrome appearance (0.2.13)
 

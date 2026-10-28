@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { createReadStream } from 'node:fs'
 import { chmod, copyFile, lstat, mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises'
@@ -20,6 +20,9 @@ const publicBase = 'https://openclaw-macmini-ts.tailff52e6.ts.net'
 const backupRoot = '/Users/clawbotbot/Projects/sub2api-upgrade-private'
 const currentComposeArgs = ['compose', '-p', 'sub2api-current', '--env-file', '/dev/null', '-f', composePath]
 const digestPattern = /^sha256:[a-f0-9]{64}$/
+export const currentRecoveryVersion = '0.2.13'
+export const targetVersion = '0.2.19'
+const supportedVersions = new Set([currentRecoveryVersion, targetVersion])
 const assetPattern = /^\/assets\/[a-zA-Z0-9_.-]+-[a-zA-Z0-9_-]{6,}\.(?:js|css)$/
 const sha = value => createHash('sha256').update(value).digest('hex')
 const require = createRequire(join(root, 'frontend/package.json'))
@@ -84,18 +87,18 @@ async function checksum(path) {
 }
 
 export function releaseIdentity(manifestPath, manifest, repositoryRoot = root) {
-  check(manifest.version === '0.2.13', 'This recovery deployment supports version 0.2.13 only')
+  check(supportedVersions.has(manifest.version), 'Unsupported recovery/upgrade release version')
   check(manifest.platform === 'linux/arm64', 'The local release must target linux/arm64')
   check(/^[a-f0-9]{40}$/.test(manifest.commit || ''), 'The release must have an exact source commit')
   check(digestPattern.test(manifest.imageId || ''), 'The release must pin an immutable image ID')
   const short = manifest.commit.slice(0, 12)
   const canonical = join(repositoryRoot, 'release', `sub2api_${manifest.version}_linux_arm64_${short}`, 'manifest.json')
   check(resolve(manifestPath) === canonical, 'The manifest path must match its exact release identity')
-  const project = `sub2api-quota-${short}`
+  const project = `sub2api-upgrade-${short}`
   return {
-    manifestPath: canonical, commit: manifest.commit, image: manifest.imageId,
-    directory: join(deployment, `quota-${manifest.version}-${short}`), project,
-    candidateName: `sub2api-quota-candidate-${short}`,
+    manifestPath: canonical, version: manifest.version, commit: manifest.commit, image: manifest.imageId,
+    directory: join(deployment, `upgrade-${manifest.version}-${short}`), project,
+    candidateName: `sub2api-upgrade-candidate-${short}`,
     candidateVolume: `${project}_candidate-data`, candidateBase: 'http://127.0.0.1:18585'
   }
 }
@@ -126,7 +129,7 @@ export function candidateCompose(config, identity, image = identity.image) {
     ...seed, image, container_name: identity.candidateName, restart: 'no', pull_policy: 'never',
     ports: ['127.0.0.1:18585:8080'], volumes: ['candidate-data:/app/data'], networks: ['production'],
     environment: { ...seed.environment, AUTO_SETUP: 'false', TOKEN_REFRESH_ENABLED: 'false',
-      USAGE_CLEANUP_ENABLED: 'false', CHANNEL_MONITOR_V2_DISABLE_AGGREGATOR: '1' },
+      USAGE_CLEANUP_ENABLED: 'false', CHANNEL_MONITOR_V2_DISABLE_AGGREGATOR: '1', GATEWAY_SCHEDULING_LEGACY_SNAPSHOT_COMPAT: 'true' },
     labels: { ...seed.labels, 'io.sub2api.local-upgrade.commit': identity.commit }
   } }, networks: { production: structuredClone(config.networks.production) },
   volumes: { 'candidate-data': { name: identity.candidateVolume } } }
@@ -137,7 +140,8 @@ export function promotedCompose(previous, image) {
   const next = structuredClone(previous)
   next.services.app.image = image
   Object.assign(next.services.app.environment, {
-    TOKEN_REFRESH_ENABLED: 'true', USAGE_CLEANUP_ENABLED: 'true', CHANNEL_MONITOR_V2_DISABLE_AGGREGATOR: '0'
+    TOKEN_REFRESH_ENABLED: 'true', USAGE_CLEANUP_ENABLED: 'true', CHANNEL_MONITOR_V2_DISABLE_AGGREGATOR: '0',
+    GATEWAY_SCHEDULING_LEGACY_SNAPSHOT_COMPAT: 'false'
   })
   return next
 }
@@ -182,6 +186,7 @@ async function loadRelease(path, fullChecks = false) {
   const manifestPath = resolve(path || '')
   const bytes = await readFile(manifestPath), manifest = JSON.parse(bytes)
   const identity = releaseIdentity(manifestPath, manifest)
+  check(manifest.version === targetVersion, 'This upgrade tool only prepares the v0.2.19 target')
   const metadata = imageMetadata(identity.image)
   check(metadata.Id === identity.image && `${metadata.Os}/${metadata.Architecture}` === manifest.platform, 'Release image or platform changed')
   check(metadata.Config.Labels?.['org.opencontainers.image.revision'] === identity.commit && metadata.Config.Labels?.['org.opencontainers.image.version'] === manifest.version, 'Release image source/version labels do not match the manifest')
@@ -205,12 +210,13 @@ async function activeConfiguration() {
   const [state, config] = await Promise.all([jsonPrivate(activeStatePath), jsonPrivate(composePath)])
   const container = inspect(names.app)
   assertActivePin(state, config, container)
+  let priorManifest
   if (state.releaseManifest) {
     const bytes = await readFile(state.releaseManifest)
     check(sha(bytes) === state.releaseManifestSha256, 'Current release manifest changed')
-    const prior = JSON.parse(bytes)
-    check(prior.imageId === state.image, 'Current release image differs from its manifest')
-    releaseIdentity(state.releaseManifest, prior)
+    priorManifest = JSON.parse(bytes)
+    check(priorManifest.imageId === state.image, 'Current release image differs from its manifest')
+    releaseIdentity(state.releaseManifest, priorManifest)
   }
   const dependencies = state.dependencies.map(item => {
     const found = inspect(item.name)
@@ -218,7 +224,7 @@ async function activeConfiguration() {
     return found
   })
   check(dependencies.length === 2 && dependencies[0].Name === '/sub2api-postgres' && dependencies[1].Name === '/sub2api-redis', 'Shared dependency identity changed')
-  return { state, config, container, dependencies }
+  return { state, config, container, dependencies, priorManifest }
 }
 
 async function verifyBackup(backup, active, manifest, reportPath) {
@@ -267,7 +273,8 @@ async function session(config, base = direct) {
   check(typeof data.access_token === 'string' && data.access_token.length > 20, 'Current administrator login failed')
   return data.access_token
 }
-async function verifyShared(base, token, appearance, version = '0.2.13') {
+async function verifyShared(base, token, appearance, version) {
+  check(supportedVersions.has(version), 'Application version argument is unsupported')
   const user = await api(base, '/auth/me', { token })
   check(user.role === 'admin', 'The same administrator session was not accepted')
   check((await api(base, '/admin/system/version', { token })).version === version, 'Application version is incorrect')
@@ -358,8 +365,37 @@ async function verifyQuota(base, token, frontend) {
   }
   return { ...summary, lazyChunksVerified: frontend?.length || 0 }
 }
+export function validateTerraUsage(items, requestId) {
+  check(Array.isArray(items) && requestId, 'Terra usage response is invalid')
+  const row = items.find(item => item.request_id === requestId)
+  check(row, 'Terra usage row was not persisted for this request')
+  check(row.model === 'gpt-6.1-terra', 'Terra billing row model identity changed')
+  if (row.upstream_response_model) check(row.upstream_response_model === 'gpt-6.1-terra', 'Terra upstream response identity changed')
+  check(row.upstream_model_mismatch === true ? false : true, 'Terra upstream response identity conflicted')
+  check([row.input_tokens, row.output_tokens].every(value => Number.isInteger(value) && value >= 0) && (row.input_tokens + row.output_tokens) > 0, 'Terra token usage is missing')
+  check(Number.isFinite(row.total_cost) && row.total_cost > 0, 'Terra billing total is not positive')
+  check(Number.isFinite(row.actual_cost) && row.actual_cost >= 0, 'Terra actual billing cost is invalid')
+  return { requestId, model: row.model, upstreamModel: row.upstream_model || null, upstreamResponseModel: row.upstream_response_model || null,
+    inputTokens: row.input_tokens, outputTokens: row.output_tokens, totalCost: row.total_cost, actualCost: row.actual_cost,
+    billingMode: row.billing_mode || null, upstreamModelMismatch: row.upstream_model_mismatch === true }
+}
+async function verifyTerra(base, token) {
+  const clientRequestId = randomUUID()
+  const probe = await liveGateway(base + '/v1', null, { model: 'gpt-6.1-terra', expectedModel: 'gpt-6.1-terra', clientRequestId, timeoutMs: 60_000 })
+  check(typeof probe.requestId === 'string' && probe.requestId.startsWith('client:'), 'Terra probe has no exact client request id')
+  check(typeof probe.responseId === 'string' && probe.responseId.length > 0, 'Terra completed event has no response id')
+  let items
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const data = await api(base, `/admin/usage?request_id=${encodeURIComponent(probe.requestId)}&exact_total=true`, { token })
+    if (Array.isArray(data.items) && data.items.length > 0) { items = data.items; break }
+    await delay(1000)
+  }
+  const billing = validateTerraUsage(items, probe.requestId)
+  return { probe, billing, automaticRetries: 0 }
+}
+
 async function reload(upstream) {
-  check(upstream === `${names.app}:8080` || /^sub2api-quota-candidate-[a-f0-9]{12}:8080$/.test(upstream), 'Unexpected upgrade routing target')
+  check(upstream === `${names.app}:8080` || /^sub2api-upgrade-candidate-[a-f0-9]{12}:8080$/.test(upstream), 'Unexpected upgrade routing target')
   // The single-file bind mount must retain its inode during HAProxy reload.
   await writeFile(join(directory, 'haproxy.cfg'), routing(upstream), { mode: 0o600 })
   docker(['exec', names.ingress, 'haproxy', '-c', '-f', '/usr/local/etc/haproxy/haproxy.cfg'])
@@ -525,21 +561,23 @@ async function prepare(manifestPath, backup, restoreReport) {
   check(jobs.enabledScheduledTests === 0 && jobs.enabledChannelMonitors === 0 && !jobs.backupScheduleEnabled && jobs.activeBackupOperations === 0, 'An overlapping unclaimed background job blocks candidate preparation')
   const priorPins = await prepareDirectory(release, active)
   const state = { ...identity, phase: 'preparing', manifestSha256: release.manifestSha256,
-    backup: resolve(backup), backupCheck, priorImage: active.state.image, priorContainerId: active.container.Id,
+    backup: resolve(backup), backupCheck, priorVersion: active.priorManifest?.version || currentRecoveryVersion,
+    priorImage: active.state.image, priorContainerId: active.container.Id,
     ...priorPins,
     preparedAt: new Date().toISOString() }
   const statePath = join(identity.directory, 'state.json')
   await save(statePath, state)
   try {
     const token = await session(active.config)
-    const appearance = await verifyShared(direct, token)
+    const appearance = await verifyShared(direct, token, undefined, state.priorVersion)
     await startCandidate(identity, active.config)
-    await verifyShared(identity.candidateBase, token, appearance)
+    await verifyShared(identity.candidateBase, token, appearance, targetVersion)
     const oldGraph = await assetGraph(direct), nextGraph = await assetGraph(identity.candidateBase)
     state.frontend = [...nextGraph].filter(([path]) => /\/QuotaOverviewView-[^/]+\.(?:js|css)$/.test(path)).map(([path, bytes]) => ({ path, sha256: sha(bytes) }))
     check(state.frontend.some(chunk => chunk.path.endsWith('.js')) && state.frontend.some(chunk => chunk.path.endsWith('.css')), 'Quota overview lazy frontend files are absent')
     state.quota = await verifyQuota(identity.candidateBase, token, state.frontend)
     state.candidateProbe = await liveGateway(identity.candidateBase + '/v1', null, { timeoutMs: 45_000 })
+    state.candidateTerra = await verifyTerra(identity.candidateBase, token)
     await cacheAssets([oldGraph, nextGraph])
     await reload(`${names.app}:8080`)
     state.assetsVerified = await verifyAssets()
@@ -559,7 +597,7 @@ async function prepare(manifestPath, backup, restoreReport) {
 async function loadUpgrade(path) {
   const release = await loadRelease(path)
   const state = await jsonPrivate(join(release.identity.directory, 'state.json'))
-  check(state.manifestPath === release.identity.manifestPath && state.manifestSha256 === release.manifestSha256 && state.image === release.identity.image && state.commit === release.identity.commit, 'Prepared operation no longer matches its immutable release')
+  check(state.manifestPath === release.identity.manifestPath && state.manifestSha256 === release.manifestSha256 && state.image === release.identity.image && state.commit === release.identity.commit && state.version === release.identity.version, 'Prepared operation no longer matches its immutable release')
   return { ...release, state }
 }
 async function restorePrevious(identity, state, token, appearance, replacementStarted) {
@@ -569,7 +607,7 @@ async function restorePrevious(identity, state, token, appearance, replacementSt
     // The verified, passive candidate continues serving while the sole prior
     // background owner returns. Never restore a DB or Redis snapshot here.
     await reload(identity.candidateName + ':8080')
-    await verifyShared(publicBase, token, appearance)
+    await verifyShared(publicBase, token, appearance, targetVersion)
     state.rollbackCandidateProbe = await liveGateway(publicBase + '/v1', 'blue', { timeoutMs: 45_000 })
     const current = existingContainer(names.app)
     if (current?.State.Running) docker(['stop', '--time=10', names.app])
@@ -578,10 +616,10 @@ async function restorePrevious(identity, state, token, appearance, replacementSt
   }
   await ready(direct)
   assertCurrent(inspect(names.app), state.priorImage)
-  await verifyShared(direct, token, appearance)
+  await verifyShared(direct, token, appearance, state.priorVersion)
   await liveGateway(direct + '/v1', null, { timeoutMs: 45_000 })
   await reload(names.app + ':8080')
-  await verifyShared(publicBase, token, appearance)
+  await verifyShared(publicBase, token, appearance, state.priorVersion)
   state.rollbackProbe = await liveGateway(publicBase + '/v1', 'blue', { timeoutMs: 45_000 })
   await save(activeStatePath, prior.state)
   state.phase = 'rolled-back-verified'
@@ -596,20 +634,21 @@ async function activate(path) {
   check(active.container.Id === state.priorContainerId && active.state.image === state.priorImage, 'Production changed after preparation')
   await verifyBackup(state.backup, active, manifest, state.backupCheck.isolatedRestoreReport)
   await snapshots(identity, state)
-  const token = await session(active.config), appearance = await verifyShared(direct, token)
+  const token = await session(active.config), appearance = await verifyShared(direct, token, undefined, state.priorVersion)
   let replacementStarted = false
   const checkpoint = async phase => { state.phase = phase; await save(join(identity.directory, 'state.json'), state) }
   await runHotSwitch({
     verifyCandidate: async () => {
       assertCandidate(identity)
       await ready(identity.candidateBase)
-      await verifyShared(identity.candidateBase, token, appearance)
+      await verifyShared(identity.candidateBase, token, appearance, targetVersion)
       await verifyQuota(identity.candidateBase, token, state.frontend)
       await liveGateway(identity.candidateBase + '/v1', null, { timeoutMs: 45_000 })
+      state.candidateTerra = await verifyTerra(identity.candidateBase, token)
     },
     routeCandidate: async () => { await checkpoint('routing-candidate'); await reload(identity.candidateName + ':8080') },
     verifyEntryCandidate: async () => {
-      await verifyShared(publicBase, token, appearance)
+      await verifyShared(publicBase, token, appearance, targetVersion)
       state.firstEntryQuota = await verifyQuota(publicBase, token, state.frontend)
       state.firstEntryProbe = await liveGateway(publicBase + '/v1', 'blue', { timeoutMs: 45_000 })
     },
@@ -623,15 +662,16 @@ async function activate(path) {
     verifyCurrent: async () => {
       await ready(direct)
       assertCurrent(inspect(names.app), identity.image)
-      await verifyShared(direct, token, appearance)
+      await verifyShared(direct, token, appearance, targetVersion)
       state.finalDirectQuota = await verifyQuota(direct, token, state.frontend)
       state.finalDirectProbe = await liveGateway(direct + '/v1', null, { timeoutMs: 45_000 })
     },
     routeCurrent: async () => { await checkpoint('routing-current'); await reload(names.app + ':8080') },
     verifyEntryCurrent: async () => {
-      await verifyShared(publicBase, token, appearance)
+      await verifyShared(publicBase, token, appearance, targetVersion)
       state.finalEntryQuota = await verifyQuota(publicBase, token, state.frontend)
       state.finalEntryProbe = await liveGateway(publicBase + '/v1', 'blue', { timeoutMs: 45_000 })
+      state.finalEntryTerra = await verifyTerra(publicBase, token)
       await health(compatibility)
       state.assetsVerified = await verifyAssets()
     },
@@ -663,10 +703,11 @@ async function rollback(path) {
     await ready(identity.candidateBase)
   }
   const authBase = plan.authFromCandidate ? identity.candidateBase : direct
-  const token = await session(prior.config, authBase), appearance = await verifyShared(authBase, token)
+  const authVersion = (plan.authFromCandidate || plan.replacementStarted) ? targetVersion : state.priorVersion
+  const token = await session(prior.config, authBase), appearance = await verifyShared(authBase, token, undefined, authVersion)
   if (plan.replacementStarted) {
     assertCandidate(identity)
-    await verifyShared(identity.candidateBase, token, appearance)
+    await verifyShared(identity.candidateBase, token, appearance, targetVersion)
     await liveGateway(identity.candidateBase + '/v1', null, { timeoutMs: 45_000 })
   }
   await restorePrevious(identity, state, token, appearance, plan.replacementStarted)
@@ -692,12 +733,14 @@ export function publicSummary(state) {
     if (result && Array.isArray(value.eventTypes)) result.eventTypes = value.eventTypes.filter(type => /^response\.[a-z_.]+$/.test(type))
     return result
   }
-  return { phase: state.phase, commit: state.commit, image: state.image, priorImage: state.priorImage,
+  return { phase: state.phase, version: state.version, priorVersion: state.priorVersion, commit: state.commit, image: state.image, priorImage: state.priorImage,
     manifestPath: state.manifestPath, operationDirectory: state.directory, backup: state.backup,
     preparedAt: state.preparedAt, activatedAt: state.activatedAt, rolledBackAt: state.rolledBackAt,
     quota: quota(state.quota), finalEntryQuota: quota(state.finalEntryQuota), assetsVerified: state.assetsVerified,
     candidateCleanup: pick(state.candidateCleanup, ['ok', 'checkedAt']),
     candidateProbe: probe(state.candidateProbe), finalEntryProbe: probe(state.finalEntryProbe),
+    candidateTerra: state.candidateTerra ? { probe: probe(state.candidateTerra.probe), billing: state.candidateTerra.billing } : undefined,
+    finalEntryTerra: state.finalEntryTerra ? { probe: probe(state.finalEntryTerra.probe), billing: state.finalEntryTerra.billing } : undefined,
     oldImageRetained: true, databaseRestored: false, tailscaleServeChanged: false }
 }
 

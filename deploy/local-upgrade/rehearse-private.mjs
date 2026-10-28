@@ -16,9 +16,26 @@ const candidatePath = resolve(process.argv[3])
 const candidate = JSON.parse(await readFile(candidatePath, 'utf8'))
 assert.match(candidate.imageId, /^sha256:[a-f0-9]{64}$/)
 assert.equal(candidate.platform, 'linux/arm64')
+assert.equal(candidate.version, '0.2.19', 'Rehearsal candidate must be v0.2.19')
 const manifest = JSON.parse(await readFile(join(backup, 'backup-manifest.json'), 'utf8'))
 const oldVersion = manifest.oldVersion || '0.2.4'
-const expectedNewMigrations = oldVersion === '0.2.4' ? 7 : 0
+assert.equal(oldVersion, '0.2.13', 'This rehearsal supports only the installed 0.2.13 to 0.2.19 path')
+const expectedMigrationNames = [
+  '242_drop_platform_check_constraints.sql',
+  '242_group_i18n.sql',
+  '243_gemini_cached_contents.sql',
+  '244_gemini_cached_contents_channel_usage.sql',
+  '245_gemini_cached_contents_mutation_lease.sql',
+  '246_enable_gemini_image_generation_groups.sql',
+  '247_scoped_admin_api_keys.sql',
+  '248_group_image_count_billing.sql'
+]
+const expectedMigrationChecksums = new Map()
+for (const name of expectedMigrationNames) {
+  const content = (await readFile(join(root, 'backend/migrations', name), 'utf8')).trim()
+  expectedMigrationChecksums.set(name, createHash('sha256').update(content).digest('hex'))
+}
+const expectedNewMigrations = expectedMigrationNames.length
 const inventory = await readFile(join(root, 'deploy/local-upgrade/compatibility-inventory.sql'), 'utf8')
 const originals = JSON.parse(await readFile(join(backup, 'recovery-private.json'), 'utf8'))
 assert.equal((await stat(backup)).mode & 0o777, 0o700)
@@ -155,6 +172,9 @@ async function ready(service) {
 const tables = ['users', 'accounts', 'api_keys', 'groups', 'account_groups', 'channel_model_pricing',
   'channel_account_stats_model_pricing', 'user_platform_quotas', 'usage_logs']
 const projections = {}
+function imageGenerationGate() {
+  return JSON.parse(sql("SELECT coalesce(json_agg(json_build_object('id',id,'platform',platform,'allow_image_generation',allow_image_generation) ORDER BY id),'[]'::json) FROM groups;"))
+}
 function fingerprints() {
   const results = {}
   for (const table of tables) {
@@ -162,8 +182,8 @@ function fingerprints() {
       const columns = sql(`SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='${table}' ORDER BY ordinal_position;`).split('\n')
       assert(columns.length > 0 && columns.every(name => /^[a-z_][a-z0-9_]*$/.test(name)), `No valid projection for ${table}`)
       // Login intentionally updates user activity timestamps; all business fields remain compared.
-      const activity = table === 'users' ? ['last_login_at', 'last_active_at', 'updated_at'] : []
-      projections[table] = columns.filter(name => !activity.includes(name)).map(name => `"${name}"`).join(',')
+      const excluded = table === 'users' ? ['last_login_at', 'last_active_at', 'updated_at'] : table === 'groups' ? ['allow_image_generation', 'image_count_billing'] : []
+      projections[table] = columns.filter(name => excluded.includes(name) === false).map(name => `"${name}"`).join(',')
     }
     const filter = table === 'user_platform_quotas' ? ' WHERE daily_limit_usd IS NOT NULL OR weekly_limit_usd IS NOT NULL OR monthly_limit_usd IS NOT NULL' : ''
     results[table] = JSON.parse(sql(`SELECT json_build_object('rows',count(*),'digest',md5(coalesce(string_agg(md5(row_to_json(t)::text),'' ORDER BY md5(row_to_json(t)::text)),''))) FROM (SELECT ${projections[table]} FROM "${table}"${filter}) t;`))
@@ -195,6 +215,7 @@ try {
   report.restored = fingerprints()
   report.backgroundInventory = JSON.parse(sql(inventory))
   report.priorMigrations = JSON.parse(sql("SELECT coalesce(json_agg(json_build_object('filename',filename,'checksum',checksum) ORDER BY filename),'[]'::json) FROM schema_migrations;"))
+  assert.deepEqual(report.priorMigrations.map(item => item.filename).filter(name => expectedMigrationNames.includes(name)), [], 'Target migrations already exist in the restored backup')
   report.unlimitedQuotaRowsBefore = Number(sql('SELECT count(*) FROM user_platform_quotas WHERE daily_limit_usd IS NULL AND weekly_limit_usd IS NULL AND monthly_limit_usd IS NULL;'))
   report.legacyGroupPricingRows = Number(sql("SELECT count(*) FROM groups WHERE model_pricing::text LIKE '%max_reasoning_effort_multiplier%';"))
   report.checks.push('backup checksums', 'isolated no-egress network', 'PostgreSQL restore', 'Redis snapshot load', 'separate restored app volumes')
@@ -204,6 +225,7 @@ try {
   assert.equal(login.status, 200, 'Recovered administrator must authenticate; credentials are not printed')
   const token = JSON.parse(login.body).data.access_token
   assert.equal(request('blue', '/api/v1/auth/me', token).status, 200)
+  report.imageGenerationBefore = imageGenerationGate()
   const before = fingerprints()
   assert.deepEqual(before.users, report.restored.users)
   assert.deepEqual(before.api_keys, report.restored.api_keys)
@@ -219,6 +241,38 @@ try {
   report.newMigrations = JSON.parse(sql("SELECT coalesce(json_agg(json_build_object('filename',filename,'checksum',checksum) ORDER BY filename),'[]'::json) FROM schema_migrations;"))
     .filter(item => !report.priorMigrations.some(prior => prior.filename === item.filename))
   assert.equal(report.newMigrations.length, expectedNewMigrations)
+  assert.deepEqual(report.newMigrations.map(item => item.filename), expectedMigrationNames, 'Unexpected or missing target migration set')
+  for (const item of report.newMigrations) assert.equal(item.checksum, expectedMigrationChecksums.get(item.filename), `Migration checksum changed: ${item.filename}`)
+  report.imageGenerationAfter = imageGenerationGate()
+  const beforeGate = new Map(report.imageGenerationBefore.map(item => [item.id, item]))
+  assert.equal(report.imageGenerationAfter.length, report.imageGenerationBefore.length, 'Migration 246 changed the group row set')
+  let expectedImageGenerationFlips = 0
+  for (const item of report.imageGenerationAfter) {
+    const prior = beforeGate.get(item.id)
+    assert(prior, 'Migration 246 introduced or removed a group row')
+    const targetPlatform = item.platform === 'gemini' || item.platform === 'antigravity'
+    if (targetPlatform && prior.allow_image_generation === false) {
+      assert.equal(item.allow_image_generation, true, `Migration 246 did not enable expected group ${item.id}`)
+      expectedImageGenerationFlips++
+    } else {
+      assert.equal(item.allow_image_generation, prior.allow_image_generation, `Migration 246 changed an out-of-scope group ${item.id}`)
+    }
+  }
+  report.expectedImageGenerationFlips = expectedImageGenerationFlips
+  assert.equal(Number(sql("SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='scoped_admin_api_keys';")), 1, 'Migration 247 did not create scoped_admin_api_keys')
+  const scopedColumns = JSON.parse(sql("SELECT json_agg(json_build_object('name',column_name,'type',data_type) ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema='public' AND table_name='scoped_admin_api_keys';"))
+  const scopedColumnNames = scopedColumns.map(item => item.name)
+  assert.deepEqual(scopedColumnNames, ['id','name','description','key_prefix','key_hash','enabled','expires_at','allowed_ips','policy','created_by','created_at','updated_at','last_used_at','last_used_ip','revoked_at','deleted_at'], 'Migration 247 column inventory changed')
+  assert.equal(scopedColumns.find(item => item.name === 'key_hash').type, 'character varying')
+  assert.equal(scopedColumns.find(item => item.name === 'allowed_ips').type, 'jsonb')
+  assert.equal(scopedColumns.find(item => item.name === 'policy').type, 'jsonb')
+  assert.equal(Number(sql('SELECT count(*) FROM scoped_admin_api_keys;')), 0, 'Rehearsal unexpectedly contains administrator API keys')
+  const imageBillingColumn = JSON.parse(sql("SELECT json_build_object('type',data_type,'nullable',is_nullable,'default',column_default) FROM information_schema.columns WHERE table_schema='public' AND table_name='groups' AND column_name='image_count_billing';"))
+  assert.equal(imageBillingColumn.type, 'boolean')
+  assert.equal(imageBillingColumn.nullable, 'NO')
+  assert.equal(imageBillingColumn.default, 'false')
+  const imageBillingRows = JSON.parse(sql("SELECT coalesce(json_agg(json_build_object('id',id,'enabled',image_count_billing) ORDER BY id),'[]'::json) FROM groups;"))
+  assert(imageBillingRows.every(item => item.enabled === false), 'Migration 248 default must leave image_count_billing disabled')
   assert.equal(Number(sql('SELECT count(*) FROM user_platform_quotas WHERE daily_limit_usd IS NULL AND weekly_limit_usd IS NULL AND monthly_limit_usd IS NULL;')), 0)
   for (const item of report.priorMigrations) {
     assert.equal(sql(`SELECT checksum FROM schema_migrations WHERE filename='${item.filename}';`), item.checksum)
@@ -236,8 +290,10 @@ try {
     const version = JSON.parse(request(service, '/api/v1/admin/system/version', token).body).data.version
     assert.equal(version, service === 'green' ? candidate.version : oldVersion)
   }
-  report.checks.push(`${expectedNewMigrations} expected new migrations`, 'existing migration checksums unchanged',
-    'business projections unchanged', 'old session valid in both versions', 'existing compliance preserved', 'both admin read workflows')
+  report.checks.push(`${expectedNewMigrations} expected new migrations with exact checksums`, 'existing migration checksums unchanged',
+    `${report.expectedImageGenerationFlips} expected migration 246 Gemini/Antigravity image-gate flips`, 'migration 247 scoped key schema present without keys',
+    'migration 248 image-count billing column defaults disabled', 'business projections unchanged outside migration 246',
+    'old session valid in both versions', 'existing compliance preserved', 'both admin read workflows')
   const initialSettings = JSON.parse(request('green', '/api/v1/admin/settings', token).body).data
   const sharedAppearance = { skin: 'neubrutalism', mode: 'dark', accent_color: '#112233' }
   const changed = await putSettings('green', token, { ...initialSettings, site_appearance: sharedAppearance })
@@ -283,7 +339,10 @@ try {
   docker([...compose, 'restart', 'blue'])
   await ready('blue')
   assert.equal(request('blue', '/api/v1/auth/me', token).status, 200)
-  report.checks.push('new restart idempotence', 'old restart on migrated data')
+  const migrationsAfterRestart = JSON.parse(sql("SELECT coalesce(json_agg(json_build_object('filename',filename,'checksum',checksum) ORDER BY filename),'[]'::json) FROM schema_migrations;"))
+  assert.equal(migrationsAfterRestart.length, report.priorMigrations.length + expectedNewMigrations, 'Restart applied an unexpected migration set')
+  assert.deepEqual(migrationsAfterRestart.filter(item => expectedMigrationNames.includes(item.filename)), report.newMigrations, 'Restart changed target migration records')
+  report.checks.push('new restart idempotence', 'old restart on migrated data', 'migration set stable across restarts')
   report.passed = true
 } catch (error) {
   report.error = error.message

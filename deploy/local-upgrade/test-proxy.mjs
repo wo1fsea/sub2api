@@ -22,7 +22,7 @@ const fixtureImage = candidate.imageId
 function run(command, args, input) {
   const result = spawnSync(command, args, { cwd: join(root, 'backend'), input,
     encoding: 'utf8', timeout: 180_000, maxBuffer: 4 << 20,
-    env: { ...process.env, GOTOOLCHAIN: 'go1.27.0', GOMAXPROCS: '2', CGO_ENABLED: '0', GOOS: 'linux', GOARCH: 'arm64' } })
+    env: { ...process.env, GOTOOLCHAIN: 'go1.27.3', GOMAXPROCS: '2', CGO_ENABLED: '0', GOOS: 'linux', GOARCH: 'arm64' } })
   assert(!result.error && result.status === 0, `${command} failed: ${result.stderr}`)
   return result.stdout.trim()
 }

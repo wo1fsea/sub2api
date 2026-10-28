@@ -7,7 +7,7 @@ import test from 'node:test'
 import {
   assertActivePin, assertAppearanceMatch, assertFreshBackup, assertPrepareRetry, assertSnapshotPins, candidateCompose, mergeAssetInventory,
   postgresDumpListToc, promotedCompose, promotedState, publicSummary, quotaResponseSummary, releaseIdentity,
-  rollbackPlan, runHotSwitch
+  rollbackPlan, runHotSwitch, validateTerraUsage
 } from './upgrade-current.mjs'
 import { desiredCompose, names, routing } from './service-recovery.mjs'
 
@@ -62,14 +62,26 @@ test('current pin rejects a changed owner, private session, restart policy, heal
 })
 
 test('release identity is canonical, immutable and unique to its exact commit', () => {
-  assert.equal(identity.candidateName, 'sub2api-quota-candidate-0123456789ab')
-  assert.equal(identity.candidateVolume, 'sub2api-quota-0123456789ab_candidate-data')
-  assert.match(identity.directory, /quota-0\.2\.13-0123456789ab$/)
+  assert.equal(identity.version, '0.2.13')
+  assert.equal(identity.candidateName, 'sub2api-upgrade-candidate-0123456789ab')
+  assert.equal(identity.candidateVolume, 'sub2api-upgrade-0123456789ab_candidate-data')
+  assert.match(identity.directory, /upgrade-0\.2\.13-0123456789ab$/)
   assert.equal(identity.candidateBase, 'http://127.0.0.1:18585')
   for (const replacement of [{ version: '0.2.14' }, { platform: 'linux/amd64' }, { imageId: 'latest' }, { commit: 'short' }]) {
     assert.throws(() => releaseIdentity(manifestPath, { ...manifest, ...replacement }, repositoryRoot))
   }
   assert.throws(() => releaseIdentity('/tmp/manifest.json', manifest, repositoryRoot))
+})
+
+test('fixed v0.2.19 target identity is accepted without widening the allowlist', () => {
+  const targetCommit = 'fedcba987654' + 'd'.repeat(28)
+  const targetManifest = { ...manifest, version: '0.2.19', commit: targetCommit }
+  const targetPath = join(repositoryRoot, 'release', `sub2api_0.2.19_linux_arm64_${targetCommit.slice(0, 12)}`, 'manifest.json')
+  const target = releaseIdentity(targetPath, targetManifest, repositoryRoot)
+  assert.equal(target.version, '0.2.19')
+  assert.equal(target.candidateName, 'sub2api-upgrade-candidate-fedcba987654')
+  assert.match(target.directory, /upgrade-0\.2\.19-fedcba987654$/)
+  assert.throws(() => releaseIdentity(targetPath, { ...targetManifest, version: '0.2.20' }, repositoryRoot))
 })
 
 test('the currently active 3e364ac release has a compatible canonical manifest', async () => {
@@ -96,6 +108,7 @@ test('candidate uses independent app data and shared sessions/dependencies while
   assert.equal(candidate.services.app.environment.USAGE_CLEANUP_ENABLED, 'false')
   assert.equal(candidate.services.app.environment.CHANNEL_MONITOR_V2_DISABLE_AGGREGATOR, '1')
   assert.equal(candidate.services.app.environment.AUTO_SETUP, 'false')
+  assert.equal(candidate.services.app.environment.GATEWAY_SCHEDULING_LEGACY_SNAPSHOT_COMPAT, 'true')
   assert.deepEqual(config, original)
 })
 
@@ -108,6 +121,7 @@ test('promoting changes the canonical app image and restores sole background own
   assert.deepEqual(next.services.app.volumes, config.services.app.volumes)
   for (const role of ['TOKEN_REFRESH_ENABLED', 'USAGE_CLEANUP_ENABLED']) assert.equal(next.services.app.environment[role], 'true')
   assert.equal(next.services.app.environment.CHANNEL_MONITOR_V2_DISABLE_AGGREGATOR, '0')
+  assert.equal(next.services.app.environment.GATEWAY_SCHEDULING_LEGACY_SNAPSHOT_COMPAT, 'false')
   for (const service of ['ingress', 'assets', 'compat']) assert.deepEqual(next.services[service], config.services[service])
   assert.deepEqual(next.networks, config.networks)
   assert.equal(next.services.app.environment.JWT_SECRET, config.services.app.environment.JWT_SECRET)
@@ -229,6 +243,16 @@ test('dump-list EPIPE never masks failure, signal, other spawn errors or truncat
 
 const quotaWindow = (now, changes = {}) => ({ key: 'five_hour', utilization: 85, source: 'response_headers', scope: 'account', window_minutes: 300,
   sampled_at: new Date(now - 60_000).toISOString(), resets_at: new Date(now + 60_000).toISOString(), ...changes })
+
+test('Terra billing requires completed-request model identity and positive token billing', () => {
+  const row = { request_id: 'resp_terra', model: 'gpt-6.1-terra', upstream_model: 'gpt-6.1-terra', upstream_response_model: 'gpt-6.1-terra', upstream_model_mismatch: false, input_tokens: 24, output_tokens: 5, total_cost: 0.001, actual_cost: 0.001, billing_mode: 'token' }
+  assert.deepEqual(validateTerraUsage([row], 'resp_terra'), { requestId: 'resp_terra', model: 'gpt-6.1-terra', upstreamModel: 'gpt-6.1-terra', upstreamResponseModel: 'gpt-6.1-terra', inputTokens: 24, outputTokens: 5, totalCost: 0.001, actualCost: 0.001, billingMode: 'token', upstreamModelMismatch: false })
+  assert.throws(() => validateTerraUsage([], 'resp_terra'), /not persisted/)
+  assert.throws(() => validateTerraUsage([{ ...row, model: 'gpt-6.1-sol' }], 'resp_terra'), /identity changed/)
+  assert.throws(() => validateTerraUsage([{ ...row, upstream_response_model: 'gpt-6.1-sol' }], 'resp_terra'), /response identity changed/)
+  assert.throws(() => validateTerraUsage([{ ...row, total_cost: 0 }], 'resp_terra'), /not positive/)
+  assert.throws(() => validateTerraUsage([{ ...row, input_tokens: 0, output_tokens: 0 }], 'resp_terra'), /token usage/)
+})
 
 test('upstream errors, absent windows and explicit unknown values remain valid quota page states', () => {
   const now = Date.parse('2026-10-08T01:00:00Z')

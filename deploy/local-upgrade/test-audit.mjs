@@ -35,7 +35,7 @@ try {
     cwd: join(root, 'backend'), encoding: 'utf8', timeout: 180_000, maxBuffer: 4 << 20,
     // Do not inherit live model test credentials from the caller's environment.
     env: { PATH: process.env.PATH, HOME: process.env.HOME, TMPDIR: process.env.TMPDIR,
-      GOTOOLCHAIN: 'go1.27.2', GOMAXPROCS: '2', GOMEMLIMIT: '1GiB',
+      GOTOOLCHAIN: 'go1.27.3', GOMAXPROCS: '2', GOMEMLIMIT: '1GiB',
       PROMPT_AUDIT_TEST_POSTGRES_DSN: `postgres://audit:${password}@127.0.0.1:18385/audit?sslmode=disable`,
       PROMPT_AUDIT_TEST_REDIS_ADDR: '127.0.0.1:18386' }
   })

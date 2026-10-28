@@ -10,6 +10,9 @@ import { liveGateway } from './live-gateway.mjs'
 process.umask(0o077)
 export const deployment = '/Users/clawbotbot/Projects/sub2api-local'
 export const directory = join(deployment, 'current-0.2.13')
+export const currentRecoveryVersion = '0.2.13'
+export const targetVersion = '0.2.19'
+const supportedVersions = new Set([currentRecoveryVersion, targetVersion])
 const composePath = join(directory, 'compose-private.json')
 const statePath = join(directory, 'state.json')
 const project = 'sub2api-current'
@@ -148,7 +151,7 @@ export function assertCurrent(container, expectedImage = image) {
 }
 
 export function releasePin(state, manifest, metadata) {
-  assert.equal(manifest.version, '0.2.13')
+  assert(supportedVersions.has(manifest.version), 'Unsupported release version')
   assert.match(manifest.imageId, /^sha256:[a-f0-9]{64}$/)
   assert.match(manifest.commit, /^[a-f0-9]{40}$/)
   assert.equal(state.image, manifest.imageId)
@@ -158,8 +161,9 @@ export function releasePin(state, manifest, metadata) {
   return manifest.imageId
 }
 
-export function assertVersion(payload) {
-  assert.equal(payload.data.version, '0.2.13', 'The authenticated application version changed')
+export function assertVersion(payload, expectedVersion) {
+  assert(supportedVersions.has(expectedVersion), 'Expected version argument is unsupported')
+  assert.equal(payload.data.version, expectedVersion, 'The authenticated application version changed')
 }
 
 async function health(base, slot) {
@@ -178,7 +182,7 @@ async function ready(base, slot, onRetry) {
     }
   }
 }
-async function adminVersion(base) {
+async function adminVersion(base, expectedVersion) {
   const env = environment(inspect(names.app))
   const r = await fetch(`${base}/api/v1/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: env.ADMIN_EMAIL, password: env.ADMIN_PASSWORD }), signal: AbortSignal.timeout(10_000) })
@@ -187,7 +191,7 @@ async function adminVersion(base) {
   const version = await fetch(`${base}/api/v1/admin/system/version`, {
     headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30_000) })
   assert.equal(version.status, 200)
-  assertVersion(await version.json())
+  assertVersion(await version.json(), expectedVersion)
 }
 async function setEntry() {
   await ready(entry, 'blue')
@@ -290,11 +294,11 @@ async function cutover() {
     docker([...compose, 'up', '-d', '--no-deps', 'app', 'compat'])
     await ready(direct)
     assertCurrent(inspect(names.app))
-    await adminVersion(direct)
+    await adminVersion(direct, currentRecoveryVersion)
     state.directProbe = await liveGateway(`${direct}/v1`, null, { timeoutMs: 45_000 })
     await reload(`${names.app}:8080`)
     await setEntry()
-    await adminVersion(publicBase)
+    await adminVersion(publicBase, currentRecoveryVersion)
     state.finalProbe = await liveGateway(`${publicBase}/v1`, 'blue', { timeoutMs: 45_000 })
     await health('http://127.0.0.1:18080', 'blue')
   } catch (error) {
@@ -322,13 +326,14 @@ async function boot(manageRoute = true) {
   assert.equal(state.phase, 'active-old-retired', 'Recovery is disabled until retirement finishes')
   const available = spawnSync('/opt/homebrew/bin/docker', ['info', '--format', '{{.ServerVersion}}'], { encoding: 'utf8', timeout: 10_000 })
   if (available.status !== 0) command('/opt/homebrew/bin/colima', ['start'], undefined, 180_000)
-  let activeImage = image
+  let activeImage = image, activeVersion = state.version || currentRecoveryVersion
   if (state.releaseManifest) {
-    assert.match(state.releaseManifest, /^\/Users\/clawbotbot\/Projects\/sub2api-neubrutalism\/release\/sub2api_0\.2\.13_linux_arm64_[a-f0-9]{12}\/manifest\.json$/)
+    assert.match(state.releaseManifest, /^\/Users\/clawbotbot\/Projects\/sub2api-[^/]+\/release\/sub2api_0\.2\.(13|19)_linux_arm64_[a-f0-9]{12}\/manifest\.json$/)
     const bytes = await readFile(state.releaseManifest)
     assert.equal(sha(bytes), state.releaseManifestSha256, 'Active release manifest changed')
     const manifest = JSON.parse(bytes)
     activeImage = releasePin(state, manifest, JSON.parse(docker(['image', 'inspect', manifest.imageId]))[0])
+    activeVersion = manifest.version
     const config = JSON.parse(await readFile(composePath, 'utf8'))
     assert.equal(config.services.app.image, activeImage, 'Recovery compose pin differs from release')
   }
@@ -360,9 +365,10 @@ async function boot(manageRoute = true) {
   }
   await ready(direct, undefined, restoreStopped)
   await ready(entry, 'blue', restoreStopped)
+  await adminVersion(direct, activeVersion)
   if (manageRoute) await setEntry()
   for (const { name, container } of optionalRetired()) retiredStatus(name, container)
-  return { ok: true, checkedAt: new Date().toISOString(), version: '0.2.13', image: activeImage, entry,
+  return { ok: true, checkedAt: new Date().toISOString(), version: activeVersion, image: activeImage, entry,
     backgroundOwner: names.app, routePending: !manageRoute }
 }
 
