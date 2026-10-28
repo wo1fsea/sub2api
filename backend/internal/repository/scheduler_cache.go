@@ -326,7 +326,9 @@ func (c *schedulerCache) GetSnapshot(ctx context.Context, bucket service.Schedul
 	}
 
 	now := c.now()
-	if entry := c.lookupSnapshotEntry(bucketKey); entry != nil && entry.matches(activeVal, revisions, now) {
+	if c.legacySnapshotCompat {
+		// Compatibility mode must observe full-payload deletion immediately, so it bypasses process-local snapshot reuse.
+	} else if entry := c.lookupSnapshotEntry(bucketKey); entry != nil && entry.matches(activeVal, revisions, now) {
 		accounts, err := c.snapshotAccountsFromEntry(ctx, entry)
 		if err != nil {
 			return nil, false, err
@@ -348,7 +350,11 @@ func (c *schedulerCache) GetSnapshot(ctx context.Context, bucket service.Schedul
 	keys := make([]string, 0, len(ids))
 	lastUsedKeys := make([]string, 0, len(ids))
 	for _, id := range ids {
-		keys = append(keys, schedulerAccountMetaKey(id))
+		if c.legacySnapshotCompat {
+			keys = append(keys, schedulerAccountKey(id))
+		} else {
+			keys = append(keys, schedulerAccountMetaKey(id))
+		}
 		lastUsedKeys = append(lastUsedKeys, schedulerLastUsedKey(id))
 	}
 	values, err := c.mgetChunked(ctx, keys)
@@ -388,7 +394,11 @@ func (c *schedulerCache) GetSnapshot(ctx context.Context, bucket service.Schedul
 		accounts:     masters,
 		lastUsedKeys: lastUsedKeys,
 	}
-	c.storeSnapshotEntry(bucketKey, entry)
+	if c.legacySnapshotCompat {
+		// Do not retain a compatibility snapshot after its full payload may have been removed.
+	} else {
+		c.storeSnapshotEntry(bucketKey, entry)
+	}
 
 	accounts, err := c.snapshotAccountsFromEntry(ctx, entry)
 	if err != nil {
