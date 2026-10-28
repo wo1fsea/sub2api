@@ -33,7 +33,7 @@ backend/.gocache/
 # Node.js / Vue 前端
 # ===================
 node_modules/
-frontend/node_modules
+frontend/node_modules/
 frontend/dist/
 *.local
 *.tsbuildinfo
@@ -122,9 +122,6 @@ tests
 CLAUDE.md
 .claude
 scripts
-!frontend/scripts/
-!frontend/scripts/preview-skin.mjs
-!frontend/scripts/verify-skin.mjs
 !backend/scripts/
 !backend/scripts/resolve-version.sh
 .code-review-state
@@ -136,16 +133,7 @@ deploy/docker-compose.override.yml
 .gocache/
 vite.config.js
 docs/*
-!docs/NEUBRUTALISM_SKIN.md
-!docs/MONOCHROME_THEME.md
-!docs/LOCAL_UPGRADE.md
-!docs/LOCAL_DELIVERY_CLASH_2.md
-!docs/LOCAL_DELIVERY_0.2.13.md
-!docs/LOCAL_DELIVERY_QUOTA_0.2.13.md
-!docs/REMOTE_STANDBY.md
-!docs/local/
-docs/local/*
-!docs/local/patches.md
+!docs/admin-api-keys.md
 !docs/PAYMENT.md
 !docs/PAYMENT_CN.md
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md
@@ -174,3 +162,15 @@ issues/
 .vite/
 # 本地闭源插件开发目录及构建产物不进入 Sub2API 仓库
 /plugins/
+
+# Local fork documentation and delivery records.
+!docs/NEUBRUTALISM_SKIN.md
+!docs/MONOCHROME_THEME.md
+!docs/LOCAL_UPGRADE.md
+!docs/LOCAL_DELIVERY_CLASH_2.md
+!docs/LOCAL_DELIVERY_0.2.13.md
+!docs/LOCAL_DELIVERY_QUOTA_0.2.13.md
+!docs/REMOTE_STANDBY.md
+!docs/local/
+docs/local/*
+!docs/local/patches.md
