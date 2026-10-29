@@ -52,9 +52,11 @@ test('recovery refuses a changed image, project or disabled background owner', (
 })
 
 test('admin version uses the live API envelope and rejects another version', () => {
-  assert.doesNotThrow(() => assertVersion({ code: 0, data: { version: '0.2.13' } }))
-  assert.throws(() => assertVersion({ data: { version: '0.2.4' } }))
-  assert.throws(() => assertVersion({ data: { version: { version: '0.2.13' } } }))
+  assert.doesNotThrow(() => assertVersion({ code: 0, data: { version: '0.2.13' } }, '0.2.13'))
+  assert.doesNotThrow(() => assertVersion({ code: 0, data: { version: '0.2.19' } }, '0.2.19'))
+  assert.throws(() => assertVersion({ data: { version: '0.2.4' } }, '0.2.13'))
+  assert.throws(() => assertVersion({ data: { version: { version: '0.2.13' } } }, '0.2.13'))
+  assert.throws(() => assertVersion({ data: { version: '0.2.13' } }, '0.2.19'))
 })
 
 test('a promoted release must match its manifest, image and embedded source', () => {
@@ -65,6 +67,9 @@ test('a promoted release must match its manifest, image and embedded source', ()
   assert.throws(() => releasePin({ image: image }, manifest, metadata))
   assert.throws(() => releasePin({ image: id }, { ...manifest, commit: 'c'.repeat(40) }, metadata))
   assert.throws(() => releasePin({ image: id }, { ...manifest, version: '0.2.14' }, metadata))
+  const targetManifest = { ...manifest, version: '0.2.19' }
+  const targetMetadata = { Id: id, Config: { Labels: { 'org.opencontainers.image.revision': commit, 'org.opencontainers.image.version': '0.2.19' } } }
+  assert.equal(releasePin({ image: id }, targetManifest, targetMetadata), id)
 })
 
 test('removed retired containers are valid, but a resurrected owner still blocks recovery', () => {
