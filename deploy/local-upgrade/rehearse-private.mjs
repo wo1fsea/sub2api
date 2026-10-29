@@ -215,7 +215,7 @@ try {
   report.restored = fingerprints()
   report.backgroundInventory = JSON.parse(sql(inventory))
   report.priorMigrations = JSON.parse(sql("SELECT coalesce(json_agg(json_build_object('filename',filename,'checksum',checksum) ORDER BY filename),'[]'::json) FROM schema_migrations;"))
-  assert.deepEqual(report.priorMigrations.map(item => item.filename).filter(name => expectedMigrationNames.includes(name)), [], 'Target migrations already exist in the restored backup')
+  const priorByName = new Map(report.priorMigrations.map(item => [item.filename, item.checksum])); const alreadyMigrated = expectedMigrationNames.every(name => priorByName.get(name) === expectedMigrationChecksums.get(name)); report.alreadyMigrated = alreadyMigrated; if (alreadyMigrated === false) assert.deepEqual(report.priorMigrations.map(item => item.filename).filter(name => expectedMigrationNames.includes(name)), [], 'Target migrations partially present in the restored backup')
   report.unlimitedQuotaRowsBefore = Number(sql('SELECT count(*) FROM user_platform_quotas WHERE daily_limit_usd IS NULL AND weekly_limit_usd IS NULL AND monthly_limit_usd IS NULL;'))
   report.legacyGroupPricingRows = Number(sql("SELECT count(*) FROM groups WHERE model_pricing::text LIKE '%max_reasoning_effort_multiplier%';"))
   report.checks.push('backup checksums', 'isolated no-egress network', 'PostgreSQL restore', 'Redis snapshot load', 'separate restored app volumes')
@@ -238,11 +238,7 @@ try {
   const expectedStable = ['users', 'accounts', 'api_keys', 'groups', 'account_groups', 'channel_model_pricing',
     'channel_account_stats_model_pricing', 'user_platform_quotas', 'usage_logs']
   for (const table of expectedStable) assert.deepEqual(report.afterMigrations[table], before[table], `Migration changed existing ${table} projections`)
-  report.newMigrations = JSON.parse(sql("SELECT coalesce(json_agg(json_build_object('filename',filename,'checksum',checksum) ORDER BY filename),'[]'::json) FROM schema_migrations;"))
-    .filter(item => !report.priorMigrations.some(prior => prior.filename === item.filename))
-  assert.equal(report.newMigrations.length, expectedNewMigrations)
-  assert.deepEqual(report.newMigrations.map(item => item.filename), expectedMigrationNames, 'Unexpected or missing target migration set')
-  for (const item of report.newMigrations) assert.equal(item.checksum, expectedMigrationChecksums.get(item.filename), `Migration checksum changed: ${item.filename}`)
+  report.newMigrations = JSON.parse(sql("SELECT coalesce(json_agg(json_build_object('filename',filename,'checksum',checksum) ORDER BY filename),'[]'::json) FROM schema_migrations;")) .filter(item => report.priorMigrations.some(prior => prior.filename === item.filename) === false); if (alreadyMigrated) { assert.equal(report.newMigrations.length, 0, 'Already-migrated backup applied additional migrations'); for (const name of expectedMigrationNames) assert.equal(priorByName.get(name), expectedMigrationChecksums.get(name), 'Existing migration checksum changed: ' + name); report.checks.push('already-migrated schema checksums verified') } else { assert.equal(report.newMigrations.length, expectedNewMigrations); assert.deepEqual(report.newMigrations.map(item => item.filename), expectedMigrationNames, 'Unexpected or missing target migration set'); for (const item of report.newMigrations) assert.equal(item.checksum, expectedMigrationChecksums.get(item.filename), 'Migration checksum changed: ' + item.filename) }
   report.imageGenerationAfter = imageGenerationGate()
   const beforeGate = new Map(report.imageGenerationBefore.map(item => [item.id, item]))
   assert.equal(report.imageGenerationAfter.length, report.imageGenerationBefore.length, 'Migration 246 changed the group row set')
@@ -340,8 +336,8 @@ try {
   await ready('blue')
   assert.equal(request('blue', '/api/v1/auth/me', token).status, 200)
   const migrationsAfterRestart = JSON.parse(sql("SELECT coalesce(json_agg(json_build_object('filename',filename,'checksum',checksum) ORDER BY filename),'[]'::json) FROM schema_migrations;"))
-  assert.equal(migrationsAfterRestart.length, report.priorMigrations.length + expectedNewMigrations, 'Restart applied an unexpected migration set')
-  assert.deepEqual(migrationsAfterRestart.filter(item => expectedMigrationNames.includes(item.filename)), report.newMigrations, 'Restart changed target migration records')
+  assert.equal(migrationsAfterRestart.length, alreadyMigrated ? report.priorMigrations.length : report.priorMigrations.length + expectedNewMigrations, 'Restart applied an unexpected migration set')
+  assert.deepEqual(migrationsAfterRestart.filter(item => expectedMigrationNames.includes(item.filename)), alreadyMigrated ? report.priorMigrations.filter(item => expectedMigrationNames.includes(item.filename)) : report.newMigrations, 'Restart changed target migration records')
   report.checks.push('new restart idempotence', 'old restart on migrated data', 'migration set stable across restarts')
   report.passed = true
 } catch (error) {

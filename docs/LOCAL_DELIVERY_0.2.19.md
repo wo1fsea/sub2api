@@ -1,6 +1,6 @@
 # Local source and release qualification: v0.2.19
 
-Date: 2026-10-28. Status: source merged and qualified, exact ARM64 package built and smoke-tested, isolated restore rehearsal passed, production rollout blocked before prepare by migration 246 policy.
+Date: 2026-10-29. Status: v0.2.19 deployed and verified on the local Mac. Migration 246 opening was explicitly approved. Old image and rollback materials are retained.
 
 ## Git and upstream identity
 
@@ -80,3 +80,40 @@ The migration file and checksum must remain unchanged. Do not edit migration 246
 - Activate only after candidate and rollback evidence pass, then repeat through the stable entry.
 - Complete stable-entry observation, asset checks, single background owner verification and actual drain investigation.
 - Keep old image, package, configuration, backup and rollback materials. Hot rollback is not yet qualified because production preparation has not begun.
+
+## Production completion 2026-10-29
+
+- Owner explicitly approved migration 246 opening the affected two Antigravity and one Gemini groups.
+- The account-level OpenAI model mappings for accounts 1, 2 and 9 were updated through the admin API with the existing credential merge path, preserving OAuth tokens and all other credential fields.
+- Upstream model catalog sync exposed `gpt-6.1-terra` for all three OpenAI OAuth accounts.
+- A temporary group-6 API key was used for validation and deleted after the stable-entry checks. Its private key file was removed.
+- `prepare` succeeded at `2026-10-29T01:02:57.331Z`; `activate` succeeded at `2026-10-29T01:03:41.297Z`.
+- Current phase: `active-old-retired`; operation phase: `active-verified`; route: `current`.
+- Current immutable image: `sha256:5a41a1ae1a94546096b9061b6e5b75ecb63ed9bda8c487c0fafbefcda36feb81`.
+- Current container: `sub2api-current-app`, healthy, image `5a41a1ae1a94`, loopback `127.0.0.1:18583`.
+- Stable entries `http://127.0.0.1:18480` and `http://127.0.0.1:18080` both returned health OK.
+
+### Real model and billing evidence
+
+- Terra on 18480: HTTP 200, completed event, model `gpt-6.1-terra`, slot `blue`, 24 input tokens, 5 output tokens.
+- Terra on 18080: HTTP 200, completed event, model `gpt-6.1-terra`, slot `blue`, 24 input tokens, 5 output tokens.
+- Terra usage row on 18480: request `client:9cb37b0d-5868-426a-a2e0-413fba48c9b2`, upstream and response model `gpt-6.1-terra`, no mismatch, total and actual cost `0.000049`, billing mode `token`.
+- Terra usage row on 18080: request `client:f5a733be-da22-4492-bb08-48162570cd71`, upstream and response model `gpt-6.1-terra`, no mismatch, total and actual cost `0.000049`, billing mode `token`.
+- Current configured Codex model `gpt-6-astra` completed through both 18480 and 18080 with HTTP 200 and terminal completed events.
+- A real `gpt-image-1` generation request through 18480 returned HTTP 200 with one image.
+- The image usage row recorded `billing_mode=image`, image count 1, size 2K, 343 image output tokens, total and actual cost `0.201`.
+- Temporary Terra-key cleanup: DELETE returned HTTP 200 and the protected key file was removed.
+
+### State and rollback
+
+- Candidate container was cleaned after activation; no listener remains on 18585.
+- The old 0.2.13 image `sha256:d24609d723262dc83cbc18534446648b85b8bd42e3f77f582df40e4b81c0c659` remains retained.
+- The already-migrated backup `backup-s1qLF1` and rehearsal `rehearsal-PR5v0v` verified old-image startup, old/new reads and writes, schema checksums and restart idempotence.
+- Rollback images, private configuration, backup and rehearsal evidence remain available. Hot rollback was not executed after the successful cutover; it remains an operator action using the retained materials.
+- Actual per-instance application drain was not claimed.
+
+### Final validation
+
+- `upgrade-current status` reports current image identity, route `current`, candidate absent, public health `ok`, 1266 historical assets verified.
+- 18080 and 18480 both serve the new 0.2.19 runtime and the same background owner `sub2api-current-app`.
+- No secrets, key material, backup files or image artifacts were committed.

@@ -60,8 +60,9 @@ export async function liveGateway(baseUrl, expectedSlot, { config = currentCodex
   assert(terminal && terminal.status === 'completed', 'Missing completed Responses terminal event')
   assert(output.trim().length > 0 && /\bOK\b/.test(output), 'The actual model did not return the expected check text')
   if (expectedModel) assert.equal(terminal.model, expectedModel, 'The completed response model identity changed')
+  const gatewayClientRequestId = (response.headers.get("x-client-request-id") || "").trim()
   return { checkedAt: new Date().toISOString(), requestedModel: model, model: terminal.model,
-    requestId: clientRequestId ? `client:${clientRequestId}` : terminal.id, responseId: terminal.id,
+    requestId: gatewayClientRequestId ? ("client:" + gatewayClientRequestId) : clientRequestId ? ("client:" + clientRequestId) : terminal.id, responseId: terminal.id, gatewayClientRequestId: gatewayClientRequestId || null,
     httpStatus: response.status, firstTokenMs, totalMs: Date.now() - started, outputCharacters: output.length,
     completed: true, slot: response.headers.get('x-sub2api-slot'),
     inputTokens: terminal.usage?.input_tokens, outputTokens: terminal.usage?.output_tokens,

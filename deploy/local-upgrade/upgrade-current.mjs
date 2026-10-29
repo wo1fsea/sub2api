@@ -216,7 +216,8 @@ async function activeConfiguration() {
     check(sha(bytes) === state.releaseManifestSha256, 'Current release manifest changed')
     priorManifest = JSON.parse(bytes)
     check(priorManifest.imageId === state.image, 'Current release image differs from its manifest')
-    releaseIdentity(state.releaseManifest, priorManifest)
+    const priorRepositoryRoot = resolve(dirname(state.releaseManifest), '../..')
+    releaseIdentity(state.releaseManifest, priorManifest, priorRepositoryRoot)
   }
   const dependencies = state.dependencies.map(item => {
     const found = inspect(item.name)
