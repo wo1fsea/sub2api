@@ -61,25 +61,17 @@ Recorded in `deploy/local-upgrade/source-validation.json` against backend tree `
 - Both old 0.2.13 and new images read and wrote synthetic keys against the migrated copy; both restarted successfully and the migration set stayed stable.
 - The backup is not a cross-store atomic snapshot. No live provider call was made by the rehearsal and token refresh was disabled.
 
-## Mandatory production blocker
+## Resolved migration 246 policy gate
 
-Read-only production inventory found two active Antigravity groups and one active Gemini group with `allow_image_generation=false`. Migration 246 will open all three. The owner has not decided whether that generation opening is approved. Therefore `prepare` was not executed, no candidate was attached to the shared production database, and no production write or route change occurred.
+Pre-upgrade production inventory found two active Antigravity groups and one active Gemini group with `allow_image_generation=false`. The owner explicitly approved opening all three on 2026-10-29, resolving the policy gate before successful prepare and activate. The isolated rehearsal verified exactly those three gate changes and no out-of-scope changes.
 
-An auditable policy decision is required before prepare:
-1. Approve opening those three groups, or
-2. Define and test an approved migration-246 policy-preservation action that avoids an unapproved open window.
+The original migration file and checksum were retained; no policy-specific SQL rewrite was used.
 
-The migration file and checksum must remain unchanged. Do not edit migration 246 to encode business policy.
+## Acceptance scope and retained recovery materials
 
-## Remaining gates
-
-- Resolve the migration 246 policy gate.
-- Prepare the exact image at `127.0.0.1:18585` with the shared PostgreSQL/Redis and disabled duplicate background roles.
-- Run real `gpt-6.1-terra` and current configured Codex Responses calls on the candidate: completed event, response model identity, usage/billing row and no silent model substitution.
-- Run current model and Gemini/Antigravity image regression under the approved policy and budget.
-- Activate only after candidate and rollback evidence pass, then repeat through the stable entry.
-- Complete stable-entry observation, asset checks, single background owner verification and actual drain investigation.
-- Keep old image, package, configuration, backup and rollback materials. Hot rollback is not yet qualified because production preparation has not begun.
+- Prepare at `127.0.0.1:18585`, candidate model/billing checks, activate and stable-entry checks completed; exact results are recorded below.
+- The recorded real image call used `gpt-image-1`. This does not establish a separate real-provider Gemini/Antigravity image regression; migration-246 policy and isolated data-change evidence are recorded separately.
+- Old-image compatibility was verified on the migrated backup. Keep the old image, package, private configuration, backup and rehearsal evidence for operator rollback; an actual production hot rollback and per-instance drain were not exercised or claimed.
 
 ## Production completion 2026-10-29
 
@@ -117,3 +109,13 @@ The migration file and checksum must remain unchanged. Do not edit migration 246
 - `upgrade-current status` reports current image identity, route `current`, candidate absent, public health `ok`, 1266 historical assets verified.
 - 18080 and 18480 both serve the new 0.2.19 runtime and the same background owner `sub2api-current-app`.
 - No secrets, key material, backup files or image artifacts were committed.
+
+### Host launchd recovery closure
+
+- The root-owned launchd dispatcher runs every 60 seconds and uses the fixed host entry `/Users/clawbotbot/Projects/sub2api-neubrutalism/deploy/local-upgrade/service-recovery.mjs`.
+- The host checkout's `service-recovery.mjs`, `live-gateway.mjs` and `service-recovery.test.mjs` were aligned with the sync branch. This corrects the stale 0.2.13-only manifest-path/version checks while preserving manifest checksum, image, source revision and Compose identity checks. All 16 recovery/live-gateway tests passed.
+- Host alignment commit: `69773fa41104804347812f8eeb733e743a7cad54` on `codex/feat/restrained-neubrutalism`, containing only those three files. This host-branch commit is retained locally; the documentation closure is pushed on `fork/codex/sync/20261028-v0.2.19`.
+- A direct invocation from the ordinary shell reached the Tailscale step but lacked permission to switch audit sessions. Running the same host `boot` entry in the launchd-compatible GUI session context succeeded at `2026-10-29T01:12:59.627Z`; no recovery check was bypassed.
+- Subsequent readback of `/Users/clawbotbot/Projects/sub2api-local/current-0.2.13/boot-status.json` recorded `checkedAt=2026-10-29T01:13:42.700Z`, `ok=true`, `version=0.2.19`, `routePending=false`, background owner `sub2api-current-app`, entry `http://127.0.0.1:18480` and image `sha256:5a41a1ae1a94546096b9061b6e5b75ecb63ed9bda8c487c0fafbefcda36feb81`. The launchd job's last exit code was zero.
+- Both `18480` and `18080` returned health OK, slot `blue` and authenticated application version `0.2.19`. State and manifest source revision matched `2da76924e7cf050e2d9c6b98eed9b992db0d9756`; manifest checksum, private Compose image and running image agreed.
+- This closure verifies the recovery command and current service state, not a full host reboot or another paid model call. It does not change the deployed application's source revision or immutable image.

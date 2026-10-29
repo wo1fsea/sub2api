@@ -1,6 +1,6 @@
 # Upstream sync to 0.2.19
 
-Date: 2026-10-28 (Asia/Shanghai). This record covers source integration and tooling readiness. Production approval and real-call acceptance remain separate gates.
+Source sync date: 2026-10-28 (Asia/Shanghai). Updated 2026-10-29 after local production activation and host recovery verification. The local Mac now serves 0.2.19; migration 246 opening was explicitly approved. Detailed runtime and billing evidence is in [LOCAL_DELIVERY_0.2.19.md](LOCAL_DELIVERY_0.2.19.md).
 
 ## Upstream and merge identity
 
@@ -25,9 +25,9 @@ Four files required manual resolution. Both parents were used as references; no 
 
 The merged tree retains the three skins, Restrained Neubrutalism, monochrome light/dark, OpenJev paper/ink, grayscale hatch charts, compact home, settings navigation, quota overview, legacy scheduler compatibility, deadline checks before OAuth credential persistence, bounded build resources and the private local-upgrade drill tooling. Upstream catalog-driven account platform selection, quota settings, provider profiles, Grok model diagnostics, scoped administrator API keys and image-count billing were adopted.
 
-## Schema delta from installed 0.2.13
+## Schema delta from the pre-upgrade 0.2.13 baseline
 
-The fixed target adds eight migration files relative to the live `0.2.13` schema, which ends at the two `241` files:
+The fixed target adds eight migration files relative to the pre-upgrade `0.2.13` schema, which ended at the two `241` files. These migrations were rehearsed before the production upgrade:
 
 | Migration | Checksum |
 | --- | --- |
@@ -42,16 +42,16 @@ The fixed target adds eight migration files relative to the live `0.2.13` schema
 
 Checksums use the application migration rule: SHA-256 over the migration file after trimming surrounding whitespace.
 
-## Production policy blocker for migration 246
+## Approved production policy for migration 246
 
-Read-only live inventory on 2026-10-28 found three active groups that migration 246 will change because their platform is Gemini or Antigravity and `allow_image_generation` is false:
+Read-only pre-upgrade inventory on 2026-10-28 found three active groups affected by migration 246 because their platform was Gemini or Antigravity and `allow_image_generation` was false:
 
 - Antigravity: two groups.
 - Gemini: one group.
-- Composite: one group currently `true`, out of scope for 246.
-- OpenAI: one group currently `false`, out of scope for 246.
+- Composite: one group was `true`, out of scope for 246.
+- OpenAI: one group was `false`, out of scope for 246.
 
-No IDs, names or credentials are recorded here. The owner has not approved opening generation on those three groups. The migration itself must remain immutable and its checksum retained. Candidate preparation against the shared production database must not begin until an explicit policy decision and an auditable post-migration policy action are available for those groups, or an approved pre-migration strategy is defined that avoids an unapproved open window. This is a hard production gate.
+No IDs, names or credentials are recorded here. On 2026-10-29 the owner explicitly approved opening generation on the two Antigravity groups and one Gemini group. This resolved the policy gate before successful production preparation and activation. The migration file and its checksum remain unchanged; the isolated rehearsal verified the three expected changes and unchanged out-of-scope groups.
 
 ## Tooling adaptation
 
@@ -65,8 +65,14 @@ No IDs, names or credentials are recorded here. The owner has not approved openi
 
 ## Validation status
 
-Source qualification is recorded in `deploy/local-upgrade/source-validation.json` after the final exact-tree checks. A passing source check is not production approval. Real Terra and current-Codex calls, exact-image smoke, a fresh backup, isolated restore rehearsal and the migration-246 policy decision remain mandatory gates.
+Source qualification is recorded in `deploy/local-upgrade/source-validation.json` against the final application trees. Exact-image smoke, backup and isolated restore rehearsal passed. After the migration-246 policy approval, prepare and activate completed on 2026-10-29. Real Terra and current-Codex calls passed through the stable entries; Terra model identity and positive billing were verified. See the delivery record for exact package identities, evidence and validation limits.
+
+## Host recovery verification
+
+The installed launchd dispatcher calls `/Users/clawbotbot/Projects/sub2api-neubrutalism/deploy/local-upgrade/service-recovery.mjs` every 60 seconds. That host checkout's recovery script, `live-gateway.mjs` and `service-recovery.test.mjs` were aligned with this sync branch, removing the stale 0.2.13-only manifest-path/version assumptions while retaining release identity checks. All 16 recovery/live-gateway tests passed.
+
+The host `boot` command succeeded in the launchd-compatible GUI session context at `2026-10-29T01:12:59.627Z`. A subsequent read of `/Users/clawbotbot/Projects/sub2api-local/current-0.2.13/boot-status.json` showed `checkedAt=2026-10-29T01:13:42.700Z`, `ok=true`, `version=0.2.19`, `routePending=false` and image `sha256:5a41a1ae1a94546096b9061b6e5b75ecb63ed9bda8c487c0fafbefcda36feb81`. Both stable ports returned health OK and authenticated version 0.2.19; state, manifest, private Compose and the running image agreed. This verifies the recovery command and current service state, not a host reboot drill.
 
 ## Production boundary
 
-No HK deployment, Cursor branch integration, upstream push, force-push, secret export or production database write was performed by this source sync. The live Mac service remains `0.2.13` at the time this record was created.
+The source-integration phase was followed by the approved local Mac production upgrade, including migrations and account model-mapping updates documented in the delivery record. The local runtime is now `0.2.19`; the directory name `current-0.2.13` remains the stable deployment path. No HK deployment, Cursor branch integration, upstream push, force-push or secret export was performed. Documentation and host recovery alignment do not change the application source commit embedded in the deployed image (`2da76924e7cf050e2d9c6b98eed9b992db0d9756`).
