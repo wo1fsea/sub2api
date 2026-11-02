@@ -30,6 +30,12 @@ import (
 //
 // Grok 在 Responses / Chat Completions 入口有专属链路，须在调用本函数前分流。
 func resolveUpstreamProtocol(account *Account, inbound, model string, catalog []string) string {
+	if account != nil && account.IsFactory() {
+		if protocol, ok := account.FactoryProtocolForModel(model); ok {
+			return protocol
+		}
+		return APIProtocolUnsupported
+	}
 	if account.routesByModel() {
 		return account.resolveModelRoutedProtocolFor(model, inbound, catalog)
 	}
@@ -58,6 +64,12 @@ func (a *Account) resolveModelRoutedProtocol(model string) string {
 // 协议直接生效；否则取该模型支持的协议集合，入站协议在其中时同协议直通（省去一次
 // 协议转换），不在时走首选协议。
 func (a *Account) resolveModelRoutedProtocolFor(model, inbound string, catalog []string) string {
+	if a != nil && a.IsFactory() {
+		if protocol, ok := a.FactoryProtocolForModel(model); ok {
+			return protocol
+		}
+		return APIProtocolUnsupported
+	}
 	switch proto := a.GetAPIProtocol(); proto {
 	case APIProtocolChatCompletions, APIProtocolAnthropic, APIProtocolResponses:
 		return proto
@@ -75,6 +87,12 @@ func (a *Account) resolveModelRoutedProtocolFor(model, inbound string, catalog [
 //  3. profile 内置规则——仅在账号未配置 protocol_rules 时，已配置但未命中视为有意不走内置规则；
 //  4. Chat Completions，避免落入 Responses 转换链。
 func (a *Account) modelProtocolSet(model string, catalog []string) []string {
+	if a != nil && a.IsFactory() {
+		if protocol, ok := a.FactoryProtocolForModel(model); ok {
+			return []string{protocol}
+		}
+		return nil
+	}
 	rules, configured := a.configuredProtocolRules()
 	if configured {
 		if set, ok := matchProtocolRuleSet(model, rules); ok {

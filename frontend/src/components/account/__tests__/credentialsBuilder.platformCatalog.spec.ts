@@ -58,11 +58,11 @@ const legacyZenRules = [
 ]
 
 function legacyIsMultiProtocol(platform: string): boolean {
-  return ['kimi', 'zhipu', 'deepseek', 'minimax', 'opencode_go', 'command_code', 'cline'].includes(platform)
+  return ['kimi', 'zhipu', 'deepseek', 'minimax', 'opencode_go', 'command_code', 'cline', 'factory'].includes(platform)
 }
 
 function legacySupportsResponses(platform: string): boolean {
-  return ['deepseek', 'kimi', 'minimax', 'opencode_go', 'command_code'].includes(platform)
+  return ['deepseek', 'kimi', 'minimax', 'opencode_go', 'command_code', 'factory'].includes(platform)
 }
 
 function legacyHeaderOverride(platform: string, type: string): boolean {
@@ -184,6 +184,10 @@ describe('credentialsBuilder derives multi-protocol data from the platform catal
     expect(providerAccountModes('opencode_go')).toEqual(['go', 'zen'])
     expect(providerAccountModes('deepseek')).toEqual(['payg'])
     expect(providerNativeProtocols('zhipu', 'coding')).toEqual(['chat_completions', 'anthropic'])
+    expect(providerRoutesByModel('factory')).toBe(true)
+    expect(providerAccountModes('factory')).toEqual(['payg'])
+    expect(providerNativeProtocols('factory', 'payg')).toEqual(['chat_completions', 'anthropic', 'responses'])
+    expect(resolveProviderAccountMode('factory', undefined)).toBe('payg')
     expect(resolveProviderAccountMode('kimi', 'coding')).toBe('coding')
     expect(resolveProviderAccountMode('deepseek', 'coding')).toBe('payg')
     expect(resolveProviderAccountMode('opencode_go', undefined)).toBe('go')

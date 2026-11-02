@@ -426,6 +426,9 @@ func normalizeOpenAILongContextBillingUpdateExtra(account *Account, input *Updat
 // Grok media eligibility helpers live in account_grok_media_eligibility.go.
 
 func buildAccountForCreate(input *CreateAccountInput, accountExtra map[string]any) (*Account, error) {
+	if err := normalizeFactoryCreateCredentials(input.Platform, input.Type, input.Credentials); err != nil {
+		return nil, err
+	}
 	if input.Platform == PlatformTypeSafe && input.Type != AccountTypeAPIKey {
 		return nil, errors.New("typesafe accounts only support apikey credentials")
 	}
@@ -494,6 +497,9 @@ func buildAccountForCreate(input *CreateAccountInput, accountExtra map[string]an
 }
 
 func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccountInput) (*Account, error) {
+	if err := normalizeFactoryCreateCredentials(input.Platform, input.Type, input.Credentials); err != nil {
+		return nil, err
+	}
 	accountExtra, err := normalizeOpenAILongContextBillingExtra(input.Platform, input.Extra)
 	if err != nil {
 		return nil, err
@@ -599,6 +605,9 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	if account.Platform == PlatformTypeSafe && input.Type != "" && input.Type != AccountTypeAPIKey {
 		return nil, errors.New("typesafe accounts only support apikey credentials")
 	}
+	if account.IsFactory() && (account.Type != AccountTypeAPIKey || (input.Type != "" && input.Type != AccountTypeAPIKey)) {
+		return nil, errors.New("Factory accounts only support apikey credentials")
+	}
 	var normalizedExtra map[string]any
 	if input.Extra != nil {
 		normalizedExtra, err = normalizeOpenAILongContextBillingUpdateExtra(account, input)
@@ -665,18 +674,26 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	if account.IsCredentialShadow() && input.Credentials != nil {
 		account.Credentials = sanitizeSparkShadowCredentials(input.Credentials)
 	} else if len(input.Credentials) > 0 {
-		// 敏感子键采用"incoming 没提供就保留"的合并语义：前端响应已脱敏，
-		// 全对象 PUT 编辑时不会再带回 token，避免覆盖时清空已有凭证。
-		account.Credentials = MergePreservingSensitiveCreds(account.Credentials, input.Credentials)
-		// 校验并规范化请求头覆写配置（header 名小写化、格式检查）
-		if err := NormalizeHeaderOverrideCredentials(account.Credentials); err != nil {
-			return nil, err
+		if account.IsFactory() {
+			merged, mergeErr := mergeFactoryUpdateCredentials(account.Credentials, input.Credentials)
+			if mergeErr != nil {
+				return nil, mergeErr
+			}
+			account.Credentials = merged
+		} else {
+			// 敏感子键采用"incoming 没提供就保留"的合并语义：前端响应已脱敏，
+			// 全对象 PUT 编辑时不会再带回 token，避免覆盖时清空已有凭证。
+			account.Credentials = MergePreservingSensitiveCreds(account.Credentials, input.Credentials)
+			// 校验并规范化请求头覆写配置（header 名小写化、格式检查）
+			if err := NormalizeHeaderOverrideCredentials(account.Credentials); err != nil {
+				return nil, err
+			}
+			if err := NormalizeProtocolRulesCredentials(account.Credentials); err != nil {
+				return nil, err
+			}
+			// Strip SSO/password residue that must never sit next to OAuth tokens.
+			account.Credentials = SanitizeStoredCredentials(account.Platform, account.Credentials)
 		}
-		if err := NormalizeProtocolRulesCredentials(account.Credentials); err != nil {
-			return nil, err
-		}
-		// Strip SSO/password residue that must never sit next to OAuth tokens.
-		account.Credentials = SanitizeStoredCredentials(account.Platform, account.Credentials)
 	}
 	// Extra 使用 map：需要区分“未提供(nil)”与“显式清空({})”。
 	// 关闭配额限制时前端会删除 quota_* 键并提交 extra:{}，此时也必须落库。
@@ -1034,6 +1051,33 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 		if account != nil {
 			targetsByID[account.ID] = account
 		}
+	}
+	hasFactoryTarget := false
+	for _, account := range cachedTargets {
+		if account != nil && account.IsFactory() {
+			hasFactoryTarget = true
+			break
+		}
+	}
+	if len(input.Credentials) > 0 && (hasFactoryTarget || input.Credentials["factory_org_id"] != nil) {
+		resolved := make(map[int64]struct{}, len(cachedTargets))
+		for _, account := range cachedTargets {
+			if account != nil {
+				resolved[account.ID] = struct{}{}
+			}
+		}
+		for _, accountID := range input.AccountIDs {
+			if _, ok := resolved[accountID]; !ok {
+				return nil, ErrAccountNotFound
+			}
+		}
+	}
+	if len(input.Credentials) > 0 {
+		normalized, factoryErr := prepareFactoryBulkCredentials(cachedTargets, input.Credentials)
+		if factoryErr != nil {
+			return nil, factoryErr
+		}
+		input.Credentials = normalized
 	}
 	if openAISettings.any() {
 		inheritedCount, err := validateBulkOpenAISettingsTargets(input, openAISettings, targetsByID)

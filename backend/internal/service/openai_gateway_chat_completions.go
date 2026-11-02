@@ -61,6 +61,11 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	promptCacheKey string,
 	defaultMappedModel string,
 ) (*OpenAIForwardResult, error) {
+	if account != nil && account.IsFactory() {
+		if err := rejectFactoryOriginalFastIntent(c, body, "chat_completions"); err != nil {
+			return nil, err
+		}
+	}
 	return s.forwardAsChatCompletions(ctx, c, account, body, promptCacheKey, defaultMappedModel, false)
 }
 
@@ -146,6 +151,8 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 			return s.forwardAsRawChatCompletions(ctx, c, account, chatBody, defaultMappedModel)
 		}
 		return s.forwardAsRawChatCompletions(ctx, c, account, body, defaultMappedModel)
+	case APIProtocolUnsupported:
+		return nil, writeFactoryUnsupportedModelError(c, "chat_completions")
 	}
 	// 上游为 Responses（含 adaptive 下 Responses 形状入站且供应商有原生
 	// Responses 端点）：走下方 Chat Completions ↔ Responses 转换链。

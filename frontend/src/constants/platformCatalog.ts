@@ -87,6 +87,9 @@ export function isKnownPlatform(platform: string | null | undefined): boolean {
 
 /** 与后端 buildUpstreamModelsRequest 支持的平台保持一致。 */
 export function supportsUpstreamModelSync(platform: string | null | undefined): boolean {
+  // Factory exposes its finite model registry locally. It has no generic
+  // upstream /models sync contract, even though its profile routes by model.
+  if (platform?.trim().toLowerCase() === 'factory') return false
   const spec = getPlatformSpec(platform?.trim().toLowerCase())
   if (!spec) return false
   return !!spec.multi_protocol || ['anthropic', 'openai', 'gemini', 'antigravity', 'grok'].includes(spec.id)

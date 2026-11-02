@@ -44,6 +44,7 @@
       "multi_protocol": {
         "default_mode": "payg",
         "routing": "by_inbound",
+        "upstream_model_sync_supported": true,
         "modes": [
           {
             "mode": "payg",
@@ -73,6 +74,7 @@
       "multi_protocol": {
         "default_mode": "payg",
         "routing": "by_inbound",
+        "upstream_model_sync_supported": true,
         "modes": [
           {
             "mode": "payg",
@@ -101,6 +103,7 @@
         "default_mode": "payg",
         "routing": "by_inbound",
         "responses_path": "/responses",
+        "upstream_model_sync_supported": true,
         "modes": [
           {
             "mode": "payg",
@@ -122,6 +125,7 @@
       "multi_protocol": {
         "default_mode": "payg",
         "routing": "by_inbound",
+        "upstream_model_sync_supported": true,
         "modes": [
           {
             "mode": "payg",
@@ -151,6 +155,7 @@
       "multi_protocol": {
         "default_mode": "go",
         "routing": "by_model",
+        "upstream_model_sync_supported": true,
         "modes": [
           {
             "mode": "go",
@@ -235,6 +240,7 @@
         "default_mode": "payg",
         "routing": "by_model",
         "model_catalog": true,
+        "upstream_model_sync_supported": true,
         "modes": [
           {
             "mode": "payg",
@@ -269,12 +275,172 @@
       "multi_protocol": {
         "default_mode": "payg",
         "routing": "by_inbound",
+        "upstream_model_sync_supported": true,
         "modes": [
           {
             "mode": "payg",
             "base_urls": {
               "chat_completions": "https://api.cline.bot/api/v1"
             }
+          }
+        ]
+      }
+    },
+    {
+      "id": "factory",
+      "display_name": "Factory",
+      "gateway": "openai",
+      "cn_provider": false,
+      "multi_protocol": {
+        "default_mode": "payg",
+        "routing": "by_model",
+        "upstream_model_sync_supported": false,
+        "modes": [
+          {
+            "mode": "payg",
+            "base_urls": {
+              "anthropic": "https://api.factory.ai/api/llm/a",
+              "chat_completions": "https://api.factory.ai/api/llm/o",
+              "responses": "https://api.factory.ai/api/llm/o"
+            },
+            "protocol_rules": [
+              {
+                "pattern": "claude-fable-5.1",
+                "protocol": "anthropic"
+              },
+              {
+                "pattern": "claude-fable-5",
+                "protocol": "anthropic"
+              },
+              {
+                "pattern": "claude-opus-5-5",
+                "protocol": "anthropic"
+              },
+              {
+                "pattern": "claude-opus-5",
+                "protocol": "anthropic"
+              },
+              {
+                "pattern": "claude-opus-4-8",
+                "protocol": "anthropic"
+              },
+              {
+                "pattern": "claude-sonnet-5-5",
+                "protocol": "anthropic"
+              },
+              {
+                "pattern": "claude-sonnet-5",
+                "protocol": "anthropic"
+              },
+              {
+                "pattern": "claude-sonnet-4-6",
+                "protocol": "anthropic"
+              },
+              {
+                "pattern": "claude-haiku-5-5",
+                "protocol": "anthropic"
+              },
+              {
+                "pattern": "claude-haiku-4-5-20251001",
+                "protocol": "anthropic"
+              },
+              {
+                "pattern": "minimax-m2.7",
+                "protocol": "anthropic"
+              },
+              {
+                "pattern": "gpt-6.1-sol",
+                "protocol": "responses"
+              },
+              {
+                "pattern": "gpt-6-sol",
+                "protocol": "responses"
+              },
+              {
+                "pattern": "gpt-6-astra",
+                "protocol": "responses"
+              },
+              {
+                "pattern": "gpt-6-luna",
+                "protocol": "responses"
+              },
+              {
+                "pattern": "gpt-5.6-sol",
+                "protocol": "responses"
+              },
+              {
+                "pattern": "gpt-5.6-terra",
+                "protocol": "responses"
+              },
+              {
+                "pattern": "gpt-5.6-luna",
+                "protocol": "responses"
+              },
+              {
+                "pattern": "gpt-5.5",
+                "protocol": "responses"
+              },
+              {
+                "pattern": "gpt-5.4",
+                "protocol": "responses"
+              },
+              {
+                "pattern": "gpt-5.3-codex",
+                "protocol": "responses"
+              },
+              {
+                "pattern": "grok-4.7",
+                "protocol": "responses"
+              },
+              {
+                "pattern": "grok-4.6",
+                "protocol": "responses"
+              },
+              {
+                "pattern": "glm-5.3",
+                "protocol": "chat_completions"
+              },
+              {
+                "pattern": "glm-5.3-flash",
+                "protocol": "chat_completions"
+              },
+              {
+                "pattern": "glm-5.2",
+                "protocol": "chat_completions"
+              },
+              {
+                "pattern": "kimi-k3",
+                "protocol": "chat_completions"
+              },
+              {
+                "pattern": "deepseek-v4.1-flash",
+                "protocol": "chat_completions"
+              },
+              {
+                "pattern": "deepseek-v4.1-flash-1017",
+                "protocol": "chat_completions"
+              },
+              {
+                "pattern": "qwen3.8-max",
+                "protocol": "chat_completions"
+              },
+              {
+                "pattern": "minimax-m3",
+                "protocol": "chat_completions"
+              },
+              {
+                "pattern": "mistral-large-4",
+                "protocol": "chat_completions"
+              },
+              {
+                "pattern": "mistral-medium-3.5",
+                "protocol": "chat_completions"
+              },
+              {
+                "pattern": "nemotron-3-ultra",
+                "protocol": "chat_completions"
+              }
+            ]
           }
         ]
       }
@@ -293,6 +459,7 @@
     "opencode_go",
     "typesafe",
     "command_code",
-    "cline"
+    "cline",
+    "factory"
   ]
 }

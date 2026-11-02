@@ -54,6 +54,10 @@ func (s *OpenAIGatewayService) ForwardResponsesInputTokens(
 		writeOpenAIResponsesInputTokensError(c, http.StatusServiceUnavailable, "api_error", "No available OpenAI accounts")
 		return fmt.Errorf("responses input_tokens: missing account")
 	}
+	if account.IsFactory() {
+		writeOpenAIResponsesInputTokensError(c, http.StatusBadRequest, "invalid_request_error", "Token counting is not supported for Factory accounts")
+		return fmt.Errorf("responses input_tokens: unsupported for Factory")
+	}
 
 	prepared, err := prepareNativeOpenAIInputTokensCountRequest(body, account)
 	if err != nil {
@@ -263,6 +267,10 @@ func (s *OpenAIGatewayService) ForwardCountTokensAsAnthropic(
 		writeAnthropicCountTokensError(c, http.StatusServiceUnavailable, "api_error", "No available OpenAI accounts")
 		return fmt.Errorf("count_tokens: missing account")
 	}
+	if account.IsFactory() {
+		writeAnthropicCountTokensError(c, http.StatusBadRequest, "invalid_request_error", "Token counting is not supported for Factory accounts")
+		return fmt.Errorf("count_tokens: unsupported for Factory")
+	}
 
 	// 多协议 API Key 供应商（国产厂商与聚合平台，全部协议，含 anthropic）：一律本地估算，不发上游请求。
 	// 依据（2026-08 核实）：三家的 Anthropic 兼容层均未提供
@@ -433,6 +441,9 @@ func (s *OpenAIGatewayService) buildInputTokensUpstreamRequest(
 	body []byte,
 	token string,
 ) (*http.Request, error) {
+	if account != nil && account.IsFactory() {
+		return nil, fmt.Errorf("Factory token counting is not supported")
+	}
 	targetURL := openaiPlatformAPIInputTokensURL
 	if account.Type == AccountTypeAPIKey {
 		if baseURL := account.GetOpenAIBaseURL(); strings.TrimSpace(baseURL) != "" {

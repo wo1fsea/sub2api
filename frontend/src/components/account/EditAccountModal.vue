@@ -28,10 +28,32 @@
 
       <!-- API Key fields (only for apikey type) -->
       <div v-if="account.type === 'apikey'" class="space-y-4">
-        <div v-if="!isCNApiKeyAccount || editApiProtocol !== 'adaptive'">
+        <div v-if="isFactoryAccount" data-testid="factory-credentials" class="space-y-4">
+          <div>
+            <label class="input-label">{{ t('admin.accounts.factory.region') }}</label>
+            <select v-model="editFactoryRegion" class="input" data-testid="factory-region">
+              <option value="us">{{ t('admin.accounts.factory.regions.us') }}</option>
+              <option value="eu">{{ t('admin.accounts.factory.regions.eu') }}</option>
+            </select>
+            <p class="input-hint">{{ t('admin.accounts.factory.regionHint') }}</p>
+          </div>
+          <div>
+            <label class="input-label">{{ t('admin.accounts.factory.orgId') }}</label>
+            <input
+              v-model="editFactoryOrgId"
+              type="text"
+              class="input font-mono"
+              data-testid="factory-org-id"
+              :placeholder="t('admin.accounts.factory.orgIdPlaceholder')"
+            />
+            <p class="input-hint">{{ t('admin.accounts.factory.orgIdHint') }}</p>
+          </div>
+        </div>
+        <div v-if="!isFactoryAccount && (!isCNApiKeyAccount || editApiProtocol !== 'adaptive')">
           <label class="input-label">{{ t('admin.accounts.baseUrl') }}</label>
           <input
             v-model="editBaseUrl"
+            data-testid="api-key-base-url"
             type="text"
             class="input"
             :placeholder="
@@ -62,7 +84,7 @@
             @select="onCnPresetSelect"
           />
         </div>
-        <div v-else>
+        <div v-else-if="!isFactoryAccount">
           <label class="input-label">{{ t('admin.accounts.cnProviders.apiProtocol.endpoints') }}</label>
           <div class="mt-2 space-y-3">
             <div v-for="item in editAdaptiveProtocolOptions" :key="item.value">
@@ -235,6 +257,7 @@
             data-1p-ignore
             data-lpignore="true"
             data-bwignore="true"
+            :data-testid="account.platform === 'factory' ? 'factory-api-key' : undefined"
             :placeholder="
               account.platform === 'openai'
                 ? 'sk-proj-...'
@@ -244,10 +267,24 @@
                     ? 'sk-...'
                     : account.platform === 'grok'
                       ? 'xai-...'
+                      : account.platform === 'factory'
+                        ? 'fk-...'
                       : 'sk-ant-...'
             "
           />
           <p class="input-hint">{{ t('admin.accounts.leaveEmptyToKeep') }}</p>
+        </div>
+
+        <div
+          v-if="isFactoryAccount"
+          data-testid="factory-capabilities"
+          class="space-y-2 rounded-lg border border-cyan-200 bg-cyan-50 p-4 text-xs text-cyan-900 dark:border-cyan-800/50 dark:bg-cyan-900/20 dark:text-cyan-100"
+        >
+          <p class="font-medium">{{ t('admin.accounts.factory.capabilitiesTitle') }}</p>
+          <p>{{ t('admin.accounts.factory.capabilities') }}</p>
+          <p>{{ t('admin.accounts.factory.modelPrefixHint') }}</p>
+          <p>{{ t('admin.accounts.factory.unsupported') }}</p>
+          <p>{{ t('admin.accounts.factory.entitlement') }}</p>
         </div>
 
         <!-- Model Restriction Section (不适用于 Antigravity) -->
@@ -276,6 +313,7 @@
                 : 'mb-4 flex gap-2'"
             >
               <button
+                v-if="!isFactoryAccount"
                 type="button"
                 @click="modelRestrictionMode = 'whitelist'"
                 :aria-pressed="account.platform === 'grok' ? modelRestrictionMode === 'whitelist' : undefined"
@@ -456,6 +494,7 @@
                 />
                 <button
                   type="button"
+                  :data-testid="isFactoryAccount ? 'factory-remove-model-mapping' : undefined"
                   @click="removeModelMapping(index)"
                   :aria-label="account.platform === 'grok' ? t('admin.accounts.grokModelDiagnostics.removeMappingAria', { index: index + 1 }) : undefined"
                   :class="account.platform === 'grok'
@@ -516,7 +555,7 @@
         </div>
 
         <!-- Pool Mode Section -->
-        <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <div v-if="!isFactoryAccount" class="border-t border-gray-200 pt-4 dark:border-dark-600">
           <div class="mb-3 flex items-center justify-between">
             <div>
               <label class="input-label mb-0">{{ t('admin.accounts.poolMode') }}</label>
@@ -622,7 +661,7 @@
         </div>
 
         <!-- Custom Error Codes Section -->
-        <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <div v-if="!isFactoryAccount" class="border-t border-gray-200 pt-4 dark:border-dark-600">
           <div class="mb-3 flex items-center justify-between">
             <div>
               <label class="input-label mb-0">{{ t('admin.accounts.customErrorCodes') }}</label>
@@ -1667,7 +1706,7 @@
       </div>
 
       <!-- Temp Unschedulable Rules -->
-      <div class="border-t border-gray-200 pt-4 dark:border-dark-600 space-y-4">
+      <div v-if="!isFactoryAccount" class="border-t border-gray-200 pt-4 dark:border-dark-600 space-y-4">
         <div class="mb-3 flex items-center justify-between">
           <div>
             <label class="input-label mb-0">{{ t('admin.accounts.tempUnschedulable.title') }}</label>
@@ -1927,6 +1966,7 @@
       </div>
 
       <UpstreamRequestIdHeaderField
+        v-if="!isFactoryAccount"
         v-model="upstreamRequestIdHeader"
         :platform="account.platform"
         :type="account.type"
@@ -1965,19 +2005,19 @@
             step="0.001"
             class="input disabled:cursor-not-allowed disabled:opacity-60"
             data-testid="account-rate-multiplier"
-            :disabled="upstreamBillingRateSyncEnabled"
+            :disabled="upstreamBillingRateSyncEnabled && !isFactoryAccount"
           />
           <p class="input-hint">
             {{
               t(
-                upstreamBillingRateSyncEnabled
+                upstreamBillingRateSyncEnabled && !isFactoryAccount
                   ? 'admin.accounts.upstreamBilling.syncRateManagedHint'
                   : 'admin.accounts.billingRateMultiplierHint'
               )
             }}
           </p>
           <div
-            v-if="account?.type === 'apikey'"
+            v-if="account?.type === 'apikey' && !isFactoryAccount"
             class="mt-3 flex items-center justify-between gap-3"
           >
             <div class="min-w-0">
@@ -2244,7 +2284,7 @@
       </div>
 
       <div
-        v-if="account?.type === 'apikey'"
+        v-if="account?.type === 'apikey' && !isFactoryAccount"
         class="flex items-center justify-between gap-4 border-t border-gray-200 pt-4 dark:border-dark-600"
       >
         <div>
@@ -3472,6 +3512,13 @@ import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiErro
 import { createStableObjectKeyResolver } from '@/utils/stableObjectKey'
 import { supportsAccountQuota } from '@/utils/accountQuota'
 import { getAccountExpiryTimestamp } from '@/components/account/accountExpiry'
+import {
+  FACTORY_PUBLIC_MODEL_PREFIX,
+  buildFactoryCredentials,
+  normalizeFactoryOrgId,
+  normalizeFactoryRegion,
+  type FactoryRegion
+} from './factory'
 import { allSelectedGroupsEnableLongContextPricing } from '@/components/account/longContextBilling'
 import { VERTEX_LOCATION_OPTIONS } from '@/constants/account'
 import {
@@ -3645,13 +3692,21 @@ interface TempUnschedRuleForm {
 const submitting = ref(false)
 const editBaseUrl = ref('https://api.anthropic.com')
 const editApiKey = ref('')
+const editFactoryRegion = ref<FactoryRegion>('us')
+const editFactoryOrgId = ref('')
 
 // ── 国产供应商（Kimi / Zhipu / DeepSeek）account_mode / api_protocol 编辑 ──
 // account_mode 决定额度/余额监控路径，api_protocol 决定转发端点与格式；
 // 二者均可修正（早期创建的账号可能存错默认值），切换时重置 base_url 预置。
 // 覆盖全部多协议 API Key 供应商（国产厂商、OpenCode 与走通用表单的供应商）。
 const isCNApiKeyAccount = computed(
-  () => props.account?.type === 'apikey' && isMultiProtocolApiKeyPlatform(props.account.platform)
+  () =>
+    props.account?.type === 'apikey' &&
+    props.account.platform !== 'factory' &&
+    isMultiProtocolApiKeyPlatform(props.account.platform)
+)
+const isFactoryAccount = computed(
+  () => props.account?.type === 'apikey' && props.account.platform === 'factory'
 )
 // 前端没有专属界面、走通用表单的多协议供应商：模式 / 协议 / 默认端点来自 profile。
 const isGenericMultiProtocolAccount = computed(
@@ -4849,9 +4904,13 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   // Initialize API Key fields for apikey type
   if (newAccount.type === 'apikey' && newAccount.credentials) {
     const credentials = newAccount.credentials as Record<string, unknown>
+    if (newAccount.platform === 'factory') {
+      editFactoryRegion.value = normalizeFactoryRegion(credentials.region)
+      editFactoryOrgId.value = normalizeFactoryOrgId(credentials.factory_org_id)
+    }
     // 国产供应商：读取 account_mode 与 api_protocol 作为可编辑初始值
     // （编辑弹窗允许修正两者，用于修复早期存错默认值的账号）。
-    if (isMultiProtocolApiKeyPlatform(newAccount.platform)) {
+    if (newAccount.platform !== 'factory' && isMultiProtocolApiKeyPlatform(newAccount.platform)) {
       if (newAccount.platform === 'opencode_go') {
         editOpenCodeAccountMode.value = resolveOpenCodeAccountMode(credentials.account_mode)
       } else if (isCNProviderPlatform(newAccount.platform)) {
@@ -4930,6 +4989,20 @@ const syncFormFromAccount = (newAccount: Account | null) => {
 
     // Load model mappings and detect mode
     loadModelRestrictionFromMapping(credentials.model_mapping as Record<string, unknown> | undefined)
+    if (newAccount.platform === 'factory') {
+      // Factory edits always use explicit public -> native mappings.
+      modelRestrictionMode.value = 'mapping'
+      if (allowedModels.value.length > 0) {
+        const migrated = allowedModels.value.map((from) => ({
+          from,
+          to: from.startsWith(FACTORY_PUBLIC_MODEL_PREFIX)
+            ? from.slice(FACTORY_PUBLIC_MODEL_PREFIX.length)
+            : from
+        }))
+        modelMappings.value = [...migrated, ...modelMappings.value]
+        allowedModels.value = []
+      }
+    }
 
     // Load pool mode
     poolModeEnabled.value = credentials.pool_mode === true
@@ -5656,15 +5729,31 @@ const handleSubmit = async () => {
     }
     updatePayload.auto_pause_on_expired = autoPauseOnExpired.value
     if (props.account.type === 'apikey') {
-      updatePayload.upstream_billing_probe_enabled = upstreamBillingAutoProbeEnabled.value
-      updatePayload.upstream_billing_rate_sync_enabled = upstreamBillingRateSyncEnabled.value
-      if (upstreamBillingRateSyncEnabled.value) {
+      const isFactory = props.account.platform === 'factory'
+      updatePayload.upstream_billing_probe_enabled = isFactory ? false : upstreamBillingAutoProbeEnabled.value
+      updatePayload.upstream_billing_rate_sync_enabled = isFactory ? false : upstreamBillingRateSyncEnabled.value
+      if (!isFactory && upstreamBillingRateSyncEnabled.value) {
         delete updatePayload.rate_multiplier
       }
     }
 
     // For apikey type, handle credentials update
-    if (props.account.type === 'apikey') {
+    if (props.account.type === 'apikey' && props.account.platform === 'factory') {
+      const currentCredentials = (props.account.credentials as Record<string, unknown>) || {}
+      const hasExistingApiKey =
+        props.account.credentials_status?.has_api_key ?? Boolean(currentCredentials.api_key)
+      const apiKey = editApiKey.value.trim()
+      if (!apiKey && !hasExistingApiKey) {
+        appStore.showError(t('admin.accounts.apiKeyIsRequired'))
+        return
+      }
+      updatePayload.credentials = buildFactoryCredentials({
+        apiKey,
+        region: editFactoryRegion.value,
+        factoryOrgId: editFactoryOrgId.value,
+        modelMapping: buildModelRestrictionMapping()
+      })
+    } else if (props.account.type === 'apikey') {
       const currentCredentials = (props.account.credentials as Record<string, unknown>) || {}
       const newBaseUrl = editBaseUrl.value.trim() || defaultBaseUrl.value
       const shouldApplyModelMapping = !(props.account.platform === 'openai' && openaiPassthroughEnabled.value)

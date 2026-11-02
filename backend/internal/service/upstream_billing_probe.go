@@ -1009,6 +1009,9 @@ func decodeUpstreamBillingProbeSnapshot(extra map[string]any) *UpstreamBillingPr
 // type=apikey by the admin form, so only pre-existing type=upstream rows
 // cannot turn the probe on.
 func IsUpstreamBillingProbeIdentity(platform, accountType string) bool {
+	if platform == PlatformFactory {
+		return false
+	}
 	return accountType == AccountTypeAPIKey && domain.IsConcretePlatform(platform)
 }
 
@@ -1047,6 +1050,7 @@ var upstreamBillingProbeOfficialAPIDomains = []string{
 	"typesafe.ai",
 	"commandcode.ai",
 	"cline.bot",
+	"factory.ai",
 }
 
 func upstreamBillingProbeTargetIsOfficialAPI(baseURL string) bool {

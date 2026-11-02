@@ -45,6 +45,8 @@ export interface HeaderOverrideRow {
 
 /** 请求头覆写资格（与后端 IsHeaderOverrideEligible 保持一致） */
 export function isHeaderOverrideCapable(platform: string, type: string): boolean {
+  // Factory credentials are a fixed allowlist validated by the backend.
+  if (platform === 'factory') return false
   if (platform === 'anthropic' || platform === 'openai' || isMultiProtocolApiKeyPlatform(platform)) {
     return type === 'apikey'
   }

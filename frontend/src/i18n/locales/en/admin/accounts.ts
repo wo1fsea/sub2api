@@ -628,6 +628,24 @@ export default {
       baseUrlHint: 'Leave default for official Anthropic API',
       apiKeyRequired: 'API Key *',
       apiKeyPlaceholder: 'sk-ant-api03-...',
+      factory: {
+        apiKeyOnly: 'Factory API key only. WorkOS device login/OAuth and token refresh are not supported.',
+        apiKeyHint: 'Factory API key (fk-...). Leave blank when editing to keep the current key.',
+        region: 'Region',
+        regions: {
+          us: 'United States (api.factory.ai)',
+          eu: 'European Union (api.eu.factory.ai)'
+        },
+        regionHint: 'Selects the fixed Factory endpoint only. Custom base URLs and protocol overrides are not accepted.',
+        orgId: 'Factory active organization ID (optional)',
+        orgIdPlaceholder: 'Leave blank for the key default',
+        orgIdHint: 'Enter only the Factory active organization ID, not a WorkOS organization ID. Leave blank to use the key default; clear it on edit to remove the explicit organization.',
+        capabilitiesTitle: 'Factory capabilities and limits',
+        capabilities: 'Supports Anthropic Messages, OpenAI Responses and Chat Completions. Model availability still depends on the Factory account entitlement.',
+        modelPrefixHint: 'Public model IDs use the factory/<native-id> prefix. Map them to native IDs, for example factory/claude-opus-5-5 to claude-opus-5-5.',
+        unsupported: 'Gemini generate, Fast Mode models, auto model selection, WorkOS login and generic upstream model sync are not supported.',
+        entitlement: 'Factory credit usage is entitlement-based; this form makes no USD pricing or upstream model discovery claim.'
+      },
       apiKeyHint: 'Your Claude Console API Key',
       upstreamRequestIdHeader: 'Upstream ID',
       upstreamRequestIdHeaderPlaceholder: 'Leave empty to record nothing',

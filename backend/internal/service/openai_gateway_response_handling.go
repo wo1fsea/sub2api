@@ -255,6 +255,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 	clientOutputStarted := false
 	codexFailureTerminal := account != nil && account.IsOpenAIOAuthLike()
 	upstreamRequestID := strings.TrimSpace(resp.Header.Get("x-request-id"))
+	upstreamRequestID = sanitizeFactoryDiagnosticHeader(account, upstreamRequestID)
 	var streamEarlyErr error
 	terminalFailurePending := false
 	failureDelivered := false
@@ -524,6 +525,11 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			}
 			cyberHit := false
 			if eventType == "response.failed" || eventType == "error" {
+				if account != nil && account.IsFactory() {
+					dataBytes = sanitizeFactoryErrorEventData(account, dataBytes)
+					data = string(dataBytes)
+					line = "data: " + data
+				}
 				if codexFailureTerminal && eventType == "error" {
 					sawBareError = true
 					bareErrorPayload = append(bareErrorPayload[:0], dataBytes...)

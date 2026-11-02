@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
+	factorypkg "github.com/Wei-Shaw/sub2api/internal/pkg/factory"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
@@ -81,6 +82,7 @@ func (s *OpenAIGatewayService) readOpenAIUpstreamErrorWithCompleteness(resp *htt
 	if int64(len(respBody)) > limit {
 		respBody = respBody[:limit]
 	}
+	respBody = sanitizeAPIKeyShapedJSONErrors(respBody)
 	_ = resp.Body.Close()
 	resp.Body = io.NopCloser(bytes.NewReader(respBody))
 
@@ -153,6 +155,9 @@ func (s *OpenAIGatewayService) failoverOpenAIUpstreamHTTPError(
 
 // openAIChatCompletionsTargetURL 解析账号的（非 Grok）Chat Completions 上游端点。
 func (s *OpenAIGatewayService) openAIChatCompletionsTargetURL(account *Account) (string, error) {
+	if account != nil && account.IsFactory() {
+		return factoryEndpointURL(account, APIProtocolChatCompletions)
+	}
 	baseURL := account.GetOpenAIBaseURL()
 	if baseURL == "" {
 		baseURL = "https://api.openai.com"
@@ -200,6 +205,15 @@ func (s *OpenAIGatewayService) sendCCUpstreamRequest(
 	// 字段，上游 400 "The `reasoning_content` in the thinking mode must be
 	// passed back to the API"。在共用出站点补空格占位，真实明文不覆盖。
 	body = ensureDeepSeekChatReasoningPlaceholders(account, body)
+	var factoryCredentials factorypkg.Credentials
+	var factoryModel factorypkg.Model
+	if account != nil && account.IsFactory() {
+		var factoryErr error
+		body, factoryCredentials, factoryModel, factoryErr = prepareFactoryUpstream(account, APIProtocolChatCompletions, body)
+		if factoryErr != nil {
+			return nil, factoryErr
+		}
+	}
 	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
 	upstreamReq, err := http.NewRequestWithContext(upstreamCtx, http.MethodPost, targetURL, bytes.NewReader(body))
 	releaseUpstreamCtx()
@@ -246,6 +260,11 @@ func (s *OpenAIGatewayService) sendCCUpstreamRequest(
 	// 使配置值获得除共享传输层强制头之外的最高优先级。
 	account.ApplyHeaderOverrides(upstreamReq.Header)
 	applyOpenCodeSessionHeader(c, account, targetURL, upstreamReq.Header, body)
+	if account.IsFactory() {
+		if err := applyFactoryRequestPolicy(upstreamReq, account, APIProtocolChatCompletions, factoryCredentials, factoryModel); err != nil {
+			return nil, err
+		}
+	}
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {

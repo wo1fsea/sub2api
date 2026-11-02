@@ -172,6 +172,22 @@
           </button>
           <button
             type="button"
+            data-testid="platform-button-factory"
+            @click="selectFactoryPlatform()"
+            class="skin-account-choice"
+            :aria-pressed="form.platform === 'factory'"
+            :class="[
+              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              form.platform === 'factory'
+                ? 'bg-white text-cyan-700 shadow-sm dark:bg-dark-600 dark:text-cyan-300'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+            ]"
+          >
+            <PlatformIcon platform="factory" size="sm" />
+            Factory
+          </button>
+          <button
+            type="button"
             @click="selectTypeSafePlatform()"
             :class="[
               'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
@@ -1494,6 +1510,20 @@
         </div>
       </div>
 
+      <!-- Factory is API-key only; there is no OAuth/WorkOS login path. -->
+      <div v-if="form.platform === 'factory'" data-testid="factory-account-type">
+        <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
+        <div class="mt-2 flex items-center gap-3 rounded-lg border-2 border-cyan-500 bg-cyan-50 p-3 dark:bg-cyan-900/20">
+          <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-600 text-white">
+            <Icon name="key" size="sm" />
+          </div>
+          <div>
+            <span class="block text-sm font-medium text-gray-900 dark:text-white">API Key</span>
+            <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.factory.apiKeyOnly') }}</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Add Method (only for Anthropic OAuth-based type) -->
       <div v-if="form.platform === 'anthropic' && isOAuthFlow">
         <label class="input-label">{{ t('admin.accounts.addMethod') }}</label>
@@ -1523,10 +1553,11 @@
 
       <!-- API Key input (only for apikey type, excluding Antigravity which has its own fields) -->
       <div v-if="form.type === 'apikey' && form.platform !== 'antigravity'" class="space-y-4">
-        <div v-if="!isMultiProtocolPlatform || apiProtocol !== 'adaptive'">
+        <div v-if="!isFactoryPlatform && (!isMultiProtocolPlatform || apiProtocol !== 'adaptive')">
           <label class="input-label">{{ t('admin.accounts.baseUrl') }}</label>
           <input
             v-model="apiKeyBaseUrl"
+            data-testid="api-key-base-url"
             type="text"
             class="input"
             :placeholder="apiKeyBaseUrlPlaceholder"
@@ -1547,7 +1578,7 @@
             @select="onCnPresetSelect"
           />
         </div>
-        <div v-else>
+        <div v-else-if="!isFactoryPlatform">
           <label class="input-label">{{ t('admin.accounts.cnProviders.apiProtocol.endpoints') }}</label>
           <div class="mt-2 space-y-3">
             <div v-for="item in cnAdaptiveProtocolOptions" :key="item.value">
@@ -1566,8 +1597,30 @@
             {{ t('admin.accounts.cnProviders.apiProtocol.responsesFallbackDesc') }}
           </p>
         </div>
+        <!-- Factory credentials are fixed: region + optional Factory active org. -->
+        <div v-if="isFactoryPlatform" data-testid="factory-credentials" class="space-y-4">
+          <div>
+            <label class="input-label">{{ t('admin.accounts.factory.region') }}</label>
+            <select v-model="factoryRegion" class="input" data-testid="factory-region">
+              <option value="us">{{ t('admin.accounts.factory.regions.us') }}</option>
+              <option value="eu">{{ t('admin.accounts.factory.regions.eu') }}</option>
+            </select>
+            <p class="input-hint">{{ t('admin.accounts.factory.regionHint') }}</p>
+          </div>
+          <div>
+            <label class="input-label">{{ t('admin.accounts.factory.orgId') }}</label>
+            <input
+              v-model="factoryOrgId"
+              type="text"
+              class="input font-mono"
+              data-testid="factory-org-id"
+              :placeholder="t('admin.accounts.factory.orgIdPlaceholder')"
+            />
+            <p class="input-hint">{{ t('admin.accounts.factory.orgIdHint') }}</p>
+          </div>
+        </div>
         <OpenCodeGoProtocolRulesEditor
-          v-if="routesByModel && apiProtocol === 'adaptive'"
+          v-if="!isFactoryPlatform && routesByModel && apiProtocol === 'adaptive'"
           v-model:rows="openCodeGoProtocolRules"
           :platform="form.platform"
           :plan="currentOpenCodeOrCNMode()"
@@ -1586,6 +1639,7 @@
 
         <!-- 上游倍率自动探测：全部 API-key 平台可用（所在区块已限定 apikey 类型） -->
         <div
+          v-if="!isFactoryPlatform"
           class="flex items-center justify-between gap-4 border-t border-gray-200 pt-4 dark:border-dark-600"
         >
           <div>
@@ -1611,6 +1665,18 @@
           <p class="input-hint">{{ t('admin.accounts.gemini.tier.aiStudioHint') }}</p>
         </div>
 
+        <div
+          v-if="isFactoryPlatform"
+          data-testid="factory-capabilities"
+          class="space-y-2 rounded-lg border border-cyan-200 bg-cyan-50 p-4 text-xs text-cyan-900 dark:border-cyan-800/50 dark:bg-cyan-900/20 dark:text-cyan-100"
+        >
+          <p class="font-medium">{{ t('admin.accounts.factory.capabilitiesTitle') }}</p>
+          <p>{{ t('admin.accounts.factory.capabilities') }}</p>
+          <p>{{ t('admin.accounts.factory.modelPrefixHint') }}</p>
+          <p>{{ t('admin.accounts.factory.unsupported') }}</p>
+          <p>{{ t('admin.accounts.factory.entitlement') }}</p>
+        </div>
+
         <!-- Model Restriction Section (Antigravity 已在上层条件排除) -->
         <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
           <label class="input-label">{{ t('admin.accounts.modelRestriction') }}</label>
@@ -1628,6 +1694,7 @@
             <!-- Mode Toggle -->
             <div class="mb-4 flex gap-2">
               <button
+                v-if="form.platform !== 'factory'"
                 type="button"
                 @click="modelRestrictionMode = 'whitelist'"
                 class="skin-account-choice"
@@ -1808,7 +1875,7 @@
         </div>
 
         <!-- Pool Mode Section -->
-        <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <div v-if="!isFactoryPlatform" class="border-t border-gray-200 pt-4 dark:border-dark-600">
           <div class="mb-3 flex items-center justify-between">
             <div>
               <label class="input-label mb-0">{{ t('admin.accounts.poolMode') }}</label>
@@ -1914,7 +1981,7 @@
         </div>
 
         <!-- Custom Error Codes Section -->
-        <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <div v-if="!isFactoryPlatform" class="border-t border-gray-200 pt-4 dark:border-dark-600">
           <div class="mb-3 flex items-center justify-between">
             <div>
               <label class="input-label mb-0">{{ t('admin.accounts.customErrorCodes') }}</label>
@@ -2663,7 +2730,7 @@
       </div>
 
       <!-- Temp Unschedulable Rules -->
-      <div class="border-t border-gray-200 pt-4 dark:border-dark-600 space-y-4">
+      <div v-if="form.platform !== 'factory'" data-testid="temp-unsched-section" class="border-t border-gray-200 pt-4 dark:border-dark-600 space-y-4">
         <div class="mb-3 flex items-center justify-between">
           <div>
             <label class="input-label mb-0">{{ t('admin.accounts.tempUnschedulable.title') }}</label>
@@ -2673,6 +2740,8 @@
           </div>
           <button
             type="button"
+            data-testid="temp-unsched-toggle"
+            :aria-pressed="tempUnschedEnabled"
             @click="tempUnschedEnabled = !tempUnschedEnabled"
             :class="[
               'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
@@ -3275,6 +3344,7 @@
       </div>
 
       <UpstreamRequestIdHeaderField
+        v-if="form.platform !== 'factory'"
         v-model="upstreamRequestIdHeader"
         :platform="form.platform"
         :type="form.type"
@@ -4240,6 +4310,10 @@ import {
 } from '@/components/account/credentialsBuilder'
 import { listPlatforms } from '@/constants/platformCatalog'
 import {
+  buildFactoryCredentials,
+  type FactoryRegion
+} from './factory'
+import {
   formatDateTimeLocalInput,
   getBrowserTimeZone,
   parseDateTimeLocalInput
@@ -4305,6 +4379,7 @@ const baseUrlHint = computed(() => {
 const apiKeyHint = computed(() => {
   if (form.platform === 'openai') return t('admin.accounts.openai.apiKeyHint')
   if (form.platform === 'gemini') return t('admin.accounts.gemini.apiKeyHint')
+  if (form.platform === 'factory') return t('admin.accounts.factory.apiKeyHint')
   // Grok 与多协议供应商没有对应的说明文案；通用文案指 Claude Console Key。
   if (form.platform === 'grok' || isMultiProtocolPlatform.value) return ''
   return t('admin.accounts.apiKeyHint')
@@ -4338,6 +4413,8 @@ const apiKeyValuePlaceholder = computed(() => {
       return 'AQ.Ab...'
     case 'grok':
       return 'xai-...'
+    case 'factory':
+      return 'fk-...'
     case 'kimi':
       return 'sk-...'
     case 'zhipu':
@@ -4437,6 +4514,8 @@ const accountCategory = ref<'oauth-based' | 'apikey' | 'bedrock' | 'service_acco
 const addMethod = ref<AddMethod>('oauth') // For oauth-based: 'oauth' or 'setup-token'
 const apiKeyBaseUrl = ref('https://api.anthropic.com')
 const apiKeyValue = ref('')
+const factoryRegion = ref<FactoryRegion>('us')
+const factoryOrgId = ref('')
 const upstreamBillingAutoProbeEnabled = ref(true)
 
 // ── 国产供应商（Kimi / Zhipu / DeepSeek）账号类型、API 协议与端点 ──
@@ -4459,14 +4538,24 @@ const adaptiveBaseUrls = ref<Record<CnNativeApiProtocol, string>>({
 })
 const isCNPlatform = computed(() => isCNProviderPlatform(form.platform))
 const isOpenCodeGoPlatform = computed(() => form.platform === 'opencode_go')
-const isMultiProtocolPlatform = computed(() => isMultiProtocolApiKeyPlatform(form.platform))
+const isFactoryPlatform = computed(() => form.platform === 'factory')
+// Factory has a by_model profile for backend routing, but its account form is a
+// fixed API-key form and must not expose generic provider mode/protocol fields.
+const isMultiProtocolPlatform = computed(
+  () => !isFactoryPlatform.value && isMultiProtocolApiKeyPlatform(form.platform)
+)
 // 前端没有专属界面、走通用表单的多协议供应商：模式、协议、默认端点
 // 与分流规则全部来自平台清单中的 profile。
 const isGenericMultiProtocolPlatform = computed(
   () => isMultiProtocolPlatform.value && !isCNPlatform.value && !isOpenCodeGoPlatform.value
 )
 const extraMultiProtocolPlatforms = computed(() =>
-  listPlatforms().filter(spec => !!spec.multi_protocol && !isCNProviderPlatform(spec.id) && spec.id !== 'opencode_go')
+  listPlatforms().filter(spec =>
+    !!spec.multi_protocol &&
+    !isCNProviderPlatform(spec.id) &&
+    spec.id !== 'opencode_go' &&
+    spec.id !== 'factory'
+  )
 )
 const genericAccountModes = computed(() => providerAccountModes(form.platform))
 // 按模型分流的供应商（OpenCode 等）：adaptive 账号携带 protocol_rules。
@@ -4570,6 +4659,14 @@ function selectTypeSafePlatform() {
   accountCategory.value = 'apikey'
   apiKeyBaseUrl.value = 'https://api.typesafe.ai'
   allowedModels.value = ['jev-latest']
+}
+function selectFactoryPlatform() {
+  form.platform = 'factory'
+  form.type = 'apikey'
+  accountCategory.value = 'apikey'
+  modelRestrictionMode.value = 'mapping'
+  factoryRegion.value = 'us'
+  factoryOrgId.value = ''
 }
 function selectGenericMultiProtocolPlatform(platform: string) {
   form.platform = platform
@@ -5178,7 +5275,7 @@ watch(
   () => form.platform,
   (newPlatform) => {
     // Reset base URL based on platform
-    if (isMultiProtocolApiKeyPlatform(newPlatform)) {
+    if (isMultiProtocolApiKeyPlatform(newPlatform) && newPlatform !== 'factory') {
       const mode = newPlatform === 'opencode_go' ? openCodeAccountMode.value : accountMode.value
       apiKeyBaseUrl.value = defaultCNBaseUrl(newPlatform, mode, apiProtocol.value)
     } else {
@@ -5202,6 +5299,16 @@ watch(
       // Grok 等平台会把模式切到映射；TypeSafe 只用白名单写入 jev-latest。
       modelRestrictionMode.value = 'whitelist'
       allowedModels.value = ['jev-latest']
+    }
+    if (newPlatform === 'factory') {
+      // Factory is API-key only and uses explicit public -> native model mappings.
+      accountCategory.value = 'apikey'
+      form.type = 'apikey'
+      modelRestrictionMode.value = 'mapping'
+      // Temp-unschedulable rules live in credentials, which Factory rejects.
+      // Clear hidden stale state when switching to the API-key-only Factory form.
+      tempUnschedEnabled.value = false
+      tempUnschedRules.value = []
     }
     // Antigravity: 默认使用映射模式并填充默认映射
     if (newPlatform === 'antigravity') {
@@ -5606,7 +5713,7 @@ const submitCreateAccount = async (payload: CreateAccountRequest) => {
       Object.values(modelMapping).some((target) =>
         typeof target === 'string' && target.trim() !== '' && !target.includes('*')
       )
-    if (upstreamModelsPreviewed.value || hasConcreteMappedTarget) {
+    if (payload.platform !== 'factory' && (upstreamModelsPreviewed.value || hasConcreteMappedTarget)) {
       try {
         const result = await adminAPI.accounts.syncUpstreamModels(account.id)
         const warnings = result.warnings ?? []
@@ -5673,6 +5780,8 @@ const resetForm = () => {
   adaptiveBaseUrls.value = { chat_completions: '', anthropic: '', responses: '' }
   apiKeyBaseUrl.value = 'https://api.anthropic.com'
   apiKeyValue.value = ''
+  factoryRegion.value = 'us'
+  factoryOrgId.value = ''
   upstreamRequestIdHeader.value = ''
   upstreamBillingAutoProbeEnabled.value = true
   editQuotaLimit.value = null
@@ -6148,6 +6257,21 @@ const handleSubmit = async () => {
     return
   }
 
+  if (form.platform === 'factory') {
+    const modelMapping = buildModelMappingObject('mapping', [], modelMappings.value)
+    const credentials = buildFactoryCredentials({
+      apiKey: apiKeyValue.value,
+      region: factoryRegion.value,
+      factoryOrgId: factoryOrgId.value,
+      modelMapping
+    })
+    form.credentials = credentials
+    // Use the shared create finisher so Factory also serializes quota limits,
+    // reset windows and notification settings from QuotaLimitCard into extra.
+    await createAccountAndFinish(form.platform, 'apikey', credentials)
+    return
+  }
+
   // Determine default base URL based on platform
   const defaultBaseUrl =
     form.platform === 'openai'
@@ -6322,7 +6446,9 @@ const createAccountAndFinish = async (
   credentials: Record<string, unknown>,
   extra?: Record<string, unknown>
 ) => {
-  if (!applyTempUnschedConfig(credentials)) {
+  // Factory credentials are a strict allowlist and this control is hidden for
+  // Factory, so never serialize (or validate) stale temp-unsched state there.
+  if (platform !== 'factory' && !applyTempUnschedConfig(credentials)) {
     return
   }
   // Inject quota limits for apikey/bedrock/service_account accounts
@@ -6395,7 +6521,10 @@ const createAccountAndFinish = async (
     expires_at: form.expires_at,
     // 上游倍率探测对全部 API-key 平台开放（antigravity upstream 走本 helper）；
     // 非 apikey 类型（bedrock/oauth）不传，后端不动作。
-    upstream_billing_probe_enabled: type === 'apikey' ? upstreamBillingAutoProbeEnabled.value : undefined,
+    upstream_billing_probe_enabled:
+      type === 'apikey'
+        ? (platform === 'factory' ? false : upstreamBillingAutoProbeEnabled.value)
+        : undefined,
     auto_pause_on_expired: autoPauseOnExpired.value
   })
 }

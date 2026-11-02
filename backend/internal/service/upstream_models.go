@@ -223,6 +223,9 @@ func (s *AccountTestService) FetchUpstreamSupportedModels(ctx context.Context, a
 // snapshot. When no model is complete, the existing account snapshot is left
 // untouched.
 func (s *AccountTestService) SyncUpstreamModelCatalog(ctx context.Context, account *Account) (*UpstreamModelCatalog, error) {
+	if account != nil && account.IsFactory() {
+		return nil, newUpstreamModelSyncUnsupportedError("Factory upstream model sync is not supported", nil)
+	}
 	fetched, err := s.fetchUpstreamModelListWithObservation(ctx, account)
 	var (
 		models          []string
@@ -990,6 +993,8 @@ func listVertexGeminiPublisherModels(location string, fetchPage func(page int, l
 
 func (s *AccountTestService) buildUpstreamModelsRequest(ctx context.Context, account *Account) (*http.Request, error) {
 	switch {
+	case account.IsFactory():
+		return nil, newUpstreamModelSyncUnsupportedError("Factory upstream model sync is not supported", nil)
 	case account.Platform == PlatformAntigravity:
 		return s.buildAntigravityAPIKeyModelsRequest(ctx, account)
 	case account.IsGrok():

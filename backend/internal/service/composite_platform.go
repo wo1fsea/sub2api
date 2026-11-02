@@ -117,6 +117,10 @@ func DetectModelPlatform(model string) (string, bool) {
 			return PlatformMiniMax, true
 		case "typesafe", "jev":
 			return PlatformTypeSafe, true
+		case "factory":
+			if rest != "" {
+				return PlatformFactory, true
+			}
 		}
 		if rest != "" {
 			normalized = strings.TrimPrefix(rest, "models/")
