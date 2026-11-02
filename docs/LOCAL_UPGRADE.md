@@ -2,11 +2,13 @@
 
 Current source combines upstream `v0.2.19` with our local appearance, quota overview, mixed-version scheduler compatibility and local-upgrade tooling. Application `VERSION` and immutable build inputs are `0.2.19`; the source SHA and image ID distinguish each custom build. See [UPSTREAM_SYNC_0.2.19.md](UPSTREAM_SYNC_0.2.19.md) for merge decisions, migration inventory, the migration-246 policy gate and validation. Packaging alone never changes the running service, production database, secrets, or entry. The Cursor experiment is excluded.
 
-## Source update versus installed release
+## Current installed release: Factory upstream on 0.2.19
 
-The 2026-10-28 upstream sync is a source update only. The installed Mac release remains `0.2.13`, source `7b8b60c7827b5bcf8a594b770b02d22e30a81883`, in `/Users/clawbotbot/Projects/sub2api-local/current-0.2.13`; the recovery checkout remains `/Users/clawbotbot/Projects/sub2api-neubrutalism`. The new worktree is `/Users/clawbotbot/Projects/sub2api-sync-20261028-v0219`. This path adds eight SQL migration files and requires Go `1.27.3`; historical statements below about no migrations apply only to their original releases.
+As of 2026-11-02, the stable deployment path `/Users/clawbotbot/Projects/sub2api-local/current-0.2.13` serves the Factory-upstream 0.2.19 revision. The directory name is retained for recovery compatibility. The deployed image is `sha256:b11cdf9fbdb326a5b0cc400b3e6c94f972274647c488714c493d8f2307696a47`, source commit `d784fb507d192ed6c203d0291be03b1abe600480`, on formal branch `codex/sync/20261028-v0.2.19`; the reviewed ops-tool commit is `e7e084a2212aca8996c5fc21a32fd1ba48090859`. The prior 0.2.19 image `sha256:5a41a1ae1a94546096b9061b6e5b75ecb63ed9bda8c487c0fafbefcda36feb81` and its prior Compose/state snapshots remain retained for rollback.
 
-`upgrade-current.mjs` now explicitly accepts the installed `0.2.13` recovery identity and the fixed `0.2.19` target, while rejecting every other version. Candidate preparation still requires an exact immutable manifest, a fresh backup, an exact-image isolated restore report, successful candidate source-aware probes, and the migration-246 policy gate. Do not broaden the version allowlist merely to bypass these checks.
+This release adds no schema migration relative to the deployed 0.2.19 schema. `upgrade-current.mjs` supports both the fixed first-upgrade `0.2.13` → `0.2.19` path and the explicit same-version `0.2.19` → `0.2.19` path. Same-version preparation and activation require an exact successful isolated restore report and reject a missing report. Rehearsal verifies all 299 real migration filenames/checksums and enforces zero migration changes, persisted settings/business/gate/scoped-key/image-billing preservation, and only the expected GET-derived factory null-quota projection addition. See [LOCAL_DELIVERY_FACTORY_0.2.19.md](LOCAL_DELIVERY_FACTORY_0.2.19.md) for the exact image, backup, rehearsal, activation and client-regression evidence.
+
+The historical sections below describe their original releases. Use `upgrade-current.mjs` for the installed deployment; do not replay older hard-coded release helpers against it.
 
 ## Installed local release: monochrome appearance (0.2.13)
 
