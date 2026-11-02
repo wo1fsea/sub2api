@@ -1,6 +1,6 @@
 # Local release delivery: Factory upstream on 0.2.19
 
-Date: 2026-11-02 (Asia/Shanghai). This document records the second immutable 0.2.19 local revision, which adds the accepted Factory upstream feature to the established `codex/sync/20261028-v0.2.19` release line. The application version remains `0.2.19`; the source revision and image digest distinguish this release from the earlier deployed 0.2.19 build.
+Date: 2026-11-02, updated 2026-11-03 (Asia/Shanghai). This document records the second immutable 0.2.19 local revision, which adds the accepted Factory upstream feature to the established `codex/sync/20261028-v0.2.19` release line, plus the post-cutover Factory-admin and Pi fleet follow-up. The application version remains `0.2.19`; the source revision and image digest distinguish this release from the earlier deployed 0.2.19 build.
 
 ## Identity
 
@@ -65,7 +65,7 @@ Date: 2026-11-02 (Asia/Shanghai). This document records the second immutable 0.2
 ## Existing-client acceptance
 
 - t18 gateway/catalog/HTTP gate passed with no regression:
-  - Existing client keys 7 and 9 remained in group 10 and retained the same 30-model catalog; no added or missing models in the comparison.
+  - Existing client keys 7 and 9 remained in group 10 and retain all original 30 model IDs. After D, each authenticated client catalog contains 64 entries: the original 30 plus the exact 34 public Factory IDs; no original model is missing and no group rebinding occurred. The complete sorted set hash is `cda9172dc249341808e94ae986791f94beb6989898348685132568253409b351`.
   - Terra: HTTP 200, completed, exact usage row `218961` attributed to account 2/model `gpt-6.1-terra`.
   - DeepSeek: HTTP 200, completed, exact usage row `218963` attributed to account 8/model `deepseek-v4-flash`.
   - Health, unauthenticated 401, registration disabled, and old/new entry assets passed.
@@ -76,8 +76,20 @@ Date: 2026-11-02 (Asia/Shanghai). This document records the second immutable 0.2
   - Separate-peer HTTPS: from ppc over `https://openclaw-macmini-ts.tailff52e6.ts.net/health` (443) returned HTTP 200 `{"status":"ok"}`; no paid call.
   - Evidence: `/tmp/factory-prod-fleet-c-postbaseline.json`, SHA-256 `a84c1835bd509fb0cdae9e38b862888c75712ccc42fc0a58867108cd412f16e2`.
   - Acceptance report: `/tmp/factory-prod-accept-report.md`, SHA-256 `3348bb149914842b71e35a3d0d4e5c5d88d1eccf801d454a60961b1bf1cee314`; postcutover evidence `/tmp/factory-prod-accept-postcutover.json`, SHA-256 `c07b70cbec6a980270c85dc72417c8b55c46939ec355ecaf5f773175a34cc3af`.
-- No existing Sub2API Claude catalog route is claimed: the current catalog/group baseline has no Claude entries, account 12 is not bound, and the separate Claude client is unrelated. Factory Claude onboarding remains deferred and separate.
-- No rollback was triggered because no regression was observed.
+- The original 30-model baseline contained no Claude route; account 12 remains unbound and the separate legacy Claude client is unrelated. Factory Claude model availability is a new namespaced route under account 13 and is not represented as preservation of a pre-existing Claude baseline.
+- No rollback was triggered because no existing-service/client regression was observed.
+
+## Factory admin and Pi fleet follow-up
+
+- Factory account 13 (`sub2api-live`, platform `factory`, type `apikey`) is active, schedulable, concurrency 1, with `group_ids=[10]` and `mapping_count=34`. The 34 public `factory/` model mappings are the exact admitted profile set. The temporary probe key/group resources were deleted; the stored account credential remains available to its authorized owner and no credential bytes are recorded here.
+- The shared group 10 keeps the original 30-model baseline and now also advertises the 34 namespaced Factory IDs, for 64 total entries through existing clients. No new provider ID was added; the installed provider remains the existing node-local `sub2api` provider.
+- The Factory credential was used only inside the authorized D/E lanes. It was never copied to this repository, this document, logs, node caches or another provider. No `sub2api-factory` provider or credential duplication was created.
+- Private pi-fleet follow-up: model-discovery `0.2.1` adds the bounded `factory/...` namespace-ID fix (shared slash-ID validation across binding, inventory, cache and excluded-report; 128-character limit; slash-aware non-chat exclusion; provider IDs stay slash-free). Extension package source `2aed34382cf139139b4cf7ffe96c65ae64eeded1`, installer-only follow-up `751f65153029676b0617d493db78fd654aa3f88f`, version `0.2.1`, seven-file manifest SHA-256 `27246db94ed31f35c538d772ed441085b81398ff7e991a0b7add6f0590a22ea5`, installer SHA-256 `bceb84077c292d82b8e7980d040b0641f2736b96aa940806d84be769e4d9de4b`.
+- Three reachable Pi nodes (`macmini`, `ppc`, `wpc`) passed the urgent repair matrix 8/8: two ordinary DeepSeek rows, three normal Claude rows, and three no-extension Claude rows, each with terminal completion, exact model/provider/API and no blocking warning. The final normal Claude matrix is 10 models per node / 30-of-30 rows; it is functional terminal evidence, not a claim that all 34 Factory models or every harness path was exercised.
+- Windows installer receipts now record per-directory `{existed, strictDaclCompliant, skippedAclWrite, noSetAcl}`. Existing package-root and cache DACLs on PPC/WPC met the strict owner/current+SYS/2-rule FullControl/CI+OI/Propagation-None/no-inherited/protected conditions and skipped `Set-Acl` with zero ACL writes. New backup/staging directories still received strict private ACL writes and readback. The current token cannot read the real SACL (`Get-Acl -Audit` PrivilegeNotHeldException), so this document does not claim SACL equality; exact-skip zero-write provenance is the auditable boundary. Full details, per-node receipts, model backups and rollback paths are in `~/Projects/pi-fleet/docs/model-discovery-v0.2.1-rollout.md` and its sanitized evidence JSON.
+- WPC later changed `auth.json` and `models-store.json` hashes around `2026-11-02T17:54:00Z` during normal Pi activity; the installer pre/post protected check was unchanged, the existing `sub2api` key fingerprint is stable against prior node-local backups, and the exact semantic difference in unrelated auth/OAuth/store content is unknown. Current files are preserved with no restore. This record does not claim that every credential file stayed byte-identical through the whole workflow.
+- MACmini encountered a pre-existing broken unrelated Herdr extension symlink during the first 0.2.1 stage; the package deploy was rolled back to 0.2.0, models stayed unchanged, and normal startup recovered. The later scoped SDK verifier excluded only that unrelated broken extension and actual normal startup/help/list plus urgent normal/no-extension inference passed. The user extension itself was not repaired. The recovery incident and extension-fix pointer belong to the later docs commit and root-owned NOTES entry; this document does not claim that extension was fixed.
+- MBA was unreachable after a bounded attempt and Alienware was deferred/uncontacted. The additional per-Claude matrix results are appended as evidence only; they are not an all-model or all-credential acceptance claim.
 
 ## Rollback
 
@@ -91,7 +103,8 @@ The reviewed path restores the retained prior 0.2.19 image and saved prior Compo
 
 ## Boundaries
 
-- The application image remains source `d784fb50…` and digest `b11cdf9f…`. This docs/ops commit changes no application binary.
-- No Factory live key was read, no Factory account was created, and no Pi/WPC configuration was changed in this lane.
-- No HK deployment, origin push, force push, `.env` modification, secret export, or unrelated workload mutation was performed.
-- t9 weekly log review was not interrupted; retired unrelated containers were preserved.
+- The application image remains source `d784fb50…` and digest `b11cdf9f…`. This documentation-only follow-up changes no application binary or runtime.
+- Factory account 13 is active in group 10 with 34 public mappings; no credential bytes are recorded. The node-local provider remains `sub2api`; no new provider was introduced and no credential/cache was copied between nodes.
+- Pi/WPC model additions, installer deployment and model probes were performed in the authorized t16 fleet lane. This docs change does not perform live inference, ACL mutation, runtime upgrade or credential access.
+- No HK deployment, force push, `.env` modification, secret export, or unrelated workload mutation was performed. The only repository publication here is the scoped docs update.
+- t9 weekly log review was not interrupted; retired unrelated containers were preserved. Recovery incident and Herdr extension-repair details remain root-owned NOTES material for a later docs update.
