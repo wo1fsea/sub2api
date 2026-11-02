@@ -262,10 +262,21 @@ test('live PostgreSQL backup coverage must match the actual data directory and l
 function restoreReportFixture(now, fixture, candidateManifest = manifest) {
   const reportPath = '/Users/clawbotbot/Projects/sub2api-upgrade-private/rehearsal-AbC123/rehearsal-report.json'
   const backup = '/Users/clawbotbot/Projects/sub2api-upgrade-private/backup-AbC123'
+  const sourceTrees = { backend: '1'.repeat(40), frontend: '2'.repeat(40), migrations: '3'.repeat(40) }
+  const toolFiles = Object.fromEntries([
+    'deploy/local-upgrade/upgrade-current.mjs', 'deploy/local-upgrade/rehearse-private.mjs',
+    'deploy/local-upgrade/rehearse-private-validation.mjs', 'deploy/local-upgrade/backup-private.mjs',
+    'deploy/local-upgrade/backup-manifest.mjs', 'deploy/local-upgrade/pg-dump-toc.mjs',
+    'deploy/local-upgrade/service-recovery.mjs', 'deploy/local-upgrade/live-gateway.mjs',
+    'deploy/local-upgrade/compatibility-inventory.sql'
+  ].map(path => [path, 'd'.repeat(64)]))
   const report = {
     passed: true, cleanupSucceeded: true, scriptCompleted: true, cleanupErrors: [],
     productionDeploymentPerformed: false, realGatewayCallsTested: false,
     backup, directory: dirname(reportPath), backupManifestSha256: 'a'.repeat(64), candidateManifestSha256: 'b'.repeat(64),
+    candidateManifestHash: 'b'.repeat(64), imageSourceCommit: candidateManifest.commit,
+    opsToolSha: 'e'.repeat(40), toolWorktreeClean: true, toolFiles, imageSourceTrees: sourceTrees, opsToolTrees: { ...sourceTrees },
+    applicationTreesMatchImageSource: true,
     oldContainerId: fixture.container.Id, oldImageId: fixture.container.Image,
     candidateCommit: candidateManifest.commit, candidateImageId: candidateManifest.imageId, candidateVersion: candidateManifest.version,
     migrationMode: sameVersionMode,
@@ -304,6 +315,14 @@ test('isolated restore report must match exact backup, manifests, image/commit, 
     report => { report.candidateCommit = 'f'.repeat(40) },
     report => { report.candidateImageId = currentImage },
     report => { report.candidateVersion = '0.2.20' },
+    report => { report.candidateManifestHash = 'f'.repeat(64) },
+    report => { report.imageSourceCommit = 'f'.repeat(40) },
+    report => { report.opsToolSha = 'short' },
+    report => { report.toolWorktreeClean = false },
+    report => { report.applicationTreesMatchImageSource = false },
+    report => { report.opsToolTrees.backend = 'f'.repeat(40) },
+    report => { delete report.toolFiles['deploy/local-upgrade/rehearse-private.mjs'] },
+    report => { report.toolFiles['../escape.mjs'] = 'f'.repeat(64) },
     report => { report.migrationMode = firstUpgradeMode },
     report => { report.isolation.networkInternal = false },
     report => { report.isolation.helperNetworkNone = false },
@@ -646,6 +665,7 @@ test('local upgrade does not restore live stores, rewrite Serve, prune images or
   assert(restoration.includes("verified ? 'rolled-back-verified' : 'rolled-back-route-restored-unverified'"))
   assert(!restoration.includes('pg_restore'))
   assert(!restoration.includes('state.rollbackCandidateProbe'))
+  assert(source.includes('Restore report ops tool file changed'))
   assert(rehearsalSource.includes('const imageBillingBefore = sameVersion ? imageBillingRows() : null'))
   assert(rehearsalSource.includes('const scopedAdminKeysBefore = sameVersion ? scopedAdminKeyRows() : null'))
   assert(rehearsalSource.includes("assert.equal(scopedAdminKeyRows(), 0, 'Rehearsal unexpectedly contains administrator API keys')"))

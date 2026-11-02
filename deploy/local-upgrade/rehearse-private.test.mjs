@@ -5,8 +5,9 @@ import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import {
-  assertMigrationRowsMatchSource, assertNoMigrationChanges, expectedFirstUpgradeMigrations, firstUpgradeMode, normalizeMigrationRows, sameVersionMode,
-  selectRehearsalMode, validateMigrationTransition, validateSameVersionPreserved
+  assertExpectedFactoryPlatformQuotaProjection, assertMigrationRowsMatchSource, assertNoMigrationChanges, assertPersistedConfigurationEqual,
+  expectedFirstUpgradeMigrations, firstUpgradeMode, normalizeMigrationRows, sameVersionMode, selectRehearsalMode,
+  validateMigrationTransition, validateSameVersionPreserved
 } from './rehearse-private-validation.mjs'
 
 const baseMigration = { filename: '241_groups.sql', checksum: '1'.repeat(64) }
@@ -125,4 +126,44 @@ test('real 299 release-source migration filenames and checksums normalize and ma
   for (const unsafe of ['../006b_evil.sql', '006b_dir/evil.sql', '006b_evil.SQL', '006b_evil.txt', '006b\\evil.sql']) {
     assert.throws(() => normalizeMigrationRows([{ filename: unsafe, checksum: 'a'.repeat(64) }]), /Migration filename is invalid/)
   }
+})
+
+test('admin settings projection permits only the exact factory null-quota addition', () => {
+  const before = { default_platform_quotas: { openai: { daily: 1, weekly: null, monthly: 2 } }, other: { enabled: true } }
+  const after = structuredClone(before)
+  after.default_platform_quotas.factory = { daily: null, weekly: null, monthly: null }
+  const result = assertExpectedFactoryPlatformQuotaProjection(before, after)
+  assert.equal(result.expectedOnlyFactoryZeroQuotaAddition, true)
+  assert.deepEqual(result.changedPaths, ['default_platform_quotas.factory'])
+  assert.deepEqual(result.addedPlatforms, ['factory'])
+  assert.deepEqual(result.addedFactoryFields, ['daily', 'monthly', 'weekly'])
+  assert.deepEqual(result.removedPlatforms, [])
+  assert.equal(result.existingTopLevelValuesEqual, true)
+  assert.equal(result.existingPlatformQuotaValuesEqual, true)
+  assert(!JSON.stringify(result).includes('"daily":1'))
+
+  const invalid = []
+  const nonNull = structuredClone(after); nonNull.default_platform_quotas.factory.daily = 0; invalid.push(nonNull)
+  const extraFactory = structuredClone(after); extraFactory.default_platform_quotas.factory.cap = null; invalid.push(extraFactory)
+  const extraPlatform = structuredClone(after); extraPlatform.default_platform_quotas.deepseek = { daily: null, weekly: null, monthly: null }; invalid.push(extraPlatform)
+  const changedExisting = structuredClone(after); changedExisting.default_platform_quotas.openai.daily = 9; invalid.push(changedExisting)
+  const changedTop = structuredClone(after); changedTop.other.enabled = false; invalid.push(changedTop)
+  const extraTop = structuredClone(after); extraTop.unexpected = true; invalid.push(extraTop)
+  const missingFactory = structuredClone(before); invalid.push(missingFactory)
+  const removedPlatform = structuredClone(after); delete removedPlatform.default_platform_quotas.openai; invalid.push(removedPlatform)
+  for (const candidate of invalid) assert.throws(() => assertExpectedFactoryPlatformQuotaProjection(before, candidate))
+
+  const secret = 'fixture-DO-NOT-PRINT'
+  const secretBefore = { default_platform_quotas: { openai: { daily: null, weekly: null, monthly: null } }, private_setting: { token: secret } }
+  const secretAfter = structuredClone(secretBefore); secretAfter.private_setting = { token: 'changed' }; secretAfter.default_platform_quotas.factory = { daily: null, weekly: null, monthly: null }
+  assert.throws(() => assertExpectedFactoryPlatformQuotaProjection(secretBefore, secretAfter), error => !String(error).includes(secret))
+})
+
+test('persisted configuration comparison ignores only the separate admin API observation', () => {
+  const before = { schema: 'a', appData: ['b'], imageGeneration: [1], imageBilling: [2], scopedAdminKeyRows: 0, unlimitedQuotaRows: 0,
+    adminSettingsApi: { sha256: 'old', keyHashes: { registration_enabled: '1' } } }
+  const after = { ...structuredClone(before), adminSettingsApi: { sha256: 'new', keyHashes: { registration_enabled: '2' } } }
+  assert.doesNotThrow(() => assertPersistedConfigurationEqual(before, after))
+  const persistedChange = structuredClone(after); persistedChange.imageBilling = [9]
+  assert.throws(() => assertPersistedConfigurationEqual(before, persistedChange), /persisted configuration state changed/)
 })

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 
 export const firstUpgradeMode = 'first-upgrade-0.2.13-to-0.2.19'
 export const sameVersionMode = 'same-version-0.2.19-revision'
@@ -108,4 +109,68 @@ export function validateSameVersionPreserved({ beforeMigrations, afterMigrations
   assert.deepEqual(afterBusiness, beforeBusiness, 'Same-version business projections changed')
   assert.deepEqual(afterConfiguration, beforeConfiguration, 'Same-version configuration state changed')
   return { migrationsStable: true, businessStable: true, configurationStable: true, restartStable: true }
+}
+
+export function persistedConfigurationState(snapshot) {
+  assert(snapshot !== null && typeof snapshot === 'object' && !Array.isArray(snapshot), 'Configuration snapshot is invalid')
+  const { adminSettingsApi, ...persisted } = snapshot
+  assert(adminSettingsApi === undefined || (adminSettingsApi !== null && typeof adminSettingsApi === 'object'), 'Admin settings API observation is invalid')
+  return persisted
+}
+
+export function assertPersistedConfigurationEqual(before, after, message = 'Same-version persisted configuration state changed') {
+  assert.deepEqual(persistedConfigurationState(after), persistedConfigurationState(before), message)
+}
+
+function stableJson(value) {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`
+  if (value !== null && typeof value === 'object') return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`
+  return JSON.stringify(value)
+}
+const stableSha256 = value => createHash('sha256').update(stableJson(value)).digest('hex')
+
+export function assertExpectedFactoryPlatformQuotaProjection(before, after) {
+  assert(before !== null && typeof before === 'object' && !Array.isArray(before), 'Admin settings API before snapshot is invalid')
+  assert(after !== null && typeof after === 'object' && !Array.isArray(after), 'Admin settings API after snapshot is invalid')
+  const beforeTopKeys = Object.keys(before).sort(), afterTopKeys = Object.keys(after).sort()
+  assert.deepEqual(afterTopKeys, beforeTopKeys, 'Admin settings API top-level key set changed')
+  for (const key of beforeTopKeys) {
+    if (key === 'default_platform_quotas') continue
+    assert(stableJson(after[key]) === stableJson(before[key]), `Admin settings API changed an existing field: ${key}`)
+  }
+  const beforeBlock = before.default_platform_quotas, afterBlock = after.default_platform_quotas
+  assert(beforeBlock !== null && beforeBlock !== undefined && typeof beforeBlock === 'object' && !Array.isArray(beforeBlock), 'Admin settings API default_platform_quotas before state is invalid')
+  assert(afterBlock !== null && afterBlock !== undefined && typeof afterBlock === 'object' && !Array.isArray(afterBlock), 'Admin settings API default_platform_quotas after state is invalid')
+  const beforePlatforms = Object.keys(beforeBlock).sort(), afterPlatforms = Object.keys(afterBlock).sort()
+  const beforeSet = new Set(beforePlatforms), afterSet = new Set(afterPlatforms)
+  const removedPlatforms = beforePlatforms.filter(platform => !afterSet.has(platform))
+  const addedPlatforms = afterPlatforms.filter(platform => !beforeSet.has(platform))
+  assert.deepEqual(removedPlatforms, [], 'Admin settings API removed an existing platform quota')
+  for (const platform of beforePlatforms) {
+    if (platform === 'factory') continue
+    assert(stableJson(afterBlock[platform]) === stableJson(beforeBlock[platform]), `Admin settings API changed an existing platform quota: ${platform}`)
+  }
+  let factoryAdded = false
+  if (beforeSet.has('factory')) {
+    assert.deepEqual(addedPlatforms, [], 'Admin settings API added an unexpected platform quota')
+    assert(stableJson(afterBlock.factory) === stableJson(beforeBlock.factory), 'Admin settings API changed the existing factory platform quota')
+  } else {
+    assert.deepEqual(addedPlatforms, ['factory'], 'Admin settings API must add only factory platform quota')
+    const factory = afterBlock.factory
+    assert(factory !== null && typeof factory === 'object' && !Array.isArray(factory), 'Admin settings API factory quota shape is invalid')
+    assert.deepEqual(Object.keys(factory).sort(), ['daily', 'monthly', 'weekly'], 'Admin settings API factory quota keys changed')
+    assert(factory.daily === null && factory.weekly === null && factory.monthly === null, 'Admin settings API factory quota must be null/unlimited')
+    factoryAdded = true
+  }
+  return {
+    expectedOnlyFactoryZeroQuotaAddition: factoryAdded,
+    changedPaths: factoryAdded ? ['default_platform_quotas.factory'] : [],
+    addedPlatforms,
+    addedFactoryFields: factoryAdded ? ['daily', 'monthly', 'weekly'] : [],
+    removedPlatforms,
+    existingTopLevelValuesEqual: true,
+    existingPlatformQuotaValuesEqual: true,
+    beforeSha256: stableSha256(before),
+    afterSha256: stableSha256(after)
+  }
 }

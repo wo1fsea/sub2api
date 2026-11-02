@@ -30,6 +30,17 @@ const supportedVersions = new Set([currentRecoveryVersion, targetVersion])
 const assetPattern = /^\/assets\/[a-zA-Z0-9_.-]+-[a-zA-Z0-9_-]{6,}\.(?:js|css)$/
 const sha = value => createHash('sha256').update(value).digest('hex')
 const restoreReportPattern = new RegExp(`^${backupRoot}/rehearsal-[a-zA-Z0-9]+/rehearsal-report\.json$`)
+const requiredOpsToolFiles = [
+  'deploy/local-upgrade/upgrade-current.mjs',
+  'deploy/local-upgrade/rehearse-private.mjs',
+  'deploy/local-upgrade/rehearse-private-validation.mjs',
+  'deploy/local-upgrade/backup-private.mjs',
+  'deploy/local-upgrade/backup-manifest.mjs',
+  'deploy/local-upgrade/pg-dump-toc.mjs',
+  'deploy/local-upgrade/service-recovery.mjs',
+  'deploy/local-upgrade/live-gateway.mjs',
+  'deploy/local-upgrade/compatibility-inventory.sql'
+]
 const require = createRequire(join(root, 'frontend/package.json'))
 let ts
 
@@ -238,6 +249,18 @@ export function assertRestoreReport(report, reportPath, backup, manifest, manife
   check(report.candidateManifestSha256 === manifestSha256, 'Restore report does not match the exact candidate manifest')
   check(report.oldContainerId === activeContainer.Id && report.oldImageId === activeContainer.Image, 'Restore report does not match the current production container/image')
   check(report.candidateCommit === manifest.commit && report.candidateImageId === manifest.imageId && report.candidateVersion === manifest.version, 'Restore report does not match the exact release commit/image/version')
+  check(report.candidateManifestHash === manifestSha256, 'Restore report candidate manifest hash alias changed')
+  check(report.imageSourceCommit === manifest.commit, 'Restore report image source commit differs from the candidate')
+  check(/^[a-f0-9]{40}$/.test(report.opsToolSha || '') && report.toolWorktreeClean === true, 'Restore report ops-tool commit/cleanliness is invalid')
+  check(report.applicationTreesMatchImageSource === true, 'Restore report application-tree equality is not asserted')
+  for (const key of ['backend', 'frontend', 'migrations']) {
+    check(/^[a-f0-9]{40}$/.test(report.imageSourceTrees?.[key] || '') && report.imageSourceTrees[key] === report.opsToolTrees?.[key], `Restore report ${key} tree identity is invalid`)
+  }
+  check(report.toolFiles !== null && typeof report.toolFiles === 'object' && !Array.isArray(report.toolFiles), 'Restore report tool-file hashes are invalid')
+  for (const relative of requiredOpsToolFiles) check(/^[a-f0-9]{64}$/.test(report.toolFiles[relative] || ''), `Restore report tool hash is missing: ${relative}`)
+  for (const [relative, hash] of Object.entries(report.toolFiles)) {
+    check(/^deploy\/local-upgrade\/[a-zA-Z0-9_.-]+$/.test(relative) && /^[a-f0-9]{64}$/.test(hash), 'Restore report tool-file entry is invalid')
+  }
   check([firstUpgradeMode, sameVersionMode].includes(report.migrationMode), 'Restore report migration mode is unsupported')
   const activeVersion = activeContainer.Config.Labels?.['org.opencontainers.image.version']
   const expectedMode = activeVersion === '0.2.13' && manifest.version === '0.2.19' ? firstUpgradeMode
@@ -310,6 +333,9 @@ async function verifyBackup(backup, active, manifest, manifestSha256, reportPath
   check(reportDir.isDirectory() && !reportDir.isSymbolicLink() && (reportDir.mode & 0o777) === 0o700 && reportDir.uid === process.getuid(), 'Restore report directory must be private mode-0700')
   const report = await jsonPrivate(reportPath)
   const reportCheck = assertRestoreReport(report, reportPath, backup, manifest, manifestSha256, active.container, record, backupManifestSha256)
+  for (const [relative, expectedHash] of Object.entries(report.toolFiles)) {
+    check(await checksum(join(root, relative)) === expectedHash, `Restore report ops tool file changed: ${relative}`)
+  }
   return { archivesVerified: true, protectedFilesVerified: true, volumeCoverageVerified: true, dumpReadable: true,
     livePostgres: liveCoverage, isolatedRestoreReport: reportPath, restoreReportCheck: reportCheck }
 }

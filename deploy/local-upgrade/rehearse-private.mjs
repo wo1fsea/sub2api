@@ -6,8 +6,8 @@ import { dirname, join, resolve } from 'node:path'
 import { spawn, spawnSync } from 'node:child_process'
 import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import { assertMigrationRowsMatchSource, sameVersionMode, selectRehearsalMode, validateMigrationTransition,
-  validateSameVersionPreserved } from './rehearse-private-validation.mjs'
+import { assertExpectedFactoryPlatformQuotaProjection, assertMigrationRowsMatchSource, assertPersistedConfigurationEqual, sameVersionMode,
+  selectRehearsalMode, validateMigrationTransition, validateSameVersionPreserved } from './rehearse-private-validation.mjs'
 import { assertProtectedFileMetadata, assertVolumeCoverage, protectedBackupFileNames } from './backup-manifest.mjs'
 
 process.umask(0o077)
@@ -26,6 +26,35 @@ const backupManifestBytes = await readFile(join(backup, 'backup-manifest.json'))
 const backupManifest = JSON.parse(backupManifestBytes)
 const backupManifestSha256 = createHash('sha256').update(backupManifestBytes).digest('hex')
 const oldVersion = backupManifest.oldVersion || '0.2.4'
+function git(args) {
+  const env = { ...process.env }
+  for (const key of Object.keys(env)) if (key === 'GIT_CONFIG_COUNT' || /^GIT_CONFIG_(KEY|VALUE)_/.test(key)) delete env[key]
+  const result = spawnSync('/usr/bin/git', ['-C', root, ...args], { encoding: 'utf8', timeout: 30_000, maxBuffer: 4 << 20, env })
+  assert(!result.error && result.status === 0, `Rehearsal Git ${args[0]} failed`)
+  return result.stdout.trim()
+}
+const opsToolSha = git(['rev-parse', 'HEAD'])
+const toolWorktreeClean = git(['status', '--porcelain']) === ''
+assert(/^[a-f0-9]{40}$/.test(opsToolSha), 'Ops tool HEAD is not an exact commit')
+assert(toolWorktreeClean, 'Rehearsal must run from a clean ops-tool worktree')
+const toolFilePaths = [
+  'deploy/local-upgrade/upgrade-current.mjs',
+  'deploy/local-upgrade/rehearse-private.mjs',
+  'deploy/local-upgrade/rehearse-private-validation.mjs',
+  'deploy/local-upgrade/backup-private.mjs',
+  'deploy/local-upgrade/backup-manifest.mjs',
+  'deploy/local-upgrade/pg-dump-toc.mjs',
+  'deploy/local-upgrade/service-recovery.mjs',
+  'deploy/local-upgrade/live-gateway.mjs',
+  'deploy/local-upgrade/compatibility-inventory.sql'
+]
+const toolFiles = Object.fromEntries(await Promise.all(toolFilePaths.map(async path => [path,
+  createHash('sha256').update(await readFile(join(root, path))).digest('hex')])))
+const imageSourceTrees = { backend: git(['rev-parse', `${candidate.commit}:backend`]),
+  frontend: git(['rev-parse', `${candidate.commit}:frontend`]), migrations: git(['rev-parse', `${candidate.commit}:backend/migrations`]) }
+const opsToolTrees = { backend: git(['rev-parse', 'HEAD:backend']), frontend: git(['rev-parse', 'HEAD:frontend']),
+  migrations: git(['rev-parse', 'HEAD:backend/migrations']) }
+assert.deepEqual(opsToolTrees, imageSourceTrees, 'Ops-tool application trees differ from the image source commit')
 const selection = selectRehearsalMode(oldVersion, candidate.version)
 const sameVersion = selection.mode === sameVersionMode
 const expectedMigrationNames = selection.expectedMigrationNames
@@ -244,17 +273,24 @@ function appDataDigest(service) {
   const output = docker(['exec', id(service), 'sh', '-c', 'sha256sum /app/data/config.yaml /app/data/model_pricing.json /app/data/model_pricing.sha256 2>/dev/null || true'])
   return output.split('\n').filter(Boolean).sort()
 }
-function adminSettingsDigest(service, token) {
+function readAdminSettings(service, token) {
   const response = request(service, '/api/v1/admin/settings', token)
   assert.equal(response.status, 200, 'Rehearsal administrator settings read failed')
-  return jsonSha256(JSON.parse(response.body).data)
+  const data = JSON.parse(response.body).data
+  assert(data !== null && typeof data === 'object' && !Array.isArray(data), 'Rehearsal administrator settings payload is invalid')
+  return data
 }
-function configurationSnapshot(service, token) {
-  return { schema: schemaFingerprint(), appData: appDataDigest(service), adminSettingsSha256: adminSettingsDigest(service, token),
+function adminSettingsMetadata(data) {
+  return { sha256: jsonSha256(data), keyHashes: Object.fromEntries(Object.keys(data).sort().map(key => [key, jsonSha256(data[key])])) }
+}
+function configurationSnapshot(service, token, adminSettingsData = readAdminSettings(service, token)) {
+  return { schema: schemaFingerprint(), appData: appDataDigest(service), adminSettingsApi: adminSettingsMetadata(adminSettingsData),
     imageGeneration: imageGenerationGate(), imageBilling: imageBillingRows(), scopedAdminKeyRows: scopedAdminKeyRows(),
     unlimitedQuotaRows: unlimitedQuotaRows() }
 }
-const report = { project, directory, backup, backupManifestSha256, candidateManifestPath: candidatePath, candidateManifestSha256,
+const report = { project, directory, backup, opsToolSha, toolWorktreeClean, toolFiles, imageSourceCommit: candidate.commit,
+  imageSourceTrees, opsToolTrees, applicationTreesMatchImageSource: true, backupManifestSha256,
+  candidateManifestPath: candidatePath, candidateManifestSha256, candidateManifestHash: candidateManifestSha256,
   candidateCommit: candidate.commit, candidateImageId: candidate.imageId, candidateVersion: candidate.version,
   oldVersion, oldContainerId: backupManifest.oldContainerId, oldImageId: backupManifest.oldImageId,
   migrationMode: selection.mode, checks: [], productionDeploymentPerformed: false, realGatewayCallsTested: false,
@@ -321,7 +357,8 @@ try {
   const token = JSON.parse(login.body).data.access_token
   assert.equal(request('blue', '/api/v1/auth/me', token).status, 200)
   const businessBefore = fingerprints(sameVersion)
-  const configurationBefore = sameVersion ? configurationSnapshot('blue', token) : null
+  const sameVersionAdminSettingsBefore = sameVersion ? readAdminSettings('blue', token) : null
+  const configurationBefore = sameVersion ? configurationSnapshot('blue', token, sameVersionAdminSettingsBefore) : null
   report.checks.push('backup protected-file checksums', 'backup archive checksums', 'isolated no-egress network', 'PostgreSQL restore', 'Redis snapshot load', 'separate restored app volumes')
   report.checks.push('old image restored startup', 'existing administrator login', 'release-source migration coverage')
   const started = Date.now()
@@ -361,7 +398,13 @@ try {
     assert.deepEqual(migrationsAfter, migrationsBefore, 'Same-version startup changed migration rows')
     assert.deepEqual(schemaAfter, schemaBefore, 'Same-version startup changed schema metadata')
     assert.deepEqual(businessAfter, businessBefore, 'Same-version startup changed business projections')
-    assert.deepEqual(configurationBefore, configurationSnapshot('green', token), 'Same-version startup changed configuration state')
+    const sameVersionAdminSettingsAfter = readAdminSettings('green', token)
+    const configurationAfter = configurationSnapshot('green', token, sameVersionAdminSettingsAfter)
+    assertPersistedConfigurationEqual(configurationBefore, configurationAfter, 'Same-version startup changed persisted configuration state')
+    report.adminSettingsApi = assertExpectedFactoryPlatformQuotaProjection(sameVersionAdminSettingsBefore, sameVersionAdminSettingsAfter)
+    report.persistedSettingsTable = { beforeSha256: jsonSha256(businessBefore.settings), afterSha256: jsonSha256(businessAfter.settings),
+      unchanged: jsonSha256(businessAfter.settings) === jsonSha256(businessBefore.settings) }
+    assert.equal(report.persistedSettingsTable.unchanged, true, 'Persisted settings table changed')
     assert.deepEqual(imageGenerationAfter, imageGenerationBefore, 'Same-version startup changed image-generation group values')
     assert.deepEqual(imageBillingAfter, imageBillingBefore, 'Same-version startup changed image-count billing values')
     assert.equal(scopedAdminKeysAfter, scopedAdminKeysBefore, 'Same-version startup changed scoped administrator key rows')
@@ -369,7 +412,8 @@ try {
     const rechecked = validateMigrationTransition({ mode: sameVersionMode, before: migrationsBefore, after: migrationsAfter })
     assert.equal(rechecked.newMigrations.length, 0)
     report.checks.push('same-version zero migration/checksum delta', 'all 299 release-source migration rows exact',
-      'business projections unchanged through startup', 'configuration/settings/app-data unchanged through startup',
+      'business projections unchanged through startup', 'persisted configuration/settings/app-data unchanged through startup',
+      'GET-derived admin settings projection allowed only the expected factory null-quota addition',
       'migration 246 image gates preserved, not re-applied', 'migration 247 scoped-key rows preserved, not reset',
       'migration 248 image-count values preserved, not forced false')
   } else {
