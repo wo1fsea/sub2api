@@ -2,14 +2,17 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import test from 'node:test'
 import {
-  assertActivePin, assertAppearanceMatch, assertFreshBackup, assertPrepareRetry, assertSnapshotPins, candidateCompose, mergeAssetInventory,
+  applyRecoveryResult, assertActivePin, assertAppearanceMatch, assertFreshBackup, assertPrepareRetry, assertRestoreReport, assertSnapshotPins, candidateCompose, mergeAssetInventory,
   postgresDumpListToc, promotedCompose, promotedState, publicSummary, quotaResponseSummary, releaseIdentity,
-  rollbackPlan, runHotSwitch, validateTerraUsage
+  rollbackPlan, runHotSwitch, runPriorImageRestore, validateTerraUsage
 } from './upgrade-current.mjs'
 import { desiredCompose, names, routing } from './service-recovery.mjs'
+import { assertLivePostgresCoverage, backupArchiveNames, backupArchiveSpecs, protectedBackupFileNames } from './backup-manifest.mjs'
+import { firstUpgradeMode, sameVersionMode } from './rehearse-private-validation.mjs'
+import { parsePostgresDumpListing } from './pg-dump-toc.mjs'
 
 const currentImage = 'sha256:' + 'a'.repeat(64)
 const nextImage = 'sha256:' + 'b'.repeat(64)
@@ -30,7 +33,8 @@ function activeFixture() {
     unrelated: 'preserved' }
   const container = { Id: 'fixture-current-container', Image: currentImage,
     State: { Running: true, Health: { Status: 'healthy' } }, HostConfig: { RestartPolicy: { Name: 'always' } },
-    Config: { Labels: { 'com.docker.compose.project': 'sub2api-current' }, Env: Object.entries(config.services.app.environment).map(([key, value]) => `${key}=${value}`) } }
+    Config: { Labels: { 'com.docker.compose.project': 'sub2api-current', 'org.opencontainers.image.version': '0.2.19' },
+      Env: Object.entries(config.services.app.environment).map(([key, value]) => `${key}=${value}`) } }
   return { state, config, container }
 }
 
@@ -178,9 +182,27 @@ test('failed prepare can resume only its exact immutable release, live current a
 function backupFixture(now) {
   const { container, state } = activeFixture()
   const dependencies = state.dependencies.map(item => ({ Image: item.image }))
-  return { container, dependencies, record: { started: new Date(now - 60_000).toISOString(), finished: new Date(now - 30_000).toISOString(),
+  const appMount = { type: 'volume', name: 'sub2api-current_current-data', source: '/var/lib/docker/volumes/sub2api-current_current-data/_data', destination: '/app/data', rw: true }
+  const pgMount = { type: 'volume', name: 'sub2api_postgres-data', source: '/var/lib/docker/volumes/sub2api_postgres-data/_data', destination: '/var/lib/postgresql/data', rw: true }
+  const pgParent = { type: 'volume', name: 'anonymous-pg-parent', source: '/var/lib/docker/volumes/anonymous-pg-parent/_data', destination: '/var/lib/postgresql', rw: true }
+  const redisMount = { type: 'volume', name: 'sub2api_redis-data', source: '/var/lib/docker/volumes/sub2api_redis-data/_data', destination: '/data', rw: true }
+  const protectedFiles = protectedBackupFileNames.map(name => ({ name,
+    source: name === '.env' ? '/Users/clawbotbot/Projects/sub2api-local/.env' : `/Users/clawbotbot/Projects/sub2api-local/current-0.2.13/${name}`,
+    bytes: 256, sha256: 'b'.repeat(64), sourceMode: '0600', sourceUid: 501 }))
+  return { container, dependencies, record: {
+    started: new Date(now - 60_000).toISOString(), finished: new Date(now - 30_000).toISOString(),
     oldContainerId: container.Id, oldImageId: container.Image, databaseImageId: dependencies[0].Image, redisImageId: dependencies[1].Image,
-    archives: ['postgres.dump', 'redis.rdb', 'app-data.tar.gz'].map(name => ({ name, bytes: name === 'redis.rdb' ? (64 << 20) : (256 << 20), sha256: 'a'.repeat(64) })) } }
+    archives: backupArchiveNames.map(name => ({ name, bytes: backupArchiveSpecs[name].maxBytes, sha256: 'a'.repeat(64) })),
+    protectedFiles,
+    volumeCoverage: [
+      { role: 'application', container: 'sub2api-current-app', mount: appMount, artifact: 'app-data.tar.gz', method: backupArchiveSpecs['app-data.tar.gz'].method },
+      { role: 'postgresql', container: 'sub2api-postgres', mount: pgMount, artifact: 'postgres.dump', method: backupArchiveSpecs['postgres.dump'].method,
+        database: 'sub2api', serverVersion: '18.6', actualDataDirectory: '/var/lib/postgresql/data', migrationsCount: 299, supportMounts: [pgParent] },
+      { role: 'redis', container: 'sub2api-redis', mount: redisMount, artifact: 'redis.rdb', method: backupArchiveSpecs['redis.rdb'].method }
+    ],
+    postgres: { database: 'sub2api', serverVersion: '18.6', dataDirectory: '/var/lib/postgresql/data', migrationsCount: 299,
+      dumpToc: { database: 'sub2api', format: 'CUSTOM', schemaMigrations: true, tocEntries: 12 } }
+  } }
 }
 
 test('fresh backup accepts real maximum archive sizes but rejects each byte beyond its budget', () => {
@@ -207,6 +229,176 @@ test('backup rejects stale or future completion and changed application, depende
   for (const record of records) assert.throws(() => assertFreshBackup(record, fixture.container, fixture.dependencies, now))
 })
 
+test('backup manifest requires original protected files and actual PGDATA volume coverage', () => {
+  const now = Date.parse('2026-10-08T01:00:00Z'), fixture = backupFixture(now)
+  const variants = [
+    record => { record.protectedFiles[0].sourceMode = '0644' },
+    record => { record.protectedFiles.pop() },
+    record => { record.volumeCoverage.find(item => item.role === 'postgresql').actualDataDirectory = '/var/lib/postgresql' },
+    record => { record.volumeCoverage.find(item => item.role === 'postgresql').database = 'other' },
+    record => { record.postgres.dumpToc.database = 'other' },
+    record => { record.postgres.dumpToc.schemaMigrations = false }
+  ]
+  for (const mutate of variants) {
+    const record = structuredClone(fixture.record); mutate(record)
+    assert.throws(() => assertFreshBackup(record, fixture.container, fixture.dependencies, now))
+  }
+})
+
+test('live PostgreSQL backup coverage must match the actual data directory and longest volume mount', () => {
+  const now = Date.parse('2026-10-08T01:00:00Z'), fixture = backupFixture(now)
+  const pg = fixture.record.volumeCoverage.find(item => item.role === 'postgresql')
+  const live = { database: pg.database, dataDirectory: pg.actualDataDirectory, serverVersion: pg.serverVersion, migrationsCount: pg.migrationsCount }
+  const mounts = [
+    { Type: 'volume', Name: 'anonymous-pg-parent', Destination: '/var/lib/postgresql' },
+    { Type: 'volume', Name: pg.mount.name, Destination: pg.mount.destination }
+  ]
+  assert.doesNotThrow(() => assertLivePostgresCoverage(fixture.record, live, mounts))
+  assert.throws(() => assertLivePostgresCoverage(fixture.record, { ...live, dataDirectory: '/var/lib/postgresql' }, mounts), /data directory changed/)
+  assert.throws(() => assertLivePostgresCoverage(fixture.record, live, [mounts[0]]), /differs from the backup record/)
+  assert.throws(() => assertLivePostgresCoverage(fixture.record, live, [{ ...mounts[1], Name: 'other-volume' }]), /differs from the backup record/)
+})
+
+function restoreReportFixture(now, fixture, candidateManifest = manifest) {
+  const reportPath = '/Users/clawbotbot/Projects/sub2api-upgrade-private/rehearsal-AbC123/rehearsal-report.json'
+  const backup = '/Users/clawbotbot/Projects/sub2api-upgrade-private/backup-AbC123'
+  const report = {
+    passed: true, cleanupSucceeded: true, scriptCompleted: true, cleanupErrors: [],
+    productionDeploymentPerformed: false, realGatewayCallsTested: false,
+    backup, directory: dirname(reportPath), backupManifestSha256: 'a'.repeat(64), candidateManifestSha256: 'b'.repeat(64),
+    oldContainerId: fixture.container.Id, oldImageId: fixture.container.Image,
+    candidateCommit: candidateManifest.commit, candidateImageId: candidateManifest.imageId, candidateVersion: candidateManifest.version,
+    migrationMode: sameVersionMode,
+    isolation: { networkInternal: true, separateImplementationVolumes: true, noHostPublishedPorts: true,
+      noProviderBackgroundJobs: true, helperNetworkNone: true, productionDependenciesReferenced: false },
+    compatibility: { oldImageReadWrite: true, candidateImageReadWrite: true, restartStable: true },
+    migrations: { beforeCount: 299, afterCount: 299, newCount: 0, alreadyMigrated: true, expectedNewCount: 0, restartStable: true },
+    sameVersion: { migrationsStable: true, businessStable: true, configurationStable: true, restartStable: true },
+    completedAt: new Date(now - 20_000).toISOString()
+  }
+  return { reportPath, backup, report }
+}
+
+test('isolated restore report must match exact backup, manifests, image/commit, isolation and cleanup', () => {
+  const now = Date.parse('2026-10-08T01:00:00Z'), fixture = backupFixture(now), targetManifest = { ...manifest, version: '0.2.19' }
+  const reportFixture = restoreReportFixture(now, fixture, targetManifest)
+  const args = [reportFixture.report, reportFixture.reportPath, reportFixture.backup, targetManifest, 'b'.repeat(64), fixture.container, fixture.record, 'a'.repeat(64)]
+  assert.doesNotThrow(() => assertRestoreReport(...args))
+  const firstUpgrade = structuredClone(reportFixture.report)
+  firstUpgrade.migrationMode = firstUpgradeMode
+  firstUpgrade.migrations = { ...firstUpgrade.migrations, newCount: 8, alreadyMigrated: false, expectedNewCount: 8 }
+  delete firstUpgrade.sameVersion
+  const oldContainer = { ...fixture.container, Config: { ...fixture.container.Config, Labels: { ...fixture.container.Config.Labels, 'org.opencontainers.image.version': '0.2.13' } } }
+  assert.doesNotThrow(() => assertRestoreReport(firstUpgrade, reportFixture.reportPath, reportFixture.backup, targetManifest, 'b'.repeat(64), oldContainer, fixture.record, 'a'.repeat(64)))
+  const variants = [
+    report => { report.passed = false },
+    report => { report.cleanupSucceeded = false },
+    report => { report.scriptCompleted = false },
+    report => { report.cleanupErrors = ['not-cleaned'] },
+    report => { report.backup = '/Users/clawbotbot/Projects/sub2api-upgrade-private/backup-OTHER' },
+    report => { report.directory = '/Users/clawbotbot/Projects/sub2api-upgrade-private/rehearsal-OTHER' },
+    report => { report.backupManifestSha256 = 'f'.repeat(64) },
+    report => { report.candidateManifestSha256 = 'f'.repeat(64) },
+    report => { report.oldContainerId = 'other-container' },
+    report => { report.oldImageId = nextImage },
+    report => { report.candidateCommit = 'f'.repeat(40) },
+    report => { report.candidateImageId = currentImage },
+    report => { report.candidateVersion = '0.2.20' },
+    report => { report.migrationMode = firstUpgradeMode },
+    report => { report.isolation.networkInternal = false },
+    report => { report.isolation.helperNetworkNone = false },
+    report => { report.compatibility.restartStable = false },
+    report => { report.migrations.afterCount = 300 },
+    report => { report.sameVersion.configurationStable = false },
+    report => { report.completedAt = new Date(now - 40_000).toISOString() }
+  ]
+  for (const mutate of variants) {
+    const report = structuredClone(reportFixture.report); mutate(report)
+    assert.throws(() => assertRestoreReport(report, ...args.slice(1)))
+  }
+})
+
+const priorOperationalSteps = ['stopCurrentReplacement', 'installPriorConfiguration', 'startPriorImage', 'waitPriorHealthy',
+  'verifyPriorIdentity', 'persistPriorState', 'routePrior', 'checkpointRouteRestored', 'waitPriorEntryHealthy',
+  'authenticatePriorDirect', 'verifyPriorDirect', 'probePriorDirect', 'verifyPriorEntry', 'probePriorEntry', 'verifyCompatibility']
+function priorRestoreOperations(failAt) {
+  const events = [], finalizations = [], verificationFailures = []
+  const operations = Object.fromEntries(priorOperationalSteps.map(step => [step, async () => {
+    events.push(step)
+    if (step === failAt) throw new Error('fixture-prior-step-failure')
+  }]))
+  operations.recordVerificationFailure = async error => {
+    events.push('recordVerificationFailure')
+    verificationFailures.push(error.message)
+    return 'Operation failed; private details suppressed'
+  }
+  operations.finalizePriorState = async result => {
+    events.push('finalizePriorState')
+    finalizations.push(result)
+  }
+  return { events, operations, finalizations, verificationFailures }
+}
+
+test('candidate-independent emergency restore persists prior state and route before any auth or inference probe', async () => {
+  const { events, operations, finalizations } = priorRestoreOperations()
+  const result = await runPriorImageRestore(operations, true)
+  assert.deepEqual(result, { verified: true, verificationErrors: [] })
+  assert.deepEqual(events, [...priorOperationalSteps, 'finalizePriorState'])
+  assert.deepEqual(finalizations, [{ verified: true }])
+  assert(events.indexOf('stopCurrentReplacement') < events.indexOf('installPriorConfiguration'))
+  assert(events.indexOf('verifyPriorIdentity') < events.indexOf('persistPriorState'))
+  assert(events.indexOf('persistPriorState') < events.indexOf('routePrior'))
+  assert(events.indexOf('routePrior') < events.indexOf('checkpointRouteRestored'))
+  assert(events.indexOf('checkpointRouteRestored') < events.indexOf('authenticatePriorDirect'))
+  assert(events.indexOf('checkpointRouteRestored') < events.indexOf('probePriorEntry'))
+  assert(!runPriorImageRestore.toString().includes('identity.candidateName'))
+})
+
+test('emergency restore without replacement does not stop/start current and still persists then reroutes prior', async () => {
+  const { events, operations } = priorRestoreOperations()
+  await runPriorImageRestore(operations, false)
+  assert.deepEqual(events, [...priorOperationalSteps.slice(3), 'finalizePriorState'])
+})
+
+for (const failAt of ['authenticatePriorDirect', 'probePriorDirect', 'probePriorEntry']) {
+  test(`shared auth/upstream failure at ${failAt} cannot prevent prior state+route recovery or be reported verified`, async () => {
+    const { events, operations, finalizations, verificationFailures } = priorRestoreOperations(failAt)
+    const result = await runPriorImageRestore(operations, true)
+    assert.equal(result.verified, false)
+    assert.equal(verificationFailures.length, 1)
+    assert.deepEqual(result.verificationErrors, ['Operation failed; private details suppressed'])
+    assert.deepEqual(finalizations, [{ verified: false }])
+    assert(events.indexOf('persistPriorState') < events.indexOf('routePrior'))
+    assert(events.indexOf('routePrior') < events.indexOf('checkpointRouteRestored'))
+    assert(events.indexOf('checkpointRouteRestored') < events.indexOf(failAt))
+    assert(events.includes('recordVerificationFailure'))
+    assert.equal(events.at(-1), 'finalizePriorState')
+  })
+}
+
+test('manual rollback result merge preserves already-sanitized verification errors', () => {
+  const state = { recoveryVerificationErrors: ['Operation failed; private details suppressed'] }
+  applyRecoveryResult(state, { verified: false, error: new Error('private upstream details') })
+  assert.equal(state.recoveryVerified, false)
+  assert.deepEqual(state.recoveryVerificationErrors, ['Operation failed; private details suppressed'])
+  const fresh = {}
+  applyRecoveryResult(fresh, { verified: false, error: new Error('private auth details') })
+  assert.deepEqual(fresh.recoveryVerificationErrors, ['Operation failed; private details suppressed'])
+  applyRecoveryResult(fresh, { verified: true, verificationErrors: [] })
+  assert.equal(fresh.recoveryVerified, true)
+  assert.deepEqual(fresh.recoveryVerificationErrors, [])
+})
+
+test('local prior health/identity/state/route failures abort without a false verified result', async () => {
+  for (const failAt of ['waitPriorHealthy', 'verifyPriorIdentity', 'persistPriorState', 'routePrior']) {
+    const { events, operations, finalizations } = priorRestoreOperations(failAt)
+    await assert.rejects(runPriorImageRestore(operations, true), /fixture-prior-step-failure/)
+    assert.deepEqual(finalizations, [])
+    assert(!events.includes('recordVerificationFailure'))
+  }
+})
+
+
 const completeToc = `;
 ; Archive created at 2026-10-08 01:00:00
 ;     dbname: fixture
@@ -228,6 +420,37 @@ test('dump listing accepts only successful complete TOC output when stdin closes
   assert.equal(result.error?.code, 'EPIPE', 'The child must exit without consuming the oversized input pipe')
   assert.equal(postgresDumpListToc(result), completeToc.trim())
   assert.equal(postgresDumpListToc({ status: 0, stdout: completeToc }), completeToc.trim())
+})
+
+test('dump listing preserves non-UTF8 binary stdin and the real TOC trailing newline', () => {
+  const binary = Buffer.from([0xff, 0x00, 0xfe, 0x80, 0x81, 0x7f, 0x0a, 0x00, 0xc3, 0x28])
+  const script = `
+    const { createHash } = require('node:crypto')
+    const chunks = []
+    process.stdin.on('data', chunk => chunks.push(chunk))
+    process.stdin.on('end', () => {
+      const data = Buffer.concat(chunks)
+      if (createHash('sha256').update(data).digest('hex') !== ${JSON.stringify(hash(binary))}) process.exit(2)
+      process.stdout.write(${JSON.stringify(completeToc)})
+    })
+  `
+  const result = spawnSync(process.execPath, ['-e', script], { input: binary, encoding: 'utf8', timeout: 5000, maxBuffer: 1 << 20 })
+  assert.equal(result.status, 0)
+  assert.equal(result.stdout, completeToc)
+  assert.deepEqual(parsePostgresDumpListing(result, 'fixture'), { database: 'fixture', tocEntries: 4, format: 'CUSTOM', schemaMigrations: true })
+  assert.throws(() => parsePostgresDumpListing(result, 'other'), /differs from the live database/)
+})
+
+test('backup keeps PostgreSQL archive input binary and uses the bounded shared --list parser', async () => {
+  const backupSource = await readFile(new URL('./backup-private.mjs', import.meta.url), 'utf8')
+  const tocSource = await readFile(new URL('./pg-dump-toc.mjs', import.meta.url), 'utf8')
+  assert(backupSource.includes("input: dump, encoding: 'utf8'"))
+  assert(backupSource.includes("'pg_restore', '--list'"))
+  assert(backupSource.includes('parsePostgresDumpListing'))
+  assert(!backupSource.includes("dumpBytes.toString('utf8')"))
+  assert(tocSource.includes("result.error.code === 'EPIPE'"))
+  assert(tocSource.includes("result.status === 0 && !result.signal"))
+  assert(!tocSource.includes("'pg_restore', '--list'"))
 })
 
 test('dump-list EPIPE never masks failure, signal, other spawn errors or truncated/non-TOC stdout', () => {
@@ -361,22 +584,22 @@ function recoveryContainers(current = currentImage) {
     candidate: { Image: nextImage, Config: { Labels: { 'com.docker.compose.project': identity.project } }, State: { Running: true, Health: { Status: 'healthy' } } } }
 }
 
-test('manual rollback authenticates through the passive serving candidate if canonical current was lost or stopped', () => {
+test('rollback plan recovers prior image without candidate auth/health/Responses dependency', () => {
   const state = { priorImage: currentImage, image: nextImage }
   const missing = recoveryContainers(null)
-  assert.deepEqual(rollbackPlan(missing.current, missing.candidate, state, identity), { replacementStarted: true, needCandidate: false, authFromCandidate: true })
+  assert.deepEqual(rollbackPlan(missing.current, missing.candidate, state, identity), { replacementStarted: true, candidatePresent: true, candidateDependent: false })
   const stopped = recoveryContainers(nextImage); stopped.current.State.Running = false
-  assert.deepEqual(rollbackPlan(stopped.current, stopped.candidate, state, identity), { replacementStarted: true, needCandidate: false, authFromCandidate: true })
+  assert.deepEqual(rollbackPlan(stopped.current, stopped.candidate, state, identity), { replacementStarted: true, candidatePresent: true, candidateDependent: false })
   const unhealthy = recoveryContainers(currentImage); unhealthy.current.State.Health.Status = 'unhealthy'
-  assert.equal(rollbackPlan(unhealthy.current, unhealthy.candidate, state, identity).authFromCandidate, true)
+  assert.deepEqual(rollbackPlan(unhealthy.current, unhealthy.candidate, state, identity), { replacementStarted: true, candidatePresent: true, candidateDependent: false })
   const prior = recoveryContainers()
-  assert.deepEqual(rollbackPlan(prior.current, prior.candidate, state, identity), { replacementStarted: false, needCandidate: false, authFromCandidate: false })
+  assert.deepEqual(rollbackPlan(prior.current, prior.candidate, state, identity), { replacementStarted: false, candidatePresent: true, candidateDependent: false })
+  assert.deepEqual(rollbackPlan(prior.current, null, state, identity), { replacementStarted: false, candidatePresent: false, candidateDependent: false })
 })
 
-test('rollback reconstructs a missing passive candidate but refuses unrelated current/candidate owners', () => {
+test('rollback refuses unrelated current/candidate owners but can reconstruct prior without a candidate', () => {
   const state = { priorImage: currentImage, image: nextImage }, fixture = recoveryContainers(nextImage)
-  assert.deepEqual(rollbackPlan(fixture.current, null, state, identity), { replacementStarted: true, needCandidate: true, authFromCandidate: false })
-  assert.deepEqual(rollbackPlan(null, null, state, identity), { replacementStarted: true, needCandidate: true, authFromCandidate: true })
+  assert.deepEqual(rollbackPlan(null, null, state, identity), { replacementStarted: true, candidatePresent: false, candidateDependent: false })
   assert.throws(() => rollbackPlan({ ...fixture.current, Image: 'another-image' }, fixture.candidate, state, identity))
   const unrelated = structuredClone(fixture.candidate); unrelated.Config.Labels['com.docker.compose.project'] = 'other-project'
   assert.throws(() => rollbackPlan(fixture.current, unrelated, state, identity))
@@ -399,6 +622,7 @@ test('public upgrade output strips private nested keys, responses, exception det
 
 test('local upgrade does not restore live stores, rewrite Serve, prune images or clean a routed candidate', async () => {
   const source = await readFile(new URL('./upgrade-current.mjs', import.meta.url), 'utf8')
+  const rehearsalSource = await readFile(new URL('./rehearse-private.mjs', import.meta.url), 'utf8')
   assert(!source.includes('84a75caf'))
   assert(!source.includes("'image', 'rm'"))
   assert(!source.includes("'prune'"))
@@ -410,6 +634,19 @@ test('local upgrade does not restore live stores, rewrite Serve, prune images or
   assert(cleanup.indexOf('routing(`${names.app}:8080`)') < cleanup.indexOf("docker(['stop'"))
   assert(cleanup.includes('Candidate volume is still used by a container'))
   assert(source.includes("'--network=none', '--read-only'"))
+  const candidateIndependent = source.slice(source.indexOf('export async function runPriorImageRestore'), source.indexOf('async function restorePrevious'))
+  assert(!candidateIndependent.includes('verifyShared'))
+  assert(!candidateIndependent.includes('liveGateway'))
+  assert(!candidateIndependent.includes('identity.candidateName'))
   const restoration = source.slice(source.indexOf('async function restorePrevious'), source.indexOf('async function activate'))
-  assert(restoration.indexOf('state.rollbackCandidateProbe = await liveGateway(publicBase') < restoration.indexOf("docker(['stop'"))
+  assert(restoration.indexOf('stopCurrentReplacement') < restoration.indexOf('installPriorConfiguration'))
+  assert(restoration.indexOf('persistPriorState') < restoration.indexOf('routePrior'))
+  assert(restoration.indexOf('routePrior') < restoration.indexOf('checkpointRouteRestored'))
+  assert(restoration.indexOf('checkpointRouteRestored') < restoration.indexOf('authenticatePriorDirect'))
+  assert(restoration.includes("verified ? 'rolled-back-verified' : 'rolled-back-route-restored-unverified'"))
+  assert(!restoration.includes('pg_restore'))
+  assert(!restoration.includes('state.rollbackCandidateProbe'))
+  assert(rehearsalSource.includes('const imageBillingBefore = sameVersion ? imageBillingRows() : null'))
+  assert(rehearsalSource.includes('const scopedAdminKeysBefore = sameVersion ? scopedAdminKeyRows() : null'))
+  assert(rehearsalSource.includes("assert.equal(scopedAdminKeyRows(), 0, 'Rehearsal unexpectedly contains administrator API keys')"))
 })

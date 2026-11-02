@@ -1,60 +1,124 @@
 {
   "status": "source-checks-passed-not-production-approved",
-  "recordedDate": "2026-10-28",
+  "recordedDate": "2026-11-02",
   "version": "0.2.19",
-  "qualifiedApplicationCommit": "4d4e3d52b711a038e63bf2cb6e64bbb2837d2f0e",
+  "releaseBranch": "codex/sync/20261028-v0.2.19",
+  "integrationMergeCommit": "8a8a181a842b7f96ee87a80c0e039d9616f5722e",
+  "qualifiedApplicationFeatureCommit": "b51bdd1e87419b4ef204e87d937618d50a8ab919",
   "upstreamTag": "v0.2.19",
   "upstreamCommit": "dece26153621959ccd7635814f4b2d08304e681a",
-  "mergeCommit": "2c3ed74ad9c21a02ce073fb39dbacdba085be9c2",
-  "backendTree": "35f2ba969db47efd848bb122482e70a3a7aff03f",
-  "frontendTree": "7fe8f0c371f343786985f677cdd6326228b0b20c",
-  "qualificationScope": "Fixed v0.2.19 sync from the qualified v0.2.17 base, preserving all local skins, quota overview, scheduler mixed-version compatibility and bounded local-upgrade tooling. Eight new SQL migrations require isolated 0.2.13 to 0.2.19 rehearsal and production policy review for migration 246.",
-  "toolchain": "Go 1.27.3; local Node 26.7.0; pnpm 9.15.9; Linux ARM64 target. Go base image pinned to golang:1.27.3-alpine@sha256:ee0dcdc452cb73890363fbef65fc333aeb0da7c24ba52f2c6428a37b0e7f4f1c.",
+  "backendTree": "10abc0abb3b12e546efb88b32855f8f16ec2c06e",
+  "frontendTree": "e8931d4ec1f7adb8438276d8d3c93aff4c66d978",
+  "migrationsTree": "ba0fd03a1d669aacc81cf9f4da180cdbd5b25f2d",
+  "sourceMigrationFiles": 299,
+  "sourceMigrationInventorySha256": "5267cb070ab449db5256fe19e2c5f5dc88e0115579a3d1a27575e986aee4b314",
+  "treeEvidence": {
+    "applicationTreesMatchFeature": true,
+    "featureBackendTree": "10abc0abb3b12e546efb88b32855f8f16ec2c06e",
+    "featureFrontendTree": "e8931d4ec1f7adb8438276d8d3c93aff4c66d978",
+    "evidence": "/tmp/factory-formal-release/tree-identity.json",
+    "evidenceSha256": "0b0b807bb2627b8245b58d58609aeac40ed4289e6c601a6d5faeda7d9088fec5",
+    "note": "Formal release integration changes only deploy, docs and NOTES; backend/frontend trees are exactly the accepted b51 application tree."
+  },
+  "qualificationScope": "Accepted Factory upstream feature b51 merged by a no-ff merge onto the approved 0.2.19 release lineage. This release keeps version 0.2.19 with a new exact source revision/image and adds no schema migration beyond the 299 already deployed. It adds the P0 same-version rehearsal, mandatory exact restore report, candidate-independent emergency rollback, protected .env/private compose/state plus actual PGDATA coverage checks, and real migration-filename admissibility.",
+  "toolchain": "Go 1.27.3; local Node 26.7.0 (CI target Node 20); pnpm 9.15.9; linux/arm64 target. Base image pins and bounded build resources remain unchanged.",
   "backendUnit": {
     "passed": true,
-    "packagesPassed": 58,
-    "testsPassed": 24400,
-    "testsSkipped": 35,
-    "counting": "test and nested subtest pass events",
-    "scope": "go test -tags=unit -p 2 -parallel 2 -count=1 -timeout=10m ./...; GOTOOLCHAIN=go1.27.3",
-    "privateReport": "frontend/tmp/backend-tests/run-ln0zvu/report.json"
+    "packagesPassed": 59,
+    "failures": 0,
+    "scope": "go test -tags=unit -p 2 -parallel 2 -count=1 -timeout=20m ./... with GOTOOLCHAIN=go1.27.3 and a sanitized environment",
+    "counting": "59 package-level ok results; the direct text run did not enumerate pass events",
+    "evidence": "/tmp/factory-formal-release/backend-unit-direct.log",
+    "evidenceSha256": "bb7b4c5e98300bb7b2c1b218e0c51099b894afd59bfcc2d3a47bab9153a95c68",
+    "productionDeploymentPerformed": false
+  },
+  "backendServerBuild": {
+    "passed": true,
+    "scope": "go build -buildvcs=false -o /tmp/factory-build-server ./cmd/server against the exact b51 application tree",
+    "evidence": "/tmp/factory-build-backend-server-build.log",
+    "evidenceSha256": "af0d9274124d951e3f7d57c921d97df16b521f45eb2fed972251d6b6b7aab3e3"
   },
   "backendIntegration": {
     "passed": true,
-    "packagesPassed": 51,
-    "testsPassed": 14646,
-    "testsSkipped": 16,
-    "counting": "test and nested subtest pass events",
-    "scope": "go test -tags=integration -p 1 -parallel 2 -count=1 -timeout=10m ./...; sanitized environment; isolated testcontainers; no live provider credentials inherited",
-    "privateReport": "frontend/tmp/backend-tests/run-LTiZ5g/report.json"
+    "packagesPassed": 52,
+    "testsPassed": 14658,
+    "testsSkipped": 19,
+    "failures": 0,
+    "scope": "go test -json -tags=integration -p 1 -parallel 2 -count=1 -timeout=20m ./... with a sanitized environment and isolated testcontainers",
+    "evidence": "/tmp/factory-formal-release/backend-integration.jsonl",
+    "evidenceSha256": "399180f94dac6a9a018fbc812aa3555c79f7aa102ea31382512d65220f7750c4",
+    "stderrBytes": 0,
+    "productionDeploymentPerformed": false,
+    "liveTestCredentialsInherited": false
   },
   "securityAuditDependencies": {
     "passed": true,
     "testsPassed": 218,
     "testsSkipped": 0,
     "scope": "go test -tags=integration -count=1 -v -timeout=120s ./internal/securityaudit against isolated pinned PostgreSQL and Redis containers",
-    "privateReport": "frontend/tmp/audit-tests/run-pqM3PS/report.txt"
+    "evidence": "/tmp/factory-formal-release/security-audit.log",
+    "evidenceSha256": "a702654032325ef91b6178fd00e7deb2f211d9e833891be9e5697a9be2ed1a30",
+    "productionDeploymentPerformed": false
   },
   "frontend": {
-    "testFilesPassed": 384,
-    "testsPassed": 3070,
+    "testFilesPassed": 386,
+    "testsPassed": 3075,
     "testsFailed": 0,
     "testsSkipped": 0,
     "typecheck": "passed",
     "lint": "full-suite-passed-no-errors",
     "productionBuild": "passed-i18n-vue-tsc-b-vite",
-    "buildWarnings": "upstream large-chunk warnings only; no build errors",
-    "directSheetJSPin": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
-    "privateReport": "/tmp/sub2api-frontend-checks.log and /tmp/sub2api-build-stage.log"
+    "evidenceReused": true,
+    "exactTree": "e8931d4ec1f7adb8438276d8d3c93aff4c66d978",
+    "evidence": [
+      {
+        "path": "/tmp/factory-build-frontend-ui-vitest-full.log",
+        "sha256": "0793fb49afc4ea9e8ad78a4813acd1cf2e897766e02c4fe9fe0283ec1526d701"
+      },
+      {
+        "path": "/tmp/factory-build-frontend-ui-final-typecheck.log",
+        "sha256": "cc25112850e8c8ef3a02f9b32c8faa7610c34f922e75364c63be10c336c96c75"
+      },
+      {
+        "path": "/tmp/factory-build-frontend-ui-final-lint.log",
+        "sha256": "b74b83c9bb82597de91ce96ef6c94fee31c48a36d8e24207334cdd2bf7bfd968"
+      },
+      {
+        "path": "/tmp/factory-build-frontend-ui-final-build.log",
+        "sha256": "6fbd25fb1bbf2c99f05c4406cf202d925c45f224269e010060a572ed95f7afdd"
+      }
+    ],
+    "note": "Reused only because the formal backend/frontend trees exactly equal the accepted b51 application tree; no stale 0.2.19 baseline qualification counts were carried."
   },
   "operationsTests": {
     "passed": true,
-    "testsPassed": 54,
-    "scope": "cleanup-retired, live-gateway, service-recovery and upgrade-current Node test suites; includes Terra billing identity and version-aware hot-switch tests"
+    "testsPassed": 74,
+    "testsFailed": 0,
+    "suites": [
+      "cleanup-retired.test.mjs",
+      "live-gateway.test.mjs",
+      "service-recovery.test.mjs",
+      "upgrade-current.test.mjs",
+      "rehearse-private.test.mjs"
+    ],
+    "coverage": [
+      "same-version 0.2.19 zero migration and checksum changes with real 299-file source inventory",
+      "business, migration-246 gates, scoped keys, image-count billing and configuration preservation through startup and restart",
+      "mandatory exact isolated restore report with cleanup and isolation evidence",
+      "candidate-independent emergency rollback that restores prior state and route before post-verification; auth/upstream failures remain unverified and non-blocking",
+      "protected .env/private compose/state bytes plus actual PGDATA longest-volume coverage",
+      "binary-safe bounded pg_restore --list TOC handling"
+    ],
+    "evidence": "/tmp/factory-formal-release/ops-tests.log",
+    "evidenceSha256": "42caea1eaf286c2b63ebd105a61057bb078b14d5037122a2d80ba1ec5ff8394a"
   },
   "migrations": {
-    "expectedNewMigrations": 8,
-    "files": [
+    "sameVersionUpgrade": true,
+    "deployedSchemaRows": 299,
+    "sourceMigrationFiles": 299,
+    "newMigrationsForThisRelease": 0,
+    "firstUpgradeLegacyPathSupported": true,
+    "firstUpgradeExpectedFiles": [
       "242_drop_platform_check_constraints.sql",
       "242_group_i18n.sql",
       "243_gemini_cached_contents.sql",
@@ -64,15 +128,32 @@
       "247_scoped_admin_api_keys.sql",
       "248_group_image_count_billing.sql"
     ],
-    "rehearsalStatus": "pending-exact-image"
+    "productionSourceMatch": {
+      "sourceFiles": 299,
+      "productionRows": 299,
+      "missing": [],
+      "extra": [],
+      "checksumMismatches": [],
+      "exact": true,
+      "evidence": "/tmp/factory-formal-release/prod-migration-verification.json",
+      "evidenceSha256": "8cc87d53faf576c506cff4a2defc697a6cee7a05703a6c74640201bf5190cf6f"
+    }
   },
   "migration246PolicyGate": {
-    "status": "blocked-pending-owner-decision",
-    "liveReadOnlyInventory": "Two active Antigravity groups and one active Gemini group have allow_image_generation=false and would be opened by migration 246. Composite and OpenAI false groups are out of scope.",
-    "requiredAction": "Obtain an explicit policy decision and an auditable post-migration correction or approved pre-migration strategy before candidate preparation attaches to the shared production database."
+    "status": "not-reapplied-same-version",
+    "detail": "Migration 246 was explicitly approved and is already applied in the current 0.2.19 schema. This source revision adds no migration; same-version rehearsal must preserve existing group gate values rather than reopen or reinterpret them."
   },
+  "lockfilesChanged": false,
   "realGatewayCallsTested": false,
   "productionDeploymentPerformed": false,
   "liveTestCredentialsInherited": false,
-  "note": "Source qualification only. The live Mac service remains 0.2.13. Exact-image smoke, a fresh protected backup, isolated restore rehearsal, migration 246 policy resolution, real Terra/current-Codex calls through the candidate and stable entry, and rollback compatibility remain production gates."
+  "pendingProductionGates": [
+    "exact-image smoke and frontend asset continuity",
+    "fresh protected backup of .env, private compose/state, PostgreSQL logical dump, Redis snapshot and named volume data",
+    "same-version isolated no-egress restore rehearsal report with actual PGDATA coverage",
+    "real candidate and stable-entry model probes plus t18 existing-client regressions",
+    "concrete digest-pinned release manifest and rollback command",
+    "launchd recovery identity and post-cutover .env/Serve/unrelated-container preservation"
+  ],
+  "note": "Source qualification only. No production deployment or live provider inference is claimed; exact-image smoke, fresh backup, isolated restore rehearsal, real gateway/client regressions and rollback evidence remain production gates."
 }

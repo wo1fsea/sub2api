@@ -9,6 +9,10 @@ import { isDeepStrictEqual } from 'node:util'
 import { setTimeout as delay } from 'node:timers/promises'
 import { acquireLock, assertCurrent, deployment, directory, names, routing } from './service-recovery.mjs'
 import { liveGateway } from './live-gateway.mjs'
+import { assertLivePostgresCoverage, assertProtectedFileMetadata, assertVolumeCoverage, backupArchiveNames, backupArchiveSpecs, protectedBackupFileNames } from './backup-manifest.mjs'
+import { firstUpgradeMode, sameVersionMode } from './rehearse-private-validation.mjs'
+import { postgresDumpListToc } from './pg-dump-toc.mjs'
+export { postgresDumpListToc } from './pg-dump-toc.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const composePath = join(directory, 'compose-private.json')
@@ -25,6 +29,7 @@ export const targetVersion = '0.2.19'
 const supportedVersions = new Set([currentRecoveryVersion, targetVersion])
 const assetPattern = /^\/assets\/[a-zA-Z0-9_.-]+-[a-zA-Z0-9_-]{6,}\.(?:js|css)$/
 const sha = value => createHash('sha256').update(value).digest('hex')
+const restoreReportPattern = new RegExp(`^${backupRoot}/rehearsal-[a-zA-Z0-9]+/rehearsal-report\.json$`)
 const require = createRequire(join(root, 'frontend/package.json'))
 let ts
 
@@ -37,21 +42,6 @@ function docker(args, input, timeout = 60_000, binary = false) {
   })
   check(!result.error && result.status === 0, `Docker ${args[0]} failed; private details suppressed`)
   return binary ? result.stdout : result.stdout.trim()
-}
-export function postgresDumpListToc(result) {
-  // --list reads only an archive's directory and may close stdin while Docker
-  // is still receiving its data blocks. Do not extend this exception to any
-  // command that restores data or mutates a container.
-  check(result.status === 0 && !result.signal && (!result.error || result.error.code === 'EPIPE'), 'Backup PostgreSQL directory check failed; private details suppressed')
-  const toc = result.stdout
-  check(typeof toc === 'string' && toc.endsWith('\n') && /^;\s+Archive created at /m.test(toc) && /^;\s+Format: CUSTOM\s*$/m.test(toc), 'Backup PostgreSQL archive directory is incomplete')
-  const declared = /^;\s+TOC Entries:\s+(\d+)\s*$/m.exec(toc)
-  const section = toc.split(/^;\s+Selected TOC Entries:\s*$/m)
-  check(declared && Number(declared[1]) > 0 && section.length === 2, 'Backup PostgreSQL archive directory is incomplete')
-  const entries = section[1].split('\n').filter(line => line.trim() && !line.startsWith(';'))
-  check(entries.length > 0 && entries.length <= Number(declared[1]) && entries.every(line => /^\d+; \d+ \d+ .+/.test(line)), 'Backup PostgreSQL archive directory is incomplete')
-  check(entries.some(line => /\bTABLE public schema_migrations\b/.test(line)), 'Backup PostgreSQL archive is not readable')
-  return toc.trim()
 }
 function listPostgresDump(container, dump) {
   return postgresDumpListToc(spawnSync('/opt/homebrew/bin/docker', ['exec', '-i', container, 'pg_restore', '--list'], {
@@ -159,9 +149,18 @@ export function assertFreshBackup(record, current, dependencies, now = Date.now(
   check(Number.isFinite(started) && Number.isFinite(finished) && started <= finished && finished <= now + 60_000 && now - finished < 30 * 60_000, 'A fresh backup from the last 30 minutes is required')
   check(record.oldContainerId === current.Id && record.oldImageId === current.Image, 'Backup does not belong to the current application')
   check(record.databaseImageId === dependencies[0].Image && record.redisImageId === dependencies[1].Image, 'Backup dependency pins changed')
-  check(record.archives?.length === 3 && ['postgres.dump', 'redis.rdb', 'app-data.tar.gz'].every(name => record.archives.filter(item => item.name === name).length === 1), 'Backup must contain exactly the three expected archives')
-  for (const item of record.archives) check(Number.isInteger(item.bytes) && item.bytes > 0 && item.bytes <= ((item.name === 'redis.rdb' ? 64 : 256) << 20) && /^[a-f0-9]{64}$/.test(item.sha256 || ''), 'Backup archive metadata is invalid')
+  check(record.archives?.length === backupArchiveNames.length && backupArchiveNames.every(name => record.archives.filter(item => item.name === name).length === 1), 'Backup must contain exactly the three expected archives')
+  for (const item of record.archives) {
+    const spec = backupArchiveSpecs[item.name]
+    check(spec && Number.isInteger(item.bytes) && item.bytes > 0 && item.bytes <= spec.maxBytes && /^[a-f0-9]{64}$/.test(item.sha256 || ''), 'Backup archive metadata is invalid')
+  }
+  assertProtectedFileMetadata(record.protectedFiles)
+  const coverage = assertVolumeCoverage(record)
+  check(record.postgres?.database === coverage.database && record.postgres?.dataDirectory === coverage.actualPgDataDirectory, 'PostgreSQL backup identity is inconsistent')
+  check(record.postgres?.serverVersion === record.volumeCoverage.find(item => item.role === 'postgresql')?.serverVersion, 'PostgreSQL backup server version is inconsistent')
+  check(record.postgres?.dumpToc?.database === coverage.database && record.postgres.dumpToc.schemaMigrations === true && record.postgres.dumpToc.format === 'CUSTOM', 'PostgreSQL dump coverage metadata is invalid')
 }
+
 
 // The ordering is also exercised with an injected operation fixture. No POST
 // is retried automatically, and candidate cleanup is outside the rollback path.
@@ -228,24 +227,91 @@ async function activeConfiguration() {
   return { state, config, container, dependencies, priorManifest }
 }
 
-async function verifyBackup(backup, active, manifest, reportPath) {
+export function assertRestoreReport(report, reportPath, backup, manifest, manifestSha256, activeContainer, backupRecord, backupManifestSha256) {
+  check(report !== null && typeof report === 'object' && !Array.isArray(report), 'Restore report is invalid')
+  check(restoreReportPattern.test(reportPath), 'Restore report must be the exact private rehearsal report')
+  check(report.passed === true && report.cleanupSucceeded === true && report.scriptCompleted === true, 'Restore report did not pass with verified cleanup')
+  check(Array.isArray(report.cleanupErrors) && report.cleanupErrors.length === 0, 'Restore report contains cleanup failures')
+  check(report.productionDeploymentPerformed === false && report.realGatewayCallsTested === false, 'Restore report is not from the isolated rehearsal')
+  check(report.backup === backup && report.directory === dirname(reportPath), 'Restore report belongs to another backup or directory')
+  check(report.backupManifestSha256 === backupManifestSha256, 'Restore report does not match the exact backup manifest')
+  check(report.candidateManifestSha256 === manifestSha256, 'Restore report does not match the exact candidate manifest')
+  check(report.oldContainerId === activeContainer.Id && report.oldImageId === activeContainer.Image, 'Restore report does not match the current production container/image')
+  check(report.candidateCommit === manifest.commit && report.candidateImageId === manifest.imageId && report.candidateVersion === manifest.version, 'Restore report does not match the exact release commit/image/version')
+  check([firstUpgradeMode, sameVersionMode].includes(report.migrationMode), 'Restore report migration mode is unsupported')
+  const activeVersion = activeContainer.Config.Labels?.['org.opencontainers.image.version']
+  const expectedMode = activeVersion === '0.2.13' && manifest.version === '0.2.19' ? firstUpgradeMode
+    : activeVersion === '0.2.19' && manifest.version === '0.2.19' ? sameVersionMode : null
+  check(expectedMode !== null && report.migrationMode === expectedMode, 'Restore report migration mode differs from the current and candidate versions')
+  const isolation = report.isolation || {}
+  check(isolation.networkInternal === true && isolation.separateImplementationVolumes === true && isolation.noHostPublishedPorts === true &&
+    isolation.noProviderBackgroundJobs === true && isolation.helperNetworkNone === true && isolation.productionDependenciesReferenced === false, 'Restore report isolation evidence is incomplete')
+  const compatibility = report.compatibility || {}
+  check(compatibility.oldImageReadWrite === true && compatibility.candidateImageReadWrite === true && compatibility.restartStable === true, 'Restore report old/new compatibility evidence is incomplete')
+  const migrations = report.migrations || {}
+  check(Number.isInteger(migrations.beforeCount) && migrations.beforeCount >= 0 && Number.isInteger(migrations.afterCount) &&
+    migrations.afterCount >= 0 && migrations.restartStable === true && Number.isInteger(migrations.newCount) && migrations.newCount >= 0, 'Restore report migration evidence is incomplete')
+  if (report.migrationMode === sameVersionMode) {
+    check(migrations.beforeCount === migrations.afterCount, 'Same-version restore report migration counts changed')
+    check(migrations.alreadyMigrated === true && migrations.newCount === 0, 'Same-version restore report must show zero migration changes')
+    check(report.sameVersion?.migrationsStable === true && report.sameVersion?.businessStable === true &&
+      report.sameVersion?.configurationStable === true && report.sameVersion?.restartStable === true, 'Same-version restore report must show exact state preservation')
+  } else if (migrations.alreadyMigrated === true) {
+    check(migrations.newCount === 0, 'Already-migrated restore report unexpectedly applied migrations')
+  } else {
+    check(migrations.newCount === 8 && migrations.expectedNewCount === 8, 'First-upgrade restore report must show exactly eight new migrations')
+  }
+  const completed = Date.parse(report.completedAt)
+  check(Number.isFinite(completed) && completed >= Date.parse(backupRecord.finished) && completed <= Date.now() + 60_000, 'Restore report completion time is invalid or predates the backup')
+  return { reportPath, migrationMode: report.migrationMode, cleanupSucceeded: true, isolationVerified: true }
+}
+
+function postgresMetadata(container) {
+  const query = `SELECT json_build_object(
+    'database', current_database(),
+    'serverVersion', current_setting('server_version'),
+    'dataDirectory', current_setting('data_directory'),
+    'migrationsCount', (SELECT count(*) FROM schema_migrations)
+  )::text;`
+  return JSON.parse(docker(['exec', '-i', container.Id, 'sh', '-c',
+    'exec psql -X -qAt -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'], query))
+}
+
+async function verifyBackup(backup, active, manifest, manifestSha256, reportPath) {
   check(resolve(backup) === backup && new RegExp(`^${backupRoot}/backup-[a-zA-Z0-9]+$`).test(backup), 'Pass an exact private backup directory')
+  check(typeof reportPath === 'string' && resolve(reportPath) === reportPath && restoreReportPattern.test(reportPath), 'Prepare and activate require the exact private isolated restore report')
   const info = await lstat(backup)
   check(info.isDirectory() && !info.isSymbolicLink() && (info.mode & 0o777) === 0o700 && info.uid === process.getuid(), 'Private backup directory permissions changed')
   const record = await jsonPrivate(join(backup, 'backup-manifest.json'))
+  const backupManifestSha256 = await checksum(join(backup, 'backup-manifest.json'))
   assertFreshBackup(record, active.container, active.dependencies)
   for (const archive of record.archives) {
     const path = join(backup, archive.name), item = await lstat(path)
-    check(item.isFile() && !item.isSymbolicLink() && (item.mode & 0o777) === 0o600 && item.size === archive.bytes, 'Private backup archive permissions/size changed')
+    check(item.isFile() && !item.isSymbolicLink() && (item.mode & 0o777) === 0o600 && item.uid === process.getuid() && item.size === archive.bytes, 'Private backup archive permissions/size changed')
     check(await checksum(path) === archive.sha256, 'Private backup archive checksum changed')
   }
+  for (const protectedFile of record.protectedFiles) {
+    const path = join(backup, protectedFile.name), item = await lstat(path)
+    check(item.isFile() && !item.isSymbolicLink() && (item.mode & 0o777) === 0o600 && item.uid === process.getuid() && item.size === protectedFile.bytes, 'Protected backup file permissions/size changed')
+    check(await checksum(path) === protectedFile.sha256, 'Protected backup file checksum changed')
+    if (protectedFile.name !== 'recovery-private.json') {
+      const source = await lstat(protectedFile.source)
+      check(source.isFile() && !source.isSymbolicLink() && (source.mode & 0o777) === 0o600 &&
+        source.uid === process.getuid() && source.uid === protectedFile.sourceUid, 'Protected live source file mode/owner changed')
+      check(await checksum(protectedFile.source) === protectedFile.sha256, 'Protected live source file bytes changed')
+    }
+  }
+  const livePostgres = postgresMetadata(active.dependencies[0])
+  const liveCoverage = assertLivePostgresCoverage(record, livePostgres, active.dependencies[0].Mounts)
   // Parse a dump's table of contents without restoring or writing the live DB.
   listPostgresDump(active.dependencies[0].Id, await readFile(join(backup, 'postgres.dump')))
-  if (reportPath) {
-    const report = await jsonPrivate(resolve(reportPath))
-    check(report.passed === true && report.backup === backup && report.candidateCommit === manifest.commit && report.candidateImageId === manifest.imageId && report.oldImageId === active.container.Image, 'Restore report does not verify this exact backup and release')
-  }
-  return { archivesVerified: true, dumpReadable: true, isolatedRestoreReport: reportPath ? resolve(reportPath) : null }
+  const reportInfo = await lstat(reportPath), reportDir = await lstat(dirname(reportPath))
+  check(reportInfo.isFile() && !reportInfo.isSymbolicLink() && (reportInfo.mode & 0o777) === 0o600 && reportInfo.uid === process.getuid(), 'Restore report must be a private mode-0600 file')
+  check(reportDir.isDirectory() && !reportDir.isSymbolicLink() && (reportDir.mode & 0o777) === 0o700 && reportDir.uid === process.getuid(), 'Restore report directory must be private mode-0700')
+  const report = await jsonPrivate(reportPath)
+  const reportCheck = assertRestoreReport(report, reportPath, backup, manifest, manifestSha256, active.container, record, backupManifestSha256)
+  return { archivesVerified: true, protectedFilesVerified: true, volumeCoverageVerified: true, dumpReadable: true,
+    livePostgres: liveCoverage, isolatedRestoreReport: reportPath, restoreReportCheck: reportCheck }
 }
 
 async function request(base, path, { token, body, timeoutMs = 10_000 } = {}) {
@@ -557,7 +623,7 @@ async function prepare(manifestPath, backup, restoreReport) {
   const active = await activeConfiguration()
   check(active.state.image !== identity.image, 'This release is already active')
   check(await readFile(join(directory, 'haproxy.cfg'), 'utf8') === routing(`${names.app}:8080`), 'The current entry is not pinned to its active app')
-  const backupCheck = await verifyBackup(resolve(backup || ''), active, manifest, restoreReport)
+  const backupCheck = await verifyBackup(resolve(backup || ''), active, manifest, release.manifestSha256, restoreReport)
   const jobs = JSON.parse(docker(['exec', '-i', active.dependencies[0].Id, 'sh', '-c', 'exec psql -X -qAt -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'], `BEGIN READ ONLY; SET LOCAL statement_timeout='3s'; ${await readFile(new URL('./compatibility-inventory.sql', import.meta.url), 'utf8')} ROLLBACK;`))
   check(jobs.enabledScheduledTests === 0 && jobs.enabledChannelMonitors === 0 && !jobs.backupScheduleEnabled && jobs.activeBackupOperations === 0, 'An overlapping unclaimed background job blocks candidate preparation')
   const priorPins = await prepareDirectory(release, active)
@@ -601,31 +667,98 @@ async function loadUpgrade(path) {
   check(state.manifestPath === release.identity.manifestPath && state.manifestSha256 === release.manifestSha256 && state.image === release.identity.image && state.commit === release.identity.commit && state.version === release.identity.version, 'Prepared operation no longer matches its immutable release')
   return { ...release, state }
 }
-async function restorePrevious(identity, state, token, appearance, replacementStarted) {
+export async function runPriorImageRestore(operations, replacementStarted) {
+  if (replacementStarted) {
+    await operations.stopCurrentReplacement()
+    await operations.installPriorConfiguration()
+    await operations.startPriorImage()
+  }
+  await operations.waitPriorHealthy()
+  await operations.verifyPriorIdentity()
+  // Restore the self-consistent prior state and route before any remote auth,
+  // entry or inference verification. A shared upstream outage must not leave
+  // the failed candidate routed while the canonical container is the old image.
+  await operations.persistPriorState()
+  await operations.routePrior()
+  await operations.checkpointRouteRestored()
+  try {
+    await operations.waitPriorEntryHealthy()
+    await operations.authenticatePriorDirect()
+    await operations.verifyPriorDirect()
+    await operations.probePriorDirect()
+    await operations.verifyPriorEntry()
+    await operations.probePriorEntry()
+    await operations.verifyCompatibility()
+    await operations.finalizePriorState({ verified: true })
+    return { verified: true, verificationErrors: [] }
+  } catch (error) {
+    const verificationError = await operations.recordVerificationFailure(error)
+    await operations.finalizePriorState({ verified: false })
+    return { verified: false, error, verificationErrors: typeof verificationError === 'string' && verificationError ? [verificationError] : [] }
+  }
+}
+
+async function restorePrevious(identity, state, replacementStarted) {
   const prior = await snapshots(identity, state)
   imageMetadata(state.priorImage)
-  if (replacementStarted) {
-    // The verified, passive candidate continues serving while the sole prior
-    // background owner returns. Never restore a DB or Redis snapshot here.
-    await reload(identity.candidateName + ':8080')
-    await verifyShared(publicBase, token, appearance, targetVersion)
-    state.rollbackCandidateProbe = await liveGateway(publicBase + '/v1', 'blue', { timeoutMs: 45_000 })
-    const current = existingContainer(names.app)
-    if (current?.State.Running) docker(['stop', '--time=10', names.app])
-    await save(composePath, prior.config)
-    docker([...currentComposeArgs, 'up', '-d', '--no-deps', 'app'])
-  }
-  await ready(direct)
-  assertCurrent(inspect(names.app), state.priorImage)
-  await verifyShared(direct, token, appearance, state.priorVersion)
-  await liveGateway(direct + '/v1', null, { timeoutMs: 45_000 })
-  await reload(names.app + ':8080')
-  await verifyShared(publicBase, token, appearance, state.priorVersion)
-  state.rollbackProbe = await liveGateway(publicBase + '/v1', 'blue', { timeoutMs: 45_000 })
-  await save(activeStatePath, prior.state)
-  state.phase = 'rolled-back-verified'
-  state.rolledBackAt = new Date().toISOString()
+  let token, appearance
+  const verificationErrors = []
+  state.phase = 'restoring-prior'
+  state.rollbackStartedAt = new Date().toISOString()
+  state.rollbackMethod = 'candidate-independent-prior-image'
   await save(join(identity.directory, 'state.json'), state)
+  return runPriorImageRestore({
+    stopCurrentReplacement: async () => {
+      const current = existingContainer(names.app)
+      if (current) {
+        check(current.Config.Labels?.['com.docker.compose.project'] === 'sub2api-current' && [state.priorImage, state.image].includes(current.Image), 'Do not stop an unrelated current application during rollback')
+        if (current.State.Running) docker(['stop', '--time=10', names.app])
+      }
+      const candidate = existingContainer(identity.candidateName)
+      if (candidate) {
+        check(candidate.Image === state.image && candidate.Config.Labels?.['com.docker.compose.project'] === identity.project, 'Do not use another candidate during rollback')
+        const env = environment(candidate)
+        check(env.TOKEN_REFRESH_ENABLED === 'false' && env.USAGE_CLEANUP_ENABLED === 'false' && env.CHANNEL_MONITOR_V2_DISABLE_AGGREGATOR === '1', 'Candidate must remain passive during rollback')
+      }
+    },
+    installPriorConfiguration: async () => save(composePath, prior.config),
+    startPriorImage: async () => docker([...currentComposeArgs, 'up', '-d', '--no-deps', 'app']),
+    waitPriorHealthy: async () => ready(direct),
+    verifyPriorIdentity: async () => assertCurrent(inspect(names.app), state.priorImage),
+    persistPriorState: async () => save(activeStatePath, prior.state),
+    routePrior: async () => reload(names.app + ':8080'),
+    checkpointRouteRestored: async () => {
+      state.phase = 'rolled-back-route-restored-unverified'
+      state.recoveryVerified = false
+      state.backgroundOwner = names.app
+      state.databaseRestored = false
+      await save(join(identity.directory, 'state.json'), state)
+    },
+    waitPriorEntryHealthy: async () => ready(entry),
+    authenticatePriorDirect: async () => {
+      token = await session(prior.config, direct)
+      appearance = await verifyShared(direct, token, undefined, state.priorVersion)
+    },
+    verifyPriorDirect: async () => verifyShared(direct, token, appearance, state.priorVersion),
+    probePriorDirect: async () => { state.rollbackDirectProbe = await liveGateway(direct + '/v1', null, { timeoutMs: 45_000 }) },
+    verifyPriorEntry: async () => verifyShared(publicBase, token, appearance, state.priorVersion),
+    probePriorEntry: async () => { state.rollbackProbe = await liveGateway(publicBase + '/v1', 'blue', { timeoutMs: 45_000 }) },
+    verifyCompatibility: async () => { await verifyShared(compatibility, token, appearance, state.priorVersion); await health(compatibility) },
+    recordVerificationFailure: async error => {
+      const message = safeError(error)
+      verificationErrors.push(message)
+      return message
+    },
+    finalizePriorState: async ({ verified }) => {
+      state.phase = verified ? 'rolled-back-verified' : 'rolled-back-route-restored-unverified'
+      state.recoveryVerified = verified
+      state.recoveryVerificationErrors = verificationErrors
+      state.rolledBackAt = new Date().toISOString()
+      state.databaseRestored = false
+      state.backgroundOwner = names.app
+      await save(join(identity.directory, 'state.json'), state)
+    }
+  }, replacementStarted)
 }
 
 async function activate(path) {
@@ -633,7 +766,7 @@ async function activate(path) {
   check(state.phase === 'prepared', 'Activation requires a freshly prepared release; inspect status instead of replaying it')
   const active = await activeConfiguration()
   check(active.container.Id === state.priorContainerId && active.state.image === state.priorImage, 'Production changed after preparation')
-  await verifyBackup(state.backup, active, manifest, state.backupCheck.isolatedRestoreReport)
+  await verifyBackup(state.backup, active, manifest, state.manifestSha256, state.backupCheck.isolatedRestoreReport)
   await snapshots(identity, state)
   const token = await session(active.config), appearance = await verifyShared(direct, token, undefined, state.priorVersion)
   let replacementStarted = false
@@ -683,7 +816,7 @@ async function activate(path) {
       state.activatedAt = promoted.activatedAt
       await save(join(identity.directory, 'state.json'), state)
     },
-    rollback: async () => { await restorePrevious(identity, state, token, appearance, replacementStarted) },
+    rollback: async () => { await restorePrevious(identity, state, replacementStarted) },
     cleanupCandidate: async () => {
       try { await cleanupCandidate(identity); state.candidateCleanup = { ok: true, checkedAt: new Date().toISOString() } }
       catch (error) { state.candidateCleanup = { ok: false, error: safeError(error) } }
@@ -693,27 +826,32 @@ async function activate(path) {
   return state
 }
 
+export function applyRecoveryResult(state, recovery) {
+  state.recoveryVerified = recovery?.verified === true
+  if (state.recoveryVerified) {
+    state.recoveryVerificationErrors = []
+  } else if (Array.isArray(recovery?.verificationErrors)) {
+    if (recovery.verificationErrors.length > 0 || !Array.isArray(state.recoveryVerificationErrors)) state.recoveryVerificationErrors = recovery.verificationErrors
+  } else if (!state.recoveryVerified && (!Array.isArray(state.recoveryVerificationErrors) || state.recoveryVerificationErrors.length === 0)) {
+    state.recoveryVerificationErrors = [safeError(recovery?.error)]
+  }
+  if (!Array.isArray(state.recoveryVerificationErrors)) state.recoveryVerificationErrors = []
+  return state
+}
+
 async function rollback(path) {
   const { identity, state } = await loadUpgrade(path), prior = await snapshots(identity, state)
   const current = existingContainer(names.app), candidate = existingContainer(identity.candidateName)
   const plan = rollbackPlan(current, candidate, state, identity)
   imageMetadata(state.priorImage)
-  if (plan.needCandidate) {
-    await startCandidate(identity, prior.config)
-    assertCandidate(identity)
-    await ready(identity.candidateBase)
+  const recovery = await restorePrevious(identity, state, plan.replacementStarted)
+  try {
+    await cleanupCandidate(identity)
+    state.candidateCleanup = { ok: true, checkedAt: new Date().toISOString() }
+  } catch (error) {
+    state.candidateCleanup = { ok: false, error: safeError(error) }
   }
-  const authBase = plan.authFromCandidate ? identity.candidateBase : direct
-  const authVersion = (plan.authFromCandidate || plan.replacementStarted) ? targetVersion : state.priorVersion
-  const token = await session(prior.config, authBase), appearance = await verifyShared(authBase, token, undefined, authVersion)
-  if (plan.replacementStarted) {
-    assertCandidate(identity)
-    await verifyShared(identity.candidateBase, token, appearance, targetVersion)
-    await liveGateway(identity.candidateBase + '/v1', null, { timeoutMs: 45_000 })
-  }
-  await restorePrevious(identity, state, token, appearance, plan.replacementStarted)
-  await cleanupCandidate(identity)
-  state.candidateCleanup = { ok: true, checkedAt: new Date().toISOString() }
+  applyRecoveryResult(state, recovery)
   await save(join(identity.directory, 'state.json'), state)
   return state
 }
@@ -722,8 +860,8 @@ export function rollbackPlan(current, candidate, state, identity) {
   if (current) check([state.priorImage, state.image].includes(current.Image) && current.Config.Labels?.['com.docker.compose.project'] === 'sub2api-current', 'Do not roll back another production release')
   if (candidate) check(candidate.Image === state.image && candidate.Config.Labels?.['com.docker.compose.project'] === identity.project, 'Do not use another candidate for rollback')
   const currentHealthy = current?.State.Running && current.State.Health?.Status === 'healthy'
-  const replacementStarted = !currentHealthy || current.Image !== state.priorImage
-  return { replacementStarted, needCandidate: replacementStarted && (!candidate?.State.Running || candidate.State.Health?.Status !== 'healthy'), authFromCandidate: !currentHealthy }
+  return { replacementStarted: !currentHealthy || current.Image !== state.priorImage,
+    candidatePresent: !!candidate, candidateDependent: false }
 }
 
 export function publicSummary(state) {
@@ -748,9 +886,10 @@ export function publicSummary(state) {
 export async function main(argv = process.argv.slice(2)) {
   process.umask(0o077)
   const [action, manifestPath, backup, restoreReport] = argv
-  check(['prepare', 'activate', 'rollback', 'status', 'cleanup'].includes(action), 'Usage: upgrade-current.mjs prepare MANIFEST BACKUP [RESTORE_REPORT] | activate|rollback|cleanup MANIFEST | status [MANIFEST]')
+  check(['prepare', 'activate', 'rollback', 'status', 'cleanup'].includes(action), 'Usage: upgrade-current.mjs prepare MANIFEST BACKUP RESTORE_REPORT | activate|rollback|cleanup MANIFEST | status [MANIFEST]')
   check(action === 'status' || manifestPath, 'Pass the exact immutable manifest path')
   check(action !== 'prepare' || backup, 'Prepare requires a fresh private backup; use SUB2API_BACKUP_APP=sub2api-current-app with backup-private.mjs')
+  check(action !== 'prepare' || (restoreReport && resolve(restoreReport) === restoreReport), 'Prepare requires the exact successful isolated restore report; there is no optional-report bypass')
   const lockPath = join(deployment, '.release-operation.lock'), lock = await acquireLock(lockPath)
   try {
     await lock.writeFile(JSON.stringify({ pid: process.pid, action: 'current-' + action, startedAt: new Date().toISOString() }))
@@ -760,7 +899,7 @@ export async function main(argv = process.argv.slice(2)) {
     if (action === 'rollback') state = await rollback(manifestPath)
     if (action === 'cleanup') {
       const release = await loadUpgrade(manifestPath)
-      check(['active-verified', 'rolled-back-verified'].includes(release.state.phase), 'Candidate cleanup requires a verified serving current app')
+      check(['active-verified', 'rolled-back-verified', 'rolled-back-route-restored-unverified'].includes(release.state.phase), 'Candidate cleanup requires a serving current app')
       await activeConfiguration()
       await health(publicBase)
       await cleanupCandidate(release.identity)
