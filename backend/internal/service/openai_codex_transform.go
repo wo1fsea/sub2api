@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	factorypkg "github.com/Wei-Shaw/sub2api/internal/pkg/factory"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 )
 
@@ -1241,6 +1242,12 @@ func normalizeOpenAIResponsesImageOnlyModel(reqBody map[string]any) bool {
 }
 
 func normalizeOpenAIModelForUpstream(account *Account, model string) string {
+	if account != nil && account.IsFactory() {
+		if native, ok := factorypkg.NativeModelID(model); ok {
+			return native
+		}
+		return strings.TrimSpace(model)
+	}
 	if account == nil || account.UsesOpenAICodexProtocol() {
 		return normalizeCodexModel(model)
 	}

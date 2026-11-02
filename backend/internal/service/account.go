@@ -15,6 +15,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
+	factorypkg "github.com/Wei-Shaw/sub2api/internal/pkg/factory"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/typesafe"
@@ -304,6 +305,10 @@ func (a *Account) IsDeepseek() bool {
 
 func (a *Account) IsMiniMax() bool {
 	return a.Platform == PlatformMiniMax
+}
+
+func (a *Account) IsFactory() bool {
+	return a != nil && a.Platform == PlatformFactory
 }
 
 // IsCNProvider 报告是否为国产 OpenAI 兼容供应商（kimi/zhipu/deepseek/minimax）。
@@ -679,6 +684,9 @@ func (a *Account) PrepareSharedSnapshot() {
 
 func (a *Account) resolveModelMapping(rawMapping map[string]any) map[string]string {
 	if a.Credentials == nil {
+		if a.Platform == PlatformFactory {
+			return factorypkg.DefaultModelMapping()
+		}
 		// Antigravity 平台使用默认映射
 		if a.Platform == domain.PlatformAntigravity {
 			return domain.DefaultAntigravityModelMapping
@@ -690,6 +698,9 @@ func (a *Account) resolveModelMapping(rawMapping map[string]any) map[string]stri
 		return nil
 	}
 	if len(rawMapping) == 0 {
+		if a.Platform == PlatformFactory {
+			return factorypkg.DefaultModelMapping()
+		}
 		if a.IsGeminiGoogleOne() {
 			return geminicli.GoogleOneModelMapping()
 		}
@@ -966,6 +977,19 @@ func (a *Account) IsModelSupported(requestedModel string) bool {
 }
 
 func (a *Account) isModelMappingSupported(requestedModel string) bool {
+	if a != nil && a.IsFactory() {
+		mapping := a.GetModelMapping()
+		candidate, matched := resolveRequestedModelInMapping(mapping, requestedModel)
+		if matched {
+			_, ok := factorypkg.NativeModelID(candidate)
+			return ok
+		}
+		native, ok := factorypkg.NativeModelID(requestedModel)
+		if !ok {
+			return false
+		}
+		return !a.factoryHasExplicitModelMapping() || a.factoryMappingAdmitsNative(native)
+	}
 	// 透传模式仅替换认证、模型语义完全交由上游决定，因此放行所有模型。
 	// 该短路必须在 model_mapping 判定之前：账号从"白名单模式"切换到透传后，
 	// credentials 里常残留旧的非空 model_mapping，若不在此放行，透传账号会被
@@ -1000,6 +1024,20 @@ func (a *Account) GetMappedModel(requestedModel string) string {
 // ResolveMappedModel 获取映射后的模型名，并返回是否命中了账号级映射。
 // matched=true 表示命中了精确映射或通配符映射，即使映射结果与原模型名相同。
 func (a *Account) ResolveMappedModel(requestedModel string) (mappedModel string, matched bool) {
+	if a != nil && a.IsFactory() {
+		mapping := a.GetModelMapping()
+		if candidate, found := resolveRequestedModelInMapping(mapping, requestedModel); found {
+			if native, ok := factorypkg.NativeModelID(candidate); ok {
+				return native, true
+			}
+			return requestedModel, false
+		}
+		native, ok := factorypkg.NativeModelID(requestedModel)
+		if ok && (!a.factoryHasExplicitModelMapping() || a.factoryMappingAdmitsNative(native)) {
+			return native, true
+		}
+		return requestedModel, false
+	}
 	mapping := a.GetModelMapping()
 	if len(mapping) == 0 {
 		return requestedModel, false

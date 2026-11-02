@@ -1,4 +1,5 @@
 import { getProviderProfile } from '@/constants/platformCatalog'
+import { FACTORY_MODEL_PRESET_MAPPINGS, FACTORY_PUBLIC_MODEL_IDS } from '@/components/account/factory'
 
 // =====================
 // 模型列表（硬编码，与 new-api 一致）
@@ -518,6 +519,7 @@ export function getModelsByPlatform(platform: string): string[] {
     case 'meta': return metaModels
     case 'xai':
     case 'grok': return xaiModels
+    case 'factory': return FACTORY_PUBLIC_MODEL_IDS
     case 'cohere': return cohereModels
     case 'yi': return yiModels
     case 'moonshot':
@@ -550,6 +552,7 @@ export function getModelsByPlatform(platform: string): string[] {
 
 // 按平台获取预设映射
 export function getPresetMappingsByPlatform(platform: string) {
+  if (platform === 'factory') return FACTORY_MODEL_PRESET_MAPPINGS
   if (platform === 'openai') return openaiPresetMappings
   if (platform === 'gemini') return geminiPresetMappings
   if (platform === 'grok' || platform === 'xai') return grokPresetMappings

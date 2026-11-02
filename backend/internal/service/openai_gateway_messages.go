@@ -33,6 +33,11 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	promptCacheKey string,
 	defaultMappedModel string,
 ) (*OpenAIForwardResult, error) {
+	if account != nil && account.IsFactory() {
+		if err := rejectFactoryOriginalFastIntent(c, body, "anthropic"); err != nil {
+			return nil, err
+		}
+	}
 	// 工具 Schema 清洗必须先于所有分流：下游每条路径（原生 Anthropic 直通、
 	// Chat Completions 转换、Responses 转换）都会把 tools 原样带给上游，而
 	// xAI / Moonshot 等严格校验方会因 input_schema 里的 required:null 或
@@ -79,6 +84,8 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		// 固定 chat_completions 的多协议账号、规则命中 CC 的按模型分流账号，以及
 		// 不支持 Responses 的其他 APIKey 账号，均将 Messages 转为 CC。
 		return s.forwardAnthropicViaRawChatCompletions(ctx, c, account, body, defaultMappedModel)
+	case APIProtocolUnsupported:
+		return nil, writeFactoryUnsupportedModelError(c, "anthropic")
 	}
 	SetActualOpenAIUpstreamEndpoint(c, openAIResponsesUpstreamEndpoint)
 

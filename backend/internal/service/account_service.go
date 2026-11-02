@@ -224,6 +224,9 @@ func NewAccountService(accountRepo AccountRepository, groupRepo GroupRepository)
 
 // Create 创建账号
 func (s *AccountService) Create(ctx context.Context, req CreateAccountRequest) (*Account, error) {
+	if err := normalizeFactoryCreateCredentials(req.Platform, req.Type, req.Credentials); err != nil {
+		return nil, err
+	}
 	if req.Platform == PlatformTypeSafe && req.Type != AccountTypeAPIKey {
 		return nil, errors.New("typesafe accounts only support apikey credentials")
 	}
@@ -323,6 +326,9 @@ func (s *AccountService) Update(ctx context.Context, id int64, req UpdateAccount
 	if err != nil {
 		return nil, fmt.Errorf("get account: %w", err)
 	}
+	if account.IsFactory() && account.Type != AccountTypeAPIKey {
+		return nil, errors.New("Factory accounts only support apikey credentials")
+	}
 
 	// 更新字段
 	if req.Name != nil {
@@ -333,7 +339,15 @@ func (s *AccountService) Update(ctx context.Context, id int64, req UpdateAccount
 	}
 
 	if req.Credentials != nil {
-		account.Credentials = SanitizeStoredCredentials(account.Platform, *req.Credentials)
+		if account.IsFactory() {
+			merged, mergeErr := mergeFactoryUpdateCredentials(account.Credentials, *req.Credentials)
+			if mergeErr != nil {
+				return nil, mergeErr
+			}
+			account.Credentials = merged
+		} else {
+			account.Credentials = SanitizeStoredCredentials(account.Platform, *req.Credentials)
+		}
 	}
 
 	if req.Extra != nil {

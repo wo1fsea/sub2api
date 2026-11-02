@@ -175,6 +175,9 @@ func parseModelProtocolCatalog(body []byte) (map[string][]string, error) {
 // modelCatalogProtocols 返回上游模型目录中 model 支持的协议；平台不提供目录、账号固定了
 // 上游协议或目录尚未就绪时返回 nil。
 func (s *OpenAIGatewayService) modelCatalogProtocols(ctx context.Context, account *Account, model string) []string {
+	if account != nil && account.IsFactory() {
+		return nil
+	}
 	if s == nil || s.httpUpstream == nil || strings.TrimSpace(model) == "" || !account.routesByModel() {
 		return nil
 	}

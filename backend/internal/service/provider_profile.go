@@ -1,6 +1,10 @@
 package service
 
-import "strings"
+import (
+	"strings"
+
+	factorypkg "github.com/Wei-Shaw/sub2api/internal/pkg/factory"
+)
 
 // ProviderEndpoints 是多协议 API Key 供应商在某个接入模式下的官方默认端点与
 // 内置分流规则。账号凭证里的 base_url / api_base_urls / protocol_rules 仍优先于这里。
@@ -45,6 +49,9 @@ type ProviderProfile struct {
 	// ModelCatalog 表示上游 {Chat Completions 基址}/models 为每个模型给出
 	// supported_endpoints；按模型分流时据此判断模型支持哪些协议（见 model_protocol_catalog.go）。
 	ModelCatalog bool
+	// UpstreamModelSyncSupported controls whether the admin UI and backend may
+	// offer live /models discovery. nil means supported for legacy profiles.
+	UpstreamModelSyncSupported *bool
 }
 
 // providerDefaultTestModel 返回账号连接测试未指定模型时的默认模型；非多协议供应商或
@@ -221,6 +228,36 @@ var providerProfiles = map[string]*ProviderProfile{
 			},
 		},
 	},
+	PlatformFactory: {
+		Platform:                   PlatformFactory,
+		DefaultMode:                AccountModePayG,
+		Routing:                    ProviderRoutingByModel,
+		DefaultTestModel:           "claude-sonnet-4-6",
+		UpstreamModelSyncSupported: &factoryProfileUpstreamModelSyncSupported,
+		Modes: map[string]ProviderEndpoints{
+			AccountModePayG: {
+				BaseURLs: map[string]string{
+					APIProtocolAnthropic:       factorypkg.HostUS + "/api/llm/a",
+					APIProtocolResponses:       factorypkg.HostUS + "/api/llm/o",
+					APIProtocolChatCompletions: factorypkg.HostUS + "/api/llm/o",
+				},
+				ProtocolRules: DefaultFactoryProtocolRules(),
+			},
+		},
+	},
+}
+
+var factoryProfileUpstreamModelSyncSupported = false
+
+// DefaultFactoryProtocolRules is derived from the finite registry. The
+// registry, not GetAPIProtocol or persisted protocol_rules, is authoritative.
+func DefaultFactoryProtocolRules() []ProtocolRule {
+	models := factorypkg.Models()
+	rules := make([]ProtocolRule, 0, len(models))
+	for _, model := range models {
+		rules = append(rules, ProtocolRule{Pattern: model.ID, Protocol: string(model.Protocol)})
+	}
+	return rules
 }
 
 // LookupProviderProfile 返回 platform 对应的多协议供应商 profile；非此类平台返回 nil。
@@ -238,6 +275,13 @@ func (a *Account) providerProfile() *ProviderProfile {
 // defaultProviderBaseURL 按账号 account_mode 返回多协议供应商指定协议的官方默认基址；
 // 非多协议供应商或协议未知时为空串。
 func (a *Account) defaultProviderBaseURL(protocol string) string {
+	if a != nil && a.IsFactory() {
+		base, ok := factorypkg.BaseURL(a.GetCredential("region"), factorypkg.Protocol(protocol))
+		if ok {
+			return base
+		}
+		return ""
+	}
 	profile := a.providerProfile()
 	if profile == nil {
 		return ""

@@ -23,6 +23,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	factorypkg "github.com/Wei-Shaw/sub2api/internal/pkg/factory"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -57,7 +58,7 @@ func (s *OpenAIGatewayService) forwardAnthropicViaNativeAnthropicEndpoint(
 		}
 		body = rewritten
 	}
-	if normalized, changed := NormalizeGLM53AnthropicThinking(body, upstreamModel); changed {
+	if normalized, changed := NormalizeGLM53AnthropicThinking(body, upstreamModel); changed && !account.IsFactory() {
 		body = normalized
 	}
 
@@ -73,8 +74,10 @@ func (s *OpenAIGatewayService) forwardAnthropicViaNativeAnthropicEndpoint(
 
 	// 与 Anthropic 平台 passthrough 相同的 pre-filter：剥离空文本块与上游
 	// 无法接受的 web-search 历史块（GLM/Kimi/DeepSeek 对 server_tool_use 400）。
-	body = StripEmptyTextBlocks(body)
-	body = FilterWebSearchHistoryBlocks(body, upstreamModel)
+	if !account.IsFactory() {
+		body = StripEmptyTextBlocks(body)
+		body = FilterWebSearchHistoryBlocks(body, upstreamModel)
+	}
 
 	logger.LegacyPrintf("service.gateway", "[CN Anthropic 直通] account=%d(%s) platform=%s model=%s upstream=%s stream=%v",
 		account.ID, account.Name, account.Platform, originalModel, upstreamModel, clientStream)
@@ -108,6 +111,10 @@ func (s *OpenAIGatewayService) forwardAnthropicViaNativeAnthropicEndpoint(
 
 	if resp.StatusCode >= 400 {
 		respBody, upstreamMsg := s.readOpenAIUpstreamError(resp)
+		respBody = sanitizeFactoryDiagnosticBody(account, respBody)
+		upstreamMsg = maskFactoryCredential(account, upstreamMsg)
+		resp.Header = sanitizeFactoryResponseHeaders(account, resp.Header)
+		resp.Body = io.NopCloser(bytes.NewReader(respBody))
 		if foErr := s.failoverOpenAIUpstreamHTTPError(ctx, c, account, resp, respBody, upstreamMsg, upstreamModel); foErr != nil {
 			return nil, foErr
 		}
@@ -125,6 +132,9 @@ func (s *OpenAIGatewayService) forwardAnthropicViaNativeAnthropicEndpoint(
 // nativeAnthropicTargetURL 组装国产供应商原生 Anthropic messages 端点。
 // 第三方端点保持朴素路径，不附加 ?beta=true。
 func (s *OpenAIGatewayService) nativeAnthropicTargetURL(account *Account) (string, error) {
+	if account != nil && account.IsFactory() {
+		return factoryEndpointURL(account, APIProtocolAnthropic)
+	}
 	baseURL := strings.TrimSpace(account.GetAnthropicProtocolBaseURL())
 	if baseURL == "" {
 		return "", fmt.Errorf("account %d has no anthropic protocol base url", account.ID)
@@ -171,7 +181,7 @@ func (s *OpenAIGatewayService) buildNativeAnthropicUpstreamRequest(
 	if beta, ok := account.HeaderOverrideValue("anthropic-beta"); ok {
 		clientBeta = beta
 	}
-	if sanitized, changed := sanitizeAnthropicBodyForBetaTokens(body, clientBeta); changed {
+	if sanitized, changed := sanitizeAnthropicBodyForBetaTokens(body, clientBeta); changed && !account.IsFactory() {
 		body = sanitized
 	}
 
@@ -179,6 +189,15 @@ func (s *OpenAIGatewayService) buildNativeAnthropicUpstreamRequest(
 	// 的 base 取值同源（GetAnthropicProtocolBaseURL，adaptive 时是 Anthropic 协议
 	// 地址而非 CC/Responses 地址），详见 helper 注释。
 	body = clampOllamaCloudAnthropicMessagesMaxTokens(account, account.GetAnthropicProtocolBaseURL(), body)
+	var factoryCredentials factorypkg.Credentials
+	var factoryModel factorypkg.Model
+	if account != nil && account.IsFactory() {
+		var factoryErr error
+		body, factoryCredentials, factoryModel, factoryErr = prepareFactoryUpstream(account, APIProtocolAnthropic, body)
+		if factoryErr != nil {
+			return nil, nil, factoryErr
+		}
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(body))
 	if err != nil {
@@ -220,9 +239,16 @@ func (s *OpenAIGatewayService) buildNativeAnthropicUpstreamRequest(
 
 	// 账号级请求头覆写（最终生效，覆盖上面所有来源的同名头）
 	account.ApplyHeaderOverrides(req.Header)
-	filterSonnet55ToolsetBetaHeader(req.Header, body, gjson.GetBytes(body, "model").String())
+	if !account.IsFactory() {
+		filterSonnet55ToolsetBetaHeader(req.Header, body, gjson.GetBytes(body, "model").String())
+	}
 	payloads := append([][]byte{body}, sessionBodies...)
 	applyOpenCodeSessionHeader(c, account, targetURL, req.Header, payloads...)
+	if account.IsFactory() {
+		if err := applyFactoryRequestPolicy(req, account, APIProtocolAnthropic, factoryCredentials, factoryModel); err != nil {
+			return nil, nil, err
+		}
+	}
 
 	return req, body, nil
 }
@@ -455,6 +481,7 @@ func (s *OpenAIGatewayService) handleNativeAnthropicStreamingResponse(
 			}
 
 			line := ev.line
+			line = sanitizeFactoryAnthropicSSELine(account, line)
 			if data, ok := extractAnthropicSSEDataLine(line); ok {
 				trimmed := strings.TrimSpace(data)
 				observer.ObserveAnthropic([]byte(trimmed))

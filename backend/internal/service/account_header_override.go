@@ -77,6 +77,9 @@ func (a *Account) IsHeaderOverrideEligible() bool {
 	if a == nil {
 		return false
 	}
+	if a.IsFactory() {
+		return false
+	}
 	switch {
 	case a.Platform == PlatformAnthropic, a.Platform == PlatformOpenAI, IsMultiProtocolAPIKeyProvider(a.Platform):
 		return a.Type == AccountTypeAPIKey

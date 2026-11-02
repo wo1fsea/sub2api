@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	factorypkg "github.com/Wei-Shaw/sub2api/internal/pkg/factory"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
@@ -19,6 +20,15 @@ import (
 
 // Forward forwards request to OpenAI API
 func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte) (*OpenAIForwardResult, error) {
+	if account != nil && account.IsFactory() {
+		if err := rejectFactoryOriginalFastIntent(c, body, "responses"); err != nil {
+			return nil, err
+		}
+	}
+	if account != nil && account.IsFactory() && (openAIResponsesRequestPathSuffix(c) != "" || HasCompactionTriggerInInput(body)) {
+		writeResponsesError(c, http.StatusBadRequest, "invalid_request_error", "Factory does not support this Responses subpath or compaction request")
+		return nil, fmt.Errorf("factory unsupported responses subpath")
+	}
 	beginUpstreamResponseModelObservation(c)
 	ClearActualOpenAIUpstreamEndpoint(c)
 	if shouldForwardOpenAIResponsesViaRawChatCompletions(account) {
@@ -191,6 +201,8 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		return s.forwardResponsesViaNativeAnthropic(ctx, c, account, body, reqModel)
 	case APIProtocolChatCompletions:
 		return s.forwardResponsesViaRawChatCompletions(ctx, c, account, body, startTime)
+	case APIProtocolUnsupported:
+		return nil, writeFactoryUnsupportedModelError(c, "responses")
 	}
 	SetActualOpenAIUpstreamEndpoint(c, openAIResponsesUpstreamEndpoint)
 	if account.IsOpenAI() && (account.IsOpenAIApiKey() || account.IsOpenAIOAuthLike()) {
@@ -1093,6 +1105,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		// Handle error response
 		if resp.StatusCode >= 400 {
 			respBody := s.readUpstreamErrorBody(resp)
+			respBody = sanitizeFactoryDiagnosticBody(account, respBody)
 			_ = resp.Body.Close()
 			resp.Body = io.NopCloser(bytes.NewReader(respBody))
 
@@ -1181,7 +1194,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 					AccountID:          account.ID,
 					AccountName:        account.Name,
 					UpstreamStatusCode: resp.StatusCode,
-					UpstreamRequestID:  resp.Header.Get("x-request-id"),
+					UpstreamRequestID:  sanitizeFactoryDiagnosticHeader(account, resp.Header.Get("x-request-id")),
 					Kind:               "failover",
 					Message:            upstreamMsg,
 					Detail:             upstreamDetail,
@@ -1191,7 +1204,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 				return nil, s.newOpenAIAccountFailoverError(
 					account,
 					resp.StatusCode,
-					resp.Header,
+					sanitizeFactoryResponseHeaders(account, resp.Header),
 					respBody,
 					upstreamMsg,
 					shouldDisable,
@@ -1384,6 +1397,14 @@ func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.
 		}
 	case AccountTypeAPIKey:
 		// API Key accounts use Platform API or custom base URL
+		if account.IsFactory() {
+			factoryURL, factoryErr := factoryEndpointURL(account, APIProtocolResponses)
+			if factoryErr != nil {
+				return nil, factoryErr
+			}
+			targetURL = factoryURL
+			break
+		}
 		baseURL := account.GetOpenAIBaseURL()
 		if account.UsesNativeCNResponses() && account.IsAdaptiveAPIProtocol() {
 			baseURL = account.GetCNProtocolBaseURL(APIProtocolResponses)
@@ -1405,6 +1426,15 @@ func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.
 	// DeepSeek / Kimi 原生 Responses 端点为无状态实现：强制 store=false、清除
 	// previous_response_id，避免携带状态字段被上游拒绝。
 	body = normalizeDeepSeekResponsesRequestBody(account, body)
+	var factoryCredentials factorypkg.Credentials
+	var factoryModel factorypkg.Model
+	if account.IsFactory() {
+		var factoryErr error
+		body, factoryCredentials, factoryModel, factoryErr = prepareFactoryUpstream(account, APIProtocolResponses, body)
+		if factoryErr != nil {
+			return nil, factoryErr
+		}
+	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", targetURL, bytes.NewReader(body))
 	if err != nil {
@@ -1528,6 +1558,11 @@ func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.
 
 	if err := applyMappedGPT55LiteCompatibility(req, account, body); err != nil {
 		return nil, err
+	}
+	if account.IsFactory() {
+		if err := applyFactoryRequestPolicy(req, account, APIProtocolResponses, factoryCredentials, factoryModel); err != nil {
+			return nil, err
+		}
 	}
 	return req, nil
 }

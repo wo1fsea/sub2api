@@ -746,6 +746,24 @@ export default {
       baseUrlHint: '留空使用官方 Anthropic API',
       apiKeyRequired: 'API Key *',
       apiKeyPlaceholder: 'sk-ant-api03-...',
+      factory: {
+        apiKeyOnly: '仅支持 Factory API Key；不支持 WorkOS 设备登录/OAuth 与令牌刷新。',
+        apiKeyHint: 'Factory API Key（fk-...）。编辑时留空可保留当前 Key。',
+        region: '区域',
+        regions: {
+          us: '美国（api.factory.ai）',
+          eu: '欧盟（api.eu.factory.ai）'
+        },
+        regionHint: '仅用于选择固定的 Factory 端点。不接受自定义 Base URL 或协议覆盖。',
+        orgId: 'Factory 当前组织 ID（可选）',
+        orgIdPlaceholder: '留空使用 Key 的默认组织',
+        orgIdHint: '只填写 Factory 的当前组织 ID，不要填写 WorkOS 组织 ID。留空使用 Key 的默认组织；编辑时清空可移除显式指定的组织。',
+        capabilitiesTitle: 'Factory 能力与限制',
+        capabilities: '支持 Anthropic Messages、OpenAI Responses 与 Chat Completions。模型是否可用仍取决于 Factory 账号权益。',
+        modelPrefixHint: '公开模型 ID 使用 factory/<native-id> 前缀，并映射到原生 ID，例如 factory/claude-opus-5-5 映射到 claude-opus-5-5。',
+        unsupported: '不支持 Gemini generate、Fast Mode 模型、auto 自动模型选择、WorkOS 登录与通用上游模型同步。',
+        entitlement: 'Factory 使用权益额度，本表单不声明 USD 定价或上游模型发现能力。'
+      },
       apiKeyHint: '您的 Claude Console API Key',
       upstreamRequestIdHeader: '上游ID',
       upstreamRequestIdHeaderPlaceholder: '留空不记录',
