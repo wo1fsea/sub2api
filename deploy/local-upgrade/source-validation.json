@@ -3,147 +3,109 @@
   "recordedDate": "2026-11-03",
   "version": "0.2.19",
   "releaseBranch": "codex/sync/20261028-v0.2.19",
-  "qualifiedApplicationCommit": "694def1af9c095884d96e1d7e8f6c3e5d40a188f",
+  "qualifiedApplicationCommit": "95e7dd58b6e2bd87c8385ecf5eacb9e2866a65a7",
   "upstreamTag": "v0.2.19",
   "upstreamCommit": "dece26153621959ccd7635814f4b2d08304e681a",
   "backendTree": "9dea630958d0a55634b654f0f646140fa5986302",
-  "frontendTree": "509b083b7da75684081bf2ac1596f327bb970b43",
+  "frontendTree": "87688c56289c700e4ff3479524259f436a0d6e10",
   "migrationsTree": "ba0fd03a1d669aacc81cf9f4da180cdbd5b25f2d",
-  "qualificationScope": "Factory subscription-only billing limits, six quota windows and metadata in accounts.extra, request-driven 5-minute cache, 30-second manual cooldown, timeout/singleflight/backoff/stale, credential-generation CAS invalidation, bilingual account and quota overview UI. No schema migration, inference route, billing analytics or token-total extrapolation.",
-  "evidenceReused": false,
-  "toolchain": "Go 1.27.3; Node 26.7.0 host; frozen pnpm 9.15.9 dependencies; linux/arm64 image uses existing pinned Node 24 / Go 1.27.3 inputs.",
-  "backendUnit": {
-    "passed": true,
-    "packagesPassed": 59,
-    "testsPassed": 24500,
-    "testsSkipped": 36,
-    "failures": 0,
-    "scope": "go test -json -tags=unit -p 2 -parallel 2 -count=1 -timeout=10m ./...; sanitized allowlisted environment",
-    "evidence": "frontend/tmp/backend-tests/run-T17GJP/report.json",
-    "evidenceSha256": "26cdb03b464c01850a666a204d09de5d0420397292a3e2676fdb7a2ced29033e"
-  },
-  "backendIntegration": {
-    "passed": true,
-    "packagesPassed": 52,
-    "testsPassed": 14674,
-    "testsSkipped": 17,
-    "failures": 0,
-    "scope": "go test -json -tags=integration -p 1 -parallel 2 -count=1 -timeout=10m ./...; isolated testcontainers and sanitized allowlisted environment",
-    "coverage": "Includes TestFactoryUsageGenerationAtomicCredentialChanges across Create/Update/UpdateCredentials/BulkUpdate and stale snapshot CAS.",
-    "evidence": "frontend/tmp/backend-tests/run-zaK5cC/report.json",
-    "evidenceSha256": "35a2863f79af5b5ba14e1bd51ac73fcf1e9b9ba9efdac3bafaa10b8dd7656ec1"
-  },
-  "securityAuditDependencies": {
-    "passed": true,
-    "testsPassed": 218,
-    "testsSkipped": 0,
-    "scope": "go test -tags=integration -count=1 -v -timeout=120s ./internal/securityaudit; isolated pinned PostgreSQL/Redis",
-    "evidence": "frontend/tmp/audit-tests/run-PEZZx9/report.txt",
-    "evidenceSha256": "e3d85e3d4ddfeba8c346017a0636a8b0226e8b9c05f8c212adfd20232a53cafe"
+  "qualificationScope": "Factory six-window overview labels/resets; Antigravity batch loading, model-scoped normalization, six-tightest preview/full detail, tier and separate credits, zero-amount omitempty compatibility, stale/failure retention. Bounded historical asset inventory increased to 1800 files with unchanged 96 MiB byte cap.",
+  "previousReleaseRecordReused": false,
+  "backend": {
+    "changed": false,
+    "comparedTo": "ba9188166f847450e638b2cd26303bd32c3a78d0",
+    "testsRerunThisRound": false,
+    "note": "Backend tree is unchanged. No prior suite counts are claimed as new qualification."
   },
   "frontend": {
-    "testFilesPassed": 387,
-    "testsPassed": 3091,
+    "testFilesPassed": 4,
+    "testsPassed": 42,
     "testsFailed": 0,
-    "testsSkipped": 0,
-    "typecheck": "passed",
-    "lint": "passed",
-    "productionBuild": "passed: locale completeness, vue-tsc -b, vite build",
-    "exactTree": "509b083b7da75684081bf2ac1596f327bb970b43",
-    "evidence": [
-      {
-        "path": "/tmp/factory-usage-frontend-vitest.log",
-        "sha256": "22da750413309831483770c605177b66ed9792a38adb10d99f06c56f069ded57"
-      },
-      {
-        "path": "/tmp/factory-usage-frontend-typecheck.log",
-        "sha256": "353b1bdc97529cfcf877b58b3ce2f9399f63ad1fec58105017022faa3506993c"
-      },
-      {
-        "path": "/tmp/factory-usage-frontend-lint.log",
-        "sha256": "81d0c5af190cca5644e82c3ae1f8ff0cf1822c524fc336888cbc99cd4a442615"
-      },
-      {
-        "path": "/tmp/factory-usage-frontend-production-build-final.log",
-        "sha256": "75a76f14601362d0b4a78dca72f2f0482482de657cdc7f64b016fa5a12fa3c96"
-      }
-    ]
+    "scope": "quotaOverview utility/composable/view and locale completeness",
+    "typecheck": "vue-tsc -b passed",
+    "lint": "changed frontend files and QA script passed",
+    "productionBuild": "passed",
+    "exactTree": "87688c56289c700e4ff3479524259f436a0d6e10"
   },
   "operationsTests": {
-    "passed": true,
-    "testsPassed": 80,
+    "testsPassed": 52,
     "testsFailed": 0,
-    "suites": [
-      "cleanup-retired.test.mjs",
-      "live-gateway.test.mjs",
-      "service-recovery.test.mjs",
-      "upgrade-current.test.mjs",
-      "rehearse-private.test.mjs"
-    ],
-    "newCoverage": [
-      "Factory account 13 reserved in bounded 6 existing plus 2 Factory quota sample",
-      "Exact standard/core six-window identities, upstream source, null/unknown states and 5-minute staleness",
-      "Unknown scopes, duplicate/incomplete windows and malformed Factory state rejected"
-    ],
-    "evidence": "/tmp/factory-usage-deploy-tests.log",
-    "evidenceSha256": "669f3726b121c97eeec90841a4523addb4661807354a866450385240110dff26"
+    "scope": "upgrade-current.test.mjs; 1800 accepted, 1801 rejected, 96MiB rejection and prior asset preservation"
   },
-  "syntheticUI": {
+  "evidence": [
+    {
+      "label": "source-tests",
+      "startedAt": "2026-11-03T08:23:00.494Z",
+      "finishedAt": "2026-11-03T08:23:06.203Z",
+      "code": 0,
+      "signal": null,
+      "bytes": 1460,
+      "log": "/tmp/quota-source-tests.log",
+      "sha256": "a37544da789e207f8c0789a40af3fafe9a034980d17dcd8587f026dcb9be0972"
+    },
+    {
+      "label": "source-typecheck",
+      "startedAt": "2026-11-03T08:23:50.040Z",
+      "finishedAt": "2026-11-03T08:24:02.446Z",
+      "code": 0,
+      "signal": null,
+      "bytes": 0,
+      "log": "/tmp/quota-source-typecheck.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "source-lint",
+      "startedAt": "2026-11-03T08:23:50.040Z",
+      "finishedAt": "2026-11-03T08:23:51.323Z",
+      "code": 0,
+      "signal": null,
+      "bytes": 0,
+      "log": "/tmp/quota-source-lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "source-build",
+      "startedAt": "2026-11-03T08:24:52.032Z",
+      "finishedAt": "2026-11-03T08:25:06.059Z",
+      "code": 0,
+      "signal": null,
+      "bytes": 19019,
+      "log": "/tmp/quota-source-build.log",
+      "sha256": "280f74ab2b4a3f1dd4dbfc4636a3cd06205b6bb6a0c7bbe00492ee166a72aa0f"
+    },
+    {
+      "label": "ops-tests",
+      "startedAt": "2026-11-03T08:23:00.494Z",
+      "finishedAt": "2026-11-03T08:23:00.634Z",
+      "code": 0,
+      "signal": null,
+      "bytes": 5772,
+      "log": "/tmp/quota-ops-tests.log",
+      "sha256": "1f4042b123025ac38c010be2310f716d5afcad26449acaa59e84314b2024eb11"
+    }
+  ],
+  "isolatedUI": {
     "passed": true,
-    "scope": "Isolated component browser QA: six windows, cooldown, stale/429, Chinese/English, dark mode and mobile unknown state. Root reviewed screenshots for readability. Not live account 13 acceptance.",
-    "script": "/tmp/factory-usage-ui-qa.mjs",
-    "screenshots": [
-      { "path": "/tmp/factory-usage-ui-fresh-zh.png", "sha256": "135b8cb54439cab244b8e3f470f6f48b3ba6e3ca8dad327af41066d490e849a5" },
-      { "path": "/tmp/factory-usage-ui-stale-en-dark.png", "sha256": "6b81ad8953baf1c95834df051805d78dd03ee13979cc0307a6f1d45365d99c07" },
-      { "path": "/tmp/factory-usage-ui-unknown-mobile.png", "sha256": "c008bbadff03bdd57fd199e594329e41041eafcc038591e7429248e6401cbde4" }
-    ]
-  },
-  "localAssetInventory": {
-    "previousCount": 1378,
-    "previousBytes": 58917928,
-    "newBuildCount": 180,
-    "newBuildBytes": 6576916,
-    "additionsCount": 112,
-    "additionsBytes": 4894174,
-    "mergedCount": 1490,
-    "mergedBytes": 63812102,
-    "fileCap": 1500,
-    "byteCap": 100663296,
-    "capChanged": false,
-    "scope": "Local production-build graph versus read-only live historical inventory; exact-image asset continuity is still pending.",
-    "evidence": "/tmp/factory-usage-assets-inventory.json",
-    "evidenceSha256": "e8aa834605722f3adbca1f061753b1534bc02b9d89a31b4c3db5bce4bddf89f0"
+    "script": "frontend/scripts/verify-quota-overview.mjs",
+    "report": "frontend/tmp/quota-overview-qa/report.json",
+    "sha256": "e8609c46b1a9859e9bd01d14f6b76c2bae7c169ee31b2636d872a6dd6d2219d2",
+    "scope": "Compiled frontend with synthetic API and sanitized current account 12/13 snapshot replay, not live candidate acceptance. Reviewed desktop/mobile, zh/en, light/dark, all windows/dialogs/refresh failure recovery."
   },
   "migrations": {
-    "sameVersionUpgrade": true,
     "sourceMigrationFiles": 299,
     "newMigrationsForThisRelease": 0,
-    "unchangedSinceImageSource": "d784fb507d192ed6c203d0291be03b1abe600480",
-    "sourceMigrationInventorySha256": "aa2b75698d8524ffcce67ee3b1919470c410b6c238872484eaff8932544bb850",
-    "inventoryEncoding": "SHA256(JSON.stringify(filename-sorted [{filename,checksum:SHA256(trimmed SQL)}]))",
-    "productionRestoreVerification": "pending fresh protected backup and exact-image isolated rehearsal"
+    "productionRestoreVerification": "pending exact-image no-egress rehearsal"
   },
-  "buildEnvironment": {
-    "temporaryVolume": "/Volumes/FactoryUsageBuild",
-    "sparseImage": "/Volumes/SSD/factory-usage-build.JfBhb5/compile-apfs.sparseimage",
-    "logicalSizeGiB": 32,
-    "containsProductionData": false,
-    "testTemporaryDirectory": "/Volumes/FactoryUsageBuild/tmp",
-    "testBuildCache": "/Volumes/FactoryUsageBuild/gocache",
-    "hostFreeSpaceFloorGiB": 3,
-    "note": "exFAT executable test failed with exec format error; successful final suites used APFS. Only task-created dependencies and five task-created cache objects were moved recoverably, not deleted. Earlier environment failures and pre-generation-fix unit result are not qualification evidence."
-  },
+  "toolchain": "Host Node 26.7.0 using installed dependency binaries because global pnpm 12 is incompatible with the lockfile. Image build must use unchanged pinned Node24/Go1.27.3/pnpm9.15.9 inputs.",
   "lockfilesChanged": false,
-  "realGatewayCallsTested": false,
   "productionDeploymentPerformed": false,
-  "liveTestCredentialsInherited": false,
   "pendingProductionGates": [
-    "Exact linux/arm64 image identity, empty-database smoke and historical static asset continuity",
-    "Fresh protected backup with credential-handling boundary settled, exact-image no-egress same-version restore rehearsal",
-    "Account 13 real billing display and Factory Claude inference acceptance after its existing production quota exhaustion recovers",
-    "Explicit P0 go relayed by E0 before any traffic switch",
-    "Stable-entry health, prior image rollback readiness, .env/Serve preservation and host recovery identity",
-    "Repository publication review: configured fork is currently public, unlike the historical private-fork assumption"
+    "Exact ARM64 image build and empty database smoke",
+    "Exact-image quota chunk verification and historical asset union",
+    "Fresh protected backup and no-egress same-version restore rehearsal",
+    "prepare and real account 12/13 API plus browser acceptance",
+    "activate only if all gates pass under E0 relayed independent P0 GO",
+    "Post-cutover entry/client/quota checks and pinned rollback readiness"
   ],
-  "note": "All pass counts above are new evidence for this exact application tree. Source qualification does not imply production activation, successful live Factory inference, new backup or successful restore."
+  "approval": "Independent P0 GO relayed in e0-quota-p0-go.txt: all gates must pass; any failure stops cutover. Public fork push prohibited."
 }
