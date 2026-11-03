@@ -21,10 +21,10 @@ interface QuotaReading {
   error?: string
 }
 
-// Unsupported subscription providers stay visible as unknown. Only these
-// providers have authoritative subscription windows in the initial release.
+// Unsupported subscription providers stay visible as unknown.
 function supportsQuotaReading(account: AccountListItem): boolean {
   return (account.platform === 'factory' && account.type === 'apikey') ||
+    (account.platform === 'antigravity' && account.type === 'oauth') ||
     (account.platform === 'openai' && account.type === 'oauth') ||
     (account.platform === 'anthropic' && (account.type === 'oauth' || account.type === 'setup-token'))
 }

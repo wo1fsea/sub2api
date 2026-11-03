@@ -48,6 +48,42 @@ function mountView() {
 }
 
 describe('QuotaOverviewView', () => {
+  it('exposes all six Factory windows and Antigravity model resets, tier and zero credits on the board', async () => {
+    const factory = { ...account(13, 'Factory subscription', 'factory'), type: 'apikey' }
+    list.mockResolvedValue({ items: [factory, account(12, 'AG subscription', 'antigravity')], total: 2, pages: 1 })
+    const factoryWindows = (['standard', 'core'] as const).flatMap(scope => ['five_hour', 'weekly', 'monthly'].map((period, index) => ({
+      ...window(`factory_${scope}_${period}`, index * 30), scope, window_minutes: undefined
+    })))
+    getBatchUsage.mockResolvedValue({ usage: {
+      13: usage(factoryWindows),
+      12: { ...usage([]), subscription_tier: 'ULTRA', antigravity_quota: {
+        'gemini-3-pro-high': { utilization: 0, reset_time: resetAt },
+        'claude-sonnet-4': { utilization: 92, reset_time: resetAt }
+      }, ai_credits: [{ credit_type: 'GOOGLE_ONE_AI', amount: 0 }] }
+    }, errors: {} })
+    const wrapper = mountView()
+    await flushPromises()
+    const factoryCard = wrapper.find('[data-account-id="13"]')
+    expect(factoryCard.text()).toContain('Factory · API Key')
+    expect(factoryCard.text()).not.toContain('OAuth')
+    expect(factoryCard.findAll('.qo-window')).toHaveLength(6)
+    for (const tier of ['Standard', 'Core']) {
+      for (const period of ['5 小时', '本周', '本月']) expect(factoryCard.text()).toContain(`${tier} · ${period}`)
+    }
+    expect(factoryCard.findAll('.qo-window-reset')).toHaveLength(6)
+    const agCard = wrapper.find('[data-account-id="12"]')
+    expect(agCard.text()).toContain('Antigravity · OAuth')
+    expect(agCard.text()).toContain('ULTRA')
+    expect(agCard.text()).toContain('AI Credits 余额 · GOOGLE_ONE_AI: 0')
+    expect(agCard.findAll('.qo-window')).toHaveLength(2)
+    expect(agCard.findAll('.qo-window-reset')).toHaveLength(2)
+    expect(agCard.text()).toContain('claude-sonnet-4')
+    expect(agCard.text()).toContain('100%')
+    await agCard.find('.qo-card-open').trigger('click')
+    expect(wrapper.find('[data-test="quota-details"]').text()).toContain('ULTRA')
+    expect(wrapper.find('[data-test="quota-details"]').text()).toContain('GOOGLE_ONE_AI: 0')
+  })
+
   beforeEach(() => {
     list.mockReset()
     getBatchUsage.mockReset()

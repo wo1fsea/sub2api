@@ -80,7 +80,8 @@
             <div class="qo-account-name">
               <h2>{{ row.account.name }}</h2>
               <p class="qo-provider">
-                {{ providerLabel(row.account.platform) }} · {{ row.account.type === 'setup-token' ? 'Setup Token' : 'OAuth' }}
+                {{ providerLabel(row.account.platform) }} · {{ accountTypeLabel(row.account.type) }}
+                <span v-if="row.subscriptionTier"> · {{ row.subscriptionTier }}</span>
                 <span v-if="row.account.status !== 'active'"> · {{ t(`admin.quotaOverview.accountStatus.${row.account.status}`) }}</span>
               </p>
             </div>
@@ -103,15 +104,22 @@
           </div>
 
           <div v-if="row.windows.length > 0" class="qo-windows">
-            <div v-for="quotaWindow in row.windows" :key="quotaWindow.key" class="qo-window">
+            <div v-for="quotaWindow in quotaCardWindows(row)" :key="quotaWindow.key" class="qo-window">
               <span class="qo-window-label">{{ windowLabel(quotaWindow) }}</span>
               <div class="qo-track" :class="{ 'qo-track-unknown': quotaWindow.remainingPercent === null, 'qo-track-estimated': quotaWindow.estimated }" role="img" :aria-label="barLabel(quotaWindow)">
                 <div v-if="quotaWindow.utilization !== null" class="qo-used" :style="{ width: usedWidth(quotaWindow) }"></div>
               </div>
               <span class="qo-window-value qo-mono" :title="quotaWindow.estimated ? t('admin.quotaOverview.estimateNote') : undefined">{{ windowPercent(quotaWindow) }}</span>
+              <p class="qo-window-reset qo-secondary"><span>{{ t('admin.quotaOverview.thisWindowReset') }} · </span><span class="qo-mono">{{ resetLabel(quotaWindow.resetsAt) }}</span><span v-if="quotaWindow.stale && quotaWindow.remainingPercent !== null"> · {{ t('admin.quotaOverview.states.stale') }}</span></p>
             </div>
           </div>
+          <p v-if="row.account.platform === 'antigravity' && row.windows.length > ANTIGRAVITY_OVERVIEW_WINDOW_LIMIT" class="qo-partial">{{ t('admin.quotaOverview.modelWindowPreview', { shown: ANTIGRAVITY_OVERVIEW_WINDOW_LIMIT, total: row.windows.length }) }}</p>
           <p v-if="row.incomplete && row.bottleneck" class="qo-partial">{{ t('admin.quotaOverview.partialReading') }}</p>
+          <div v-if="row.account.platform === 'antigravity'" class="qo-credits">
+            <p>{{ t('admin.quotaOverview.aiCredits') }} · <strong class="qo-mono">{{ creditsLabel(row) }}</strong></p>
+            <p class="qo-secondary">{{ t('admin.quotaOverview.creditsNote') }}</p>
+            <p v-if="row.aiCredits.length" class="qo-secondary">{{ dateLabel(row.creditsSampledAt) }}<span v-if="row.creditsStale"> · {{ t('admin.quotaOverview.states.stale') }}</span></p>
+          </div>
 
           <footer class="qo-account-footer">
             <p><span>{{ t('admin.quotaOverview.thisWindowReset') }}</span><strong class="qo-mono">{{ resetLabel(row.bottleneck?.resetsAt) }}</strong></p>
@@ -137,7 +145,7 @@
     <BaseDialog :show="selectedRow !== null" :title="selectedRow?.account.name || t('admin.quotaOverview.title')" width="normal" :close-on-click-outside="true" @close="selectedAccountId = null">
       <div v-if="selectedRow" class="quota-overview-details">
         <div class="qo-detail-summary">
-          <p class="qo-provider">{{ providerLabel(selectedRow.account.platform) }} · {{ stateLabel(selectedRow) }}</p>
+          <p class="qo-provider">{{ providerLabel(selectedRow.account.platform) }} · {{ accountTypeLabel(selectedRow.account.type) }}<span v-if="selectedRow.subscriptionTier"> · {{ selectedRow.subscriptionTier }}</span> · {{ stateLabel(selectedRow) }}</p>
           <p class="qo-quota-caption">{{ remainingCaption(selectedRow) }}</p>
           <p v-if="selectedRow.remainingPercent !== null" class="qo-quota-value qo-mono" :class="{ 'qo-accent': isPriority(selectedRow) }">{{ percent(selectedRow.remainingPercent) }}<span>%</span></p>
           <p v-else class="qo-unknown-value">{{ t('admin.quotaOverview.unknown') }}</p>
@@ -146,6 +154,11 @@
         <p v-if="selectedRow.state === 'stale'" class="qo-detail-note">{{ t('admin.quotaOverview.staleReading') }}</p>
         <p v-if="selectedRow.incomplete && selectedRow.bottleneck" class="qo-detail-note">{{ t('admin.quotaOverview.partialReading') }}</p>
         <p v-if="selectedRow.windows.length === 0" class="qo-detail-note">{{ t('admin.quotaOverview.noWindows') }}</p>
+        <div v-if="selectedRow.account.platform === 'antigravity'" class="qo-credits">
+          <p>{{ t('admin.quotaOverview.aiCredits') }} · <strong class="qo-mono">{{ creditsLabel(selectedRow) }}</strong></p>
+          <p class="qo-secondary">{{ t('admin.quotaOverview.creditsNote') }}</p>
+          <p v-if="selectedRow.aiCredits.length" class="qo-secondary">{{ dateLabel(selectedRow.creditsSampledAt) }}<span v-if="selectedRow.creditsStale"> · {{ t('admin.quotaOverview.states.stale') }}</span></p>
+        </div>
 
         <section v-for="quotaWindow in selectedRow.windows" :key="quotaWindow.key" class="qo-detail-window">
           <header class="qo-detail-window-header">
@@ -187,6 +200,8 @@ import { useSkin } from '@/composables/useSkin'
 import { formatDateTime } from '@/utils/format'
 import {
   QUOTA_PRIORITY_THRESHOLD,
+  ANTIGRAVITY_OVERVIEW_WINDOW_LIMIT,
+  quotaCardWindows,
   sortQuotaAccounts,
   type QuotaOverviewAccount,
   type QuotaOverviewSort,
@@ -222,6 +237,13 @@ const selectedRow = computed(() => rows.value.find(row => row.account.id === sel
 function percent(value: number): string {
   return Number(value.toFixed(1)).toString()
 }
+function accountTypeLabel(type: string): string {
+  return ({ oauth: 'OAuth', 'setup-token': 'Setup Token', apikey: 'API Key' } as Record<string, string>)[type] || type
+}
+function creditsLabel(row: QuotaOverviewAccount): string {
+  if (!row.aiCredits.length) return t('admin.quotaOverview.unknown')
+  return row.aiCredits.map(credit => `${credit.type ? credit.type + ': ' : ''}${credit.amount === null ? t('admin.quotaOverview.unknown') : String(credit.amount)}`).join(' · ')
+}
 function windowLabel(quotaWindow: QuotaOverviewWindow): string {
   return quotaWindow.labelParams ? t(quotaWindow.labelKey, quotaWindow.labelParams) : t(quotaWindow.labelKey)
 }
@@ -242,6 +264,7 @@ function remainingCaption(row: QuotaOverviewAccount): string {
   return t(row.incomplete ? 'admin.quotaOverview.knownRemaining' : 'admin.quotaOverview.tightestRemaining')
 }
 function scopeLabel(quotaWindow: QuotaOverviewWindow): string {
+  if (quotaWindow.key === 'antigravity_primary') return t('admin.quotaOverview.primaryModelOnly')
   if (quotaWindow.scope === 'standard' || quotaWindow.scope === 'core') {
     return t('admin.quotaOverview.factoryScope', { tier: quotaWindow.scope === 'standard' ? 'Standard' : 'Core' })
   }
@@ -266,7 +289,7 @@ function stateLabel(row: QuotaOverviewAccount): string {
   return t(`admin.quotaOverview.states.${row.state}`)
 }
 function providerLabel(platform: string): string {
-  const labels: Record<string, string> = { openai: 'OpenAI', anthropic: 'Anthropic', gemini: 'Gemini', antigravity: 'Antigravity', grok: 'Grok', kimi: 'Kimi', zhipu: 'Zhipu', deepseek: 'DeepSeek', minimax: 'MiniMax', opencode_go: 'OpenCode Go', typesafe: 'TypeSafe' }
+  const labels: Record<string, string> = { factory: 'Factory', openai: 'OpenAI', anthropic: 'Anthropic', gemini: 'Gemini', antigravity: 'Antigravity', grok: 'Grok', kimi: 'Kimi', zhipu: 'Zhipu', deepseek: 'DeepSeek', minimax: 'MiniMax', opencode_go: 'OpenCode Go', typesafe: 'TypeSafe' }
   return labels[platform] || platform
 }
 
@@ -341,6 +364,8 @@ onMounted(() => { void refresh(false) })
 .qo-window { display: grid; grid-template-columns: minmax(60px, 105px) minmax(35px, 1fr) 57px; align-items: center; gap: 9px; font-size: 11px; }
 .qo-window-label { color: var(--qo-secondary); overflow-wrap: anywhere; }
 .qo-window-value { text-align: right; white-space: nowrap; }
+.qo-window-reset { grid-column: 1 / -1; font-size: 10px; margin-top: -5px !important; overflow-wrap: anywhere; }
+.qo-credits { display: grid; gap: 4px; border-top: 1px solid var(--qo-line); margin-top: 14px; padding-top: 11px; font-size: 11px; overflow-wrap: anywhere; }
 .qo-track { height: 8px; background: var(--qo-track); overflow: hidden; }
 .qo-used, .qo-swatch-used { height: 100%; background-color: var(--qo-surface); background-image: repeating-linear-gradient(135deg, var(--qo-secondary) 0 .7071px, transparent .7071px 4.2426px); }
 .qo-track-unknown { background-color: var(--qo-surface); background-image: repeating-linear-gradient(135deg, var(--qo-line) 0 .7071px, transparent .7071px 6px); }

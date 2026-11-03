@@ -2,6 +2,7 @@ import type { AccountListItem, AccountQuotaWindow, AccountUsageInfo } from '@/ty
 
 export const QUOTA_PRIORITY_THRESHOLD = 20
 export const QUOTA_STALE_AFTER_MS = 15 * 60 * 1000
+export const ANTIGRAVITY_OVERVIEW_WINDOW_LIMIT = 6
 const MAX_SAMPLE_CLOCK_SKEW_MS = 60 * 1000
 
 export interface QuotaOverviewWindow {
@@ -29,9 +30,20 @@ export interface QuotaOverviewAccount {
   source: string | null
   remainingPercent: number | null
   incomplete: boolean
+  subscriptionTier: string | null
+  aiCredits: Array<{ type: string | null; amount: number | null }>
+  creditsSampledAt: string | null
+  creditsStale: boolean
 }
 
 export type QuotaOverviewSort = 'remaining' | 'reset'
+
+export function quotaCardWindows(row: QuotaOverviewAccount): QuotaOverviewWindow[] {
+  if (row.account.platform !== 'antigravity') return row.windows
+  return [...row.windows].sort((a, b) =>
+    (a.remainingPercent ?? Infinity) - (b.remainingPercent ?? Infinity) || a.key.localeCompare(b.key)
+  ).slice(0, ANTIGRAVITY_OVERVIEW_WINDOW_LIMIT)
+}
 
 export function isSubscriptionQuotaAccount(account: Pick<AccountListItem, 'type' | 'platform'>): boolean {
   return account.type === 'oauth' || (account.platform === 'anthropic' && account.type === 'setup-token') ||
@@ -44,6 +56,7 @@ function timestamp(value: unknown): string | null {
 
 function windowLabel(window: AccountQuotaWindow): Pick<QuotaOverviewWindow, 'labelKey' | 'labelParams'> {
   const base = 'admin.quotaOverview.windows.'
+  if (window.key === 'antigravity_primary') return { labelKey: base + 'antigravityPrimary' }
   const minutes = window.window_minutes
   const model = window.model || ''
   if (window.scope === 'standard' || window.scope === 'core') {
@@ -65,6 +78,38 @@ function windowLabel(window: AccountQuotaWindow): Pick<QuotaOverviewWindow, 'lab
   }
   const known: Record<string, string> = { five_hour: 'fiveHour', seven_day: 'sevenDay', thirty_day: 'thirtyDay' }
   return { labelKey: base + (known[window.key] || 'unknown') }
+}
+
+// Antigravity's legacy five_hour is a primary-model alias, not an account-wide
+// five-hour pool. Prefer model readings; never duplicate the alias as capacity.
+// Unlike generic updated_at, this provider's timestamp is the fetch time and
+// survives cache reads unchanged (AntigravityQuotaFetcher.buildUsageInfo).
+function antigravityWindows(usage: AccountUsageInfo | null | undefined): AccountQuotaWindow[] {
+  const canonical = usage?.quota_windows || []
+  const models = Object.entries(usage?.antigravity_quota || {}).sort(([a], [b]) => a.localeCompare(b))
+  const windows = [...canonical]
+  for (const [model, quota] of models) {
+    if (!windows.some(window => window.scope === 'model' && window.model === model)) {
+      windows.push({
+        key: `antigravity_model:${model}`, model, scope: 'model', source: 'upstream',
+        utilization: quota?.utilization ?? null, resets_at: quota?.reset_time ?? null,
+        sampled_at: usage?.updated_at ?? null
+      })
+    }
+  }
+  if (windows.length === 0 && usage?.five_hour) {
+    windows.push({
+      key: 'antigravity_primary', scope: 'model', source: 'upstream',
+      utilization: usage.five_hour.utilization, resets_at: usage.five_hour.resets_at,
+      sampled_at: usage.updated_at
+    })
+  }
+  return windows
+}
+
+function sampleStale(sampledAt: string | null, now: number): boolean {
+  const age = sampledAt ? now - Date.parse(sampledAt) : Infinity
+  return age > QUOTA_STALE_AFTER_MS || age < -MAX_SAMPLE_CLOCK_SKEW_MS
 }
 
 function normalizeWindow(window: AccountQuotaWindow, now: number, failed: boolean): QuotaOverviewWindow {
@@ -117,15 +162,18 @@ export function normalizeQuotaAccount(
   const changedCredential = account.platform === 'factory' &&
     (usage?.factory_usage?.generation ?? '') !== generation
   if (changedCredential) usage = undefined
-  const failure = error || usage?.quota_snapshot_error || usage?.error || undefined
+  const isAntigravity = account.platform === 'antigravity'
+  const failure = error || usage?.quota_snapshot_error || usage?.error || (isAntigravity && (
+    usage?.error_code || (usage?.is_forbidden ? 'forbidden' : undefined) ||
+    (usage?.needs_reauth ? 'unauthenticated' : undefined) ||
+    (usage?.needs_verify ? 'validation' : undefined) || (usage?.is_banned ? 'violation' : undefined)
+  )) || undefined
   const prior = previous?.account.id === account.id &&
     (account.platform !== 'factory' || (previous.account.extra?.factory_usage_generation ?? '') === generation)
     ? previous : undefined
-  const rawWindows = usage?.quota_windows || []
-  const unique = new Map(rawWindows.map(window => [window.key, window]))
-  for (const expected of expectedWindows(account)) {
-    if (!unique.has(expected.key)) unique.set(expected.key, expected)
-  }
+  const rawWindows = isAntigravity ? antigravityWindows(usage) : usage?.quota_windows || []
+  const unique = new Map(expectedWindows(account).map(window => [window.key, window]))
+  for (const window of rawWindows) unique.set(window.key, window)
   let windows = [...unique.values()].map(window => normalizeWindow(window, now, !!failure || usage?.factory_usage?.stale === true ||
     (account.platform === 'factory' && now - Date.parse(window.sampled_at || '') >= 300_000)))
 
@@ -154,11 +202,23 @@ export function normalizeQuotaAccount(
   const sampledAt = sampleTimes.length
     ? sampleTimes.reduce((oldest, value) => Date.parse(value) < Date.parse(oldest) ? value : oldest)
     : null
+  const retainCredits = isAntigravity && !!failure && !usage?.ai_credits?.length && !!prior
+  const creditsSampledAt = retainCredits ? prior.creditsSampledAt : timestamp(usage?.updated_at)
+  const aiCredits = !isAntigravity ? [] : retainCredits ? prior.aiCredits : (usage?.ai_credits || []).map(credit => ({
+    type: credit.credit_type?.trim() || null,
+    // AICredit.Amount is a float64 with json:"amount,omitempty": an existing
+    // credit entry without amount is zero, while no credit entries is unknown.
+    amount: credit.amount === undefined ? 0
+      : typeof credit.amount === 'number' && Number.isFinite(credit.amount) && credit.amount >= 0 ? credit.amount : null
+  }))
   return {
     account, windows, bottleneck, state, error: failure, sampledAt,
     source: bottleneck?.source || windows.find(window => window.utilization !== null)?.source || null,
     remainingPercent: bottleneck?.remainingPercent ?? null,
-    incomplete: measured.length === 0 || windows.some(window => window.utilization === null || window.estimated)
+    incomplete: measured.length === 0 || windows.some(window => window.utilization === null || window.estimated),
+    subscriptionTier: isAntigravity ? usage?.subscription_tier?.trim() || (failure ? prior?.subscriptionTier : null) || null : null,
+    aiCredits, creditsSampledAt,
+    creditsStale: !!failure || sampleStale(creditsSampledAt, now)
   }
 }
 

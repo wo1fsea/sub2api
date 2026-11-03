@@ -593,14 +593,14 @@ test('asset cache byte budgets are checked on the full merged inventory before a
 })
 
 test('retained builds may cross the per-build file count but the aggregate cap stays bounded', () => {
-  const previous = Array.from({ length: 1499 }, (_, index) => ({ path: `/assets/Chunk${index}-aBc_1234.js`, sha256: 'a'.repeat(64), bytes: 1 }))
+  const previous = Array.from({ length: 1799 }, (_, index) => ({ path: `/assets/Chunk${index}-aBc_1234.js`, sha256: 'a'.repeat(64), bytes: 1 }))
   const next = new Map([['/assets/Next-aBc_1234.js', Buffer.from('x')]])
   const merged = mergeAssetInventory(previous, [next])
-  assert.equal(merged.assets.length, 1500)
+  assert.equal(merged.assets.length, 1800)
   assert.equal(merged.additions.length, 1)
   next.set('/assets/Extra-aBc_1234.js', Buffer.from('y'))
   assert.throws(() => mergeAssetInventory(previous, [next]), /retention budget/)
-  assert.equal(previous.length, 1499)
+  assert.equal(previous.length, 1799)
 })
 
 const steps = ['verifyCandidate', 'routeCandidate', 'verifyEntryCandidate', 'replaceCurrent', 'verifyCurrent', 'routeCurrent', 'verifyEntryCurrent', 'commit', 'cleanupCandidate']

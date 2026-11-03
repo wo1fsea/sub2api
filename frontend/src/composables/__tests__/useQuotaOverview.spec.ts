@@ -41,6 +41,24 @@ function createState() {
 }
 
 describe('useQuotaOverview', () => {
+  it('fetches Antigravity through the bounded batch endpoint and preserves degraded readings', async () => {
+    list.mockResolvedValue(page([account(12, 'antigravity'), account(13, 'factory', 'apikey')]))
+    getBatchUsage.mockResolvedValueOnce({ usage: {
+      12: { ...usage(), quota_windows: [], antigravity_quota: { claude: { utilization: 92, reset_time: resetAt } } },
+      13: { ...usage(), quota_windows: [] }
+    }, errors: {} })
+    const state = createState()
+    await state.refresh(false)
+    expect(getBatchUsage).toHaveBeenCalledWith([12, 13], false, { timeout: 45_000, signal: expect.any(AbortSignal) })
+    expect(state.rows.value[0].remainingPercent).toBe(8)
+    getBatchUsage.mockResolvedValueOnce({ usage: { 12: { updated_at: resetAt, error_code: 'forbidden' } }, errors: { 13: 'failed' } })
+    await state.refresh()
+    expect(state.rows.value[0].state).toBe('stale')
+    expect(state.rows.value[0].sampledAt).toBe(sampledAt)
+    expect(state.rows.value[0].remainingPercent).toBe(8)
+    expect(state.failedCount.value).toBe(2)
+  })
+
   it('loads Factory subscription usage through the existing batch endpoint', async () => {
     list.mockResolvedValue(page([account(13, 'factory', 'apikey'), account(14, 'openai', 'apikey')]))
     getBatchUsage.mockResolvedValue({ usage: { 13: { ...usage(), quota_windows: [], factory_usage: { stale: false } } }, errors: {} })
