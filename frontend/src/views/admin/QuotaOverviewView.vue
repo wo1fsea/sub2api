@@ -104,16 +104,19 @@
           </div>
 
           <div v-if="row.windows.length > 0" class="qo-windows">
-            <div v-for="quotaWindow in quotaCardWindows(row)" :key="quotaWindow.key" class="qo-window">
-              <span class="qo-window-label">{{ windowLabel(quotaWindow) }}</span>
-              <div class="qo-track" :class="{ 'qo-track-unknown': quotaWindow.remainingPercent === null, 'qo-track-estimated': quotaWindow.estimated }" role="img" :aria-label="barLabel(quotaWindow)">
-                <div v-if="quotaWindow.utilization !== null" class="qo-used" :style="{ width: usedWidth(quotaWindow) }"></div>
+            <template v-for="group in quotaCardGroups(row)" :key="group.name">
+              <h3 v-if="group.name" class="qo-pool-title">{{ group.name }}</h3>
+              <div v-for="quotaWindow in group.windows" :key="quotaWindow.key" class="qo-window">
+                <span class="qo-window-label">{{ windowLabel(quotaWindow) }}</span>
+                <div class="qo-track" :class="{ 'qo-track-unknown': quotaWindow.remainingPercent === null, 'qo-track-estimated': quotaWindow.estimated }" role="img" :aria-label="barLabel(quotaWindow)">
+                  <div v-if="quotaWindow.utilization !== null" class="qo-used" :style="{ width: usedWidth(quotaWindow) }"></div>
+                </div>
+                <span class="qo-window-value qo-mono" :title="quotaWindow.estimated ? t('admin.quotaOverview.estimateNote') : undefined">{{ windowPercent(quotaWindow) }}</span>
+                <p class="qo-window-reset qo-secondary"><span>{{ t('admin.quotaOverview.thisWindowReset') }} · </span><span class="qo-mono">{{ resetLabel(quotaWindow.resetsAt) }}</span><span v-if="quotaWindow.scope === 'pool' && quotaWindow.resetsAt"> · {{ resetCountdown(quotaWindow.resetsAt) }}</span><span v-if="quotaWindow.stale && quotaWindow.remainingPercent !== null"> · {{ t('admin.quotaOverview.states.stale') }}</span></p>
               </div>
-              <span class="qo-window-value qo-mono" :title="quotaWindow.estimated ? t('admin.quotaOverview.estimateNote') : undefined">{{ windowPercent(quotaWindow) }}</span>
-              <p class="qo-window-reset qo-secondary"><span>{{ t('admin.quotaOverview.thisWindowReset') }} · </span><span class="qo-mono">{{ resetLabel(quotaWindow.resetsAt) }}</span><span v-if="quotaWindow.stale && quotaWindow.remainingPercent !== null"> · {{ t('admin.quotaOverview.states.stale') }}</span></p>
-            </div>
+            </template>
           </div>
-          <p v-if="row.account.platform === 'antigravity' && row.windows.length > ANTIGRAVITY_OVERVIEW_WINDOW_LIMIT" class="qo-partial">{{ t('admin.quotaOverview.modelWindowPreview', { shown: ANTIGRAVITY_OVERVIEW_WINDOW_LIMIT, total: row.windows.length }) }}</p>
+          <p v-if="row.account.platform === 'antigravity'" class="qo-partial">{{ t('admin.quotaOverview.poolScopeNote') }}</p>
           <p v-if="row.incomplete && row.bottleneck" class="qo-partial">{{ t('admin.quotaOverview.partialReading') }}</p>
           <div v-if="row.account.platform === 'antigravity'" class="qo-credits">
             <p>{{ t('admin.quotaOverview.aiCredits') }} · <strong class="qo-mono">{{ creditsLabel(row) }}</strong></p>
@@ -177,6 +180,13 @@
           <p v-if="quotaWindow.estimated" class="qo-detail-note">{{ t('admin.quotaOverview.estimateNote') }}</p>
           <p v-else-if="quotaWindow.stale && quotaWindow.remainingPercent !== null" class="qo-detail-note">{{ t('admin.quotaOverview.states.stale') }}</p>
         </section>
+        <details v-if="selectedRow.modelWindows.length" class="qo-model-details">
+          <summary>{{ t('admin.quotaOverview.modelDetails', { count: selectedRow.modelWindows.length }) }}</summary>
+          <div v-for="quotaWindow in selectedRow.modelWindows" :key="quotaWindow.key" class="qo-detail-window">
+            <h3>{{ windowLabel(quotaWindow) }}</h3>
+            <p class="qo-mono">{{ windowPercent(quotaWindow) }} · {{ resetLabel(quotaWindow.resetsAt) }}</p>
+          </div>
+        </details>
         <p v-if="selectedRow.windows.some(quotaWindow => quotaWindow.scope === 'model')" class="qo-detail-note">{{ t('admin.quotaOverview.modelScopeNote') }}</p>
         <p class="qo-detail-note">{{ t('admin.quotaOverview.noForecast') }}</p>
       </div>
@@ -200,8 +210,7 @@ import { useSkin } from '@/composables/useSkin'
 import { formatDateTime } from '@/utils/format'
 import {
   QUOTA_PRIORITY_THRESHOLD,
-  ANTIGRAVITY_OVERVIEW_WINDOW_LIMIT,
-  quotaCardWindows,
+  quotaCardGroups,
   sortQuotaAccounts,
   type QuotaOverviewAccount,
   type QuotaOverviewSort,
@@ -245,9 +254,11 @@ function creditsLabel(row: QuotaOverviewAccount): string {
   return row.aiCredits.map(credit => `${credit.type ? credit.type + ': ' : ''}${credit.amount === null ? t('admin.quotaOverview.unknown') : String(credit.amount)}`).join(' · ')
 }
 function windowLabel(quotaWindow: QuotaOverviewWindow): string {
+  if (quotaWindow.scope === 'pool' && quotaWindow.displayName && quotaWindow.labelKey.endsWith('.unknown')) return quotaWindow.displayName
   return quotaWindow.labelParams ? t(quotaWindow.labelKey, quotaWindow.labelParams) : t(quotaWindow.labelKey)
 }
 function windowPercent(quotaWindow: QuotaOverviewWindow): string {
+  if (quotaWindow.disabled) return t('admin.quotaOverview.windowDisabled')
   if (quotaWindow.remainingPercent === null) return t('admin.quotaOverview.unknown')
   return `${quotaWindow.estimated ? '≈ ' : ''}${percent(quotaWindow.remainingPercent)}%`
 }
@@ -264,6 +275,7 @@ function remainingCaption(row: QuotaOverviewAccount): string {
   return t(row.incomplete ? 'admin.quotaOverview.knownRemaining' : 'admin.quotaOverview.tightestRemaining')
 }
 function scopeLabel(quotaWindow: QuotaOverviewWindow): string {
+  if (quotaWindow.scope === 'pool') return quotaWindow.pool || t('admin.quotaOverview.unknown')
   if (quotaWindow.key === 'antigravity_primary') return t('admin.quotaOverview.primaryModelOnly')
   if (quotaWindow.scope === 'standard' || quotaWindow.scope === 'core') {
     return t('admin.quotaOverview.factoryScope', { tier: quotaWindow.scope === 'standard' ? 'Standard' : 'Core' })
@@ -279,6 +291,11 @@ function resetLabel(value: string | null | undefined): string {
   if (!value || !Number.isFinite(Date.parse(value))) return t('admin.quotaOverview.resetUnknown')
   if (Date.parse(value) <= now.value) return t('admin.quotaOverview.resetPassed')
   return dateLabel(value)
+}
+function resetCountdown(value: string): string {
+  const minutes = Math.ceil((Date.parse(value) - now.value) / 60000)
+  if (minutes <= 0) return t('admin.quotaOverview.resetPassed')
+  return t('admin.quotaOverview.resetCountdown', { days: Math.floor(minutes / 1440), hours: Math.floor(minutes % 1440 / 60), minutes: minutes % 60 })
 }
 function sourceLabel(source: string | null): string {
   return t(`admin.quotaOverview.sources.${source && ['upstream', 'response_headers', 'estimated', 'local'].includes(source) ? source : 'unknown'}`)
@@ -361,6 +378,9 @@ onMounted(() => { void refresh(false) })
 .qo-bottleneck { text-align: right; font-size: 13px; font-weight: 600; max-width: 58%; overflow-wrap: anywhere; }
 .qo-bottleneck .qo-secondary { font-size: 11px; margin-top: 3px; font-weight: 400; }
 .qo-windows { display: grid; gap: 9px; margin-top: 16px; }
+.qo-pool-title { margin-top: 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.qo-model-details { margin-top: 18px; }
+.qo-model-details summary { cursor: pointer; color: var(--qo-secondary); font-size: 12px; }
 .qo-window { display: grid; grid-template-columns: minmax(60px, 105px) minmax(35px, 1fr) 57px; align-items: center; gap: 9px; font-size: 11px; }
 .qo-window-label { color: var(--qo-secondary); overflow-wrap: anywhere; }
 .qo-window-value { text-align: right; white-space: nowrap; }

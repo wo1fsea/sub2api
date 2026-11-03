@@ -80,11 +80,22 @@ func (f *AntigravityQuotaFetcher) FetchQuota(ctx context.Context, account *Accou
 		return nil, err
 	}
 
+	// agy exposes shared weekly/5h pools through a separate read-only endpoint.
+	// Keep model details usable if this optional request is unavailable.
+	summaryCtx, cancelSummary := context.WithTimeout(ctx, 8*time.Second)
+	summary, summaryErr := client.RetrieveUserQuotaSummary(summaryCtx, accessToken, projectID, resolveModelsListReadLimit(f.cfg))
+	cancelSummary()
+	summarySampledAt := time.Now()
+
 	// 调用 LoadCodeAssist 获取订阅等级和 AI Credits 余额（非关键路径，失败不影响主流程）
 	tierRaw, tierNormalized, loadResp := f.fetchSubscriptionTier(ctx, client, accessToken)
 
 	// 转换为 UsageInfo
 	usageInfo := f.buildUsageInfo(modelsResp, tierRaw, tierNormalized, loadResp)
+	usageInfo.QuotaWindows = buildAntigravityQuotaPools(summary, summarySampledAt)
+	if summaryErr != nil || len(usageInfo.QuotaWindows) == 0 {
+		usageInfo.QuotaSnapshotError = "antigravity_quota_summary_unavailable"
+	}
 
 	return &QuotaResult{
 		UsageInfo: usageInfo,

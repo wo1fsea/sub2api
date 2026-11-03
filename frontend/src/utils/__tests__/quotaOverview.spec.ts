@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AccountListItem, AccountQuotaWindow, AccountUsageInfo } from '@/types'
-import { isSubscriptionQuotaAccount, normalizeQuotaAccount, quotaCardWindows, QUOTA_STALE_AFTER_MS, sortQuotaAccounts } from '../quotaOverview'
+import { isSubscriptionQuotaAccount, normalizeQuotaAccount, quotaCardWindows, quotaCardGroups, QUOTA_STALE_AFTER_MS, sortQuotaAccounts } from '../quotaOverview'
 
 const now = Date.parse('2026-10-08T02:24:00Z')
 const future = '2026-10-08T04:00:00Z'
@@ -15,11 +15,15 @@ const usage = (...windows: AccountQuotaWindow[]): AccountUsageInfo => ({
   updated_at: '2026-10-08T02:24:00Z', quota_windows: windows
 } as AccountUsageInfo)
 const complete = (used: number) => usage(window('five_hour', used), window('seven_day', 10))
+const pool = (id: string, used: number | null, overrides: Partial<AccountQuotaWindow> = {}) => window(`antigravity_pool:${id}`, used, {
+  scope: 'pool', pool: id.startsWith('gemini') ? 'Gemini Models' : 'Claude and GPT models',
+  window_minutes: id.endsWith('weekly') ? 10080 : 300, ...overrides
+})
 
 describe('subscription quota overview', () => {
   const ag = account(12, 'antigravity')
   const agUsage = (): AccountUsageInfo => ({
-    ...usage(), updated_at: sampled, subscription_tier: 'ULTRA',
+    ...usage(pool('gemini-weekly', 42.70768), pool('gemini-5h', 0), pool('3p-weekly', 100), pool('3p-5h', null, { disabled: true })), updated_at: sampled, subscription_tier: 'ULTRA',
     five_hour: { utilization: 80, resets_at: future, remaining_seconds: 5820 },
     antigravity_quota: {
       'gemini-3-pro-high': { utilization: 0, reset_time: '2026-10-08T06:00:00Z' },
@@ -28,14 +32,19 @@ describe('subscription quota overview', () => {
     ai_credits: [{ credit_type: 'GOOGLE_ONE_AI', amount: 0, minimum_balance: 10 }]
   })
 
-  it('normalizes Antigravity model quotas without duplicating the primary-model alias or pooling credits', () => {
+  it('uses upstream shared pools, excludes disabled capacity and keeps model details and credits separate', () => {
     const row = normalizeQuotaAccount(ag, agUsage(), now)
-    expect(row.windows).toHaveLength(2)
-    expect(row.windows.every(w => w.scope === 'model')).toBe(true)
-    expect(row.bottleneck?.model).toBe('claude-sonnet-4')
+    expect(row.windows).toHaveLength(4)
+    expect(row.windows.every(w => w.scope === 'pool')).toBe(true)
+    expect(row.bottleneck?.key).toBe('antigravity_pool:3p-weekly')
     expect(row.bottleneck?.resetsAt).toBe(future)
-    expect(row.remainingPercent).toBe(20)
-    expect(row.windows.find(w => w.model === 'gemini-3-pro-high')?.remainingPercent).toBe(100)
+    expect(row.remainingPercent).toBe(0)
+    expect(row.windows[0].remainingPercent).toBeCloseTo(57.29232)
+    expect(row.modelWindows.find(w => w.model === 'gemini-3-pro-high')?.remainingPercent).toBe(100)
+    expect(row.incomplete).toBe(false)
+    expect(quotaCardGroups(row).map(group => [group.name, group.windows.length])).toEqual([
+      ['Gemini Models', 2], ['Claude and GPT models', 1]
+    ])
     expect(row.subscriptionTier).toBe('ULTRA')
     expect(row.aiCredits).toEqual([{ type: 'GOOGLE_ONE_AI', amount: 0 }])
     expect(row.creditsSampledAt).toBe(sampled)
@@ -43,46 +52,45 @@ describe('subscription quota overview', () => {
     expect(row.state).toBe('fresh')
   })
 
-  it('uses the primary-model alias only as an explicitly scoped fallback', () => {
-    const row = normalizeQuotaAccount(ag, { ...agUsage(), antigravity_quota: {} }, now)
-    expect(row.windows).toHaveLength(1)
-    expect(row.bottleneck?.labelKey).toBe('admin.quotaOverview.windows.antigravityPrimary')
-    expect(row.bottleneck?.scope).toBe('model')
-    expect(row.bottleneck?.resetsAt).toBe(future)
-    expect(row.bottleneck?.labelKey).not.toContain('fiveHour')
+  it('never promotes the primary-model alias or old model readings into pool capacity', () => {
+    const row = normalizeQuotaAccount(ag, { ...agUsage(), quota_windows: [], antigravity_quota: {} }, now)
+    expect(row.windows).toHaveLength(3)
+    expect(row.state).toBe('unknown')
+    expect(row.bottleneck).toBeNull()
+    expect(row.modelWindows[0].labelKey).toBe('admin.quotaOverview.windows.antigravityPrimary')
     expect(normalizeQuotaAccount(ag, undefined, now).state).toBe('unknown')
   })
 
-  it('previews the six tightest Antigravity models without discarding detail windows', () => {
+  it('shows three applicable pool windows while retaining all 26 model readings in details', () => {
     const row = normalizeQuotaAccount(ag, { ...agUsage(), antigravity_quota: Object.fromEntries(
       Array.from({ length: 26 }, (_, index) => [`model-${index}`, { utilization: index * 4, reset_time: future }])
     ) }, now)
-    expect(row.windows).toHaveLength(26)
-    expect(quotaCardWindows(row)).toHaveLength(6)
-    expect(quotaCardWindows(row)[0].model).toBe('model-25')
-    expect(quotaCardWindows(row)[5].model).toBe('model-20')
-    expect(row.windows[0].model).toBe('model-0')
+    expect(row.modelWindows).toHaveLength(26)
+    expect(quotaCardWindows(row)).toHaveLength(3)
+    expect(quotaCardWindows(row).every(w => !w.model)).toBe(true)
   })
 
   it('prefers canonical model windows while retaining other Antigravity models', () => {
     const row = normalizeQuotaAccount(ag, {
       ...agUsage(), quota_windows: [window('canonical-claude', 90, { scope: 'model', model: 'claude-sonnet-4' })]
     }, now)
-    expect(row.windows).toHaveLength(2)
-    expect(row.remainingPercent).toBe(10)
+    expect(row.modelWindows).toHaveLength(2)
+    expect(row.modelWindows.find(w => w.model === 'claude-sonnet-4')?.remainingPercent).toBe(10)
+    expect(row.remainingPercent).toBeNull()
   })
 
   it('does not refresh cached Antigravity timestamps or infer missing resets and capacity', () => {
-    const snapshot = { ...agUsage(), updated_at: new Date(now - QUOTA_STALE_AFTER_MS - 1).toISOString() }
+    const old = new Date(now - QUOTA_STALE_AFTER_MS - 1).toISOString()
+    const snapshot = { ...agUsage(), updated_at: old, quota_windows: agUsage().quota_windows!.map(w => ({ ...w, sampled_at: old })) }
     const row = normalizeQuotaAccount(ag, snapshot, now)
     expect(row.state).toBe('stale')
     expect(row.creditsStale).toBe(true)
     expect(row.sampledAt).toBe(snapshot.updated_at)
     for (const invalid of [null, 'invalid', new Date(now + 60_001).toISOString()]) {
-      expect(normalizeQuotaAccount(ag, { ...snapshot, updated_at: invalid }, now).state).toBe('stale')
+      expect(normalizeQuotaAccount(ag, { ...snapshot, quota_windows: snapshot.quota_windows.map(w => ({ ...w, sampled_at: invalid })) }, now).state).toBe('stale')
     }
     const unknown = normalizeQuotaAccount(ag, {
-      ...agUsage(), antigravity_quota: { broken: { utilization: NaN, reset_time: 'invalid' } },
+      ...agUsage(), quota_windows: [], antigravity_quota: { broken: { utilization: NaN, reset_time: 'invalid' } },
       ai_credits: [{ amount: NaN }, { amount: -1 }]
     }, now)
     expect(unknown.state).toBe('unknown')
@@ -101,7 +109,7 @@ describe('subscription quota overview', () => {
     for (const error of [{ error_code: 'network_error' }, { is_forbidden: true }, { needs_reauth: true }]) {
       const row = normalizeQuotaAccount(ag, { ...usage(), ...error }, now, prior)
       expect(row.state).toBe('stale')
-      expect(row.remainingPercent).toBe(20)
+      expect(row.remainingPercent).toBe(0)
       expect(row.sampledAt).toBe(sampled)
       expect(row.aiCredits).toEqual(prior.aiCredits)
       expect(row.creditsSampledAt).toBe(sampled)
@@ -113,12 +121,30 @@ describe('subscription quota overview', () => {
   })
 
   it('keeps an expired Antigravity window exhausted until a new observation arrives', () => {
-    const row = normalizeQuotaAccount(ag, { ...agUsage(), antigravity_quota: {
-      exhausted: { utilization: 100, reset_time: sampled }
-    } }, now)
+    const row = normalizeQuotaAccount(ag, { ...agUsage(), quota_windows: [pool('3p-weekly', 100, { resets_at: sampled })] }, now)
     expect(row.state).toBe('stale')
     expect(row.remainingPercent).toBe(0)
     expect(row.bottleneck?.resetsAt).toBe(sampled)
+  })
+
+  it('shows an enabled third-party 5h window and never restores prior data into a disabled window', () => {
+    const snapshot = agUsage()
+    snapshot.quota_windows![3] = pool('3p-5h', 90)
+    const prior = normalizeQuotaAccount(ag, snapshot, now)
+    expect(quotaCardWindows(prior)).toHaveLength(4)
+    const disabled = normalizeQuotaAccount(ag, { ...agUsage(), quota_snapshot_error: 'partial' }, now, prior)
+    expect(disabled.windows.find(w => w.key.endsWith('3p-5h'))?.remainingPercent).toBeNull()
+    expect(quotaCardWindows(disabled)).toHaveLength(3)
+  })
+
+  it('retains pool samples on summary-only failure without relabeling fresh model readings as capacity', () => {
+    const prior = normalizeQuotaAccount(ag, agUsage(), now)
+    const failed = normalizeQuotaAccount(ag, { ...agUsage(), quota_windows: [], updated_at: future, quota_snapshot_error: 'summary_unavailable' }, now, prior)
+    expect(failed.remainingPercent).toBe(0)
+    expect(failed.windows[0].remainingPercent).toBeCloseTo(57.29232)
+    expect(failed.sampledAt).toBe(sampled)
+    expect(failed.state).toBe('stale')
+    expect(quotaCardWindows(failed)).toHaveLength(3)
   })
 
   it('never carries a previous Factory credential generation into the current subscription', () => {

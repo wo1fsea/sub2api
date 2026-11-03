@@ -2,7 +2,6 @@ import type { AccountListItem, AccountQuotaWindow, AccountUsageInfo } from '@/ty
 
 export const QUOTA_PRIORITY_THRESHOLD = 20
 export const QUOTA_STALE_AFTER_MS = 15 * 60 * 1000
-export const ANTIGRAVITY_OVERVIEW_WINDOW_LIMIT = 6
 const MAX_SAMPLE_CLOCK_SKEW_MS = 60 * 1000
 
 export interface QuotaOverviewWindow {
@@ -16,6 +15,9 @@ export interface QuotaOverviewWindow {
   source: string
   scope: AccountQuotaWindow['scope']
   model?: string
+  pool?: string
+  displayName?: string
+  disabled: boolean
   stale: boolean
   estimated: boolean
 }
@@ -23,6 +25,7 @@ export interface QuotaOverviewWindow {
 export interface QuotaOverviewAccount {
   account: AccountListItem
   windows: QuotaOverviewWindow[]
+  modelWindows: QuotaOverviewWindow[]
   bottleneck: QuotaOverviewWindow | null
   state: 'fresh' | 'stale' | 'unknown' | 'estimated'
   error?: string
@@ -39,10 +42,17 @@ export interface QuotaOverviewAccount {
 export type QuotaOverviewSort = 'remaining' | 'reset'
 
 export function quotaCardWindows(row: QuotaOverviewAccount): QuotaOverviewWindow[] {
-  if (row.account.platform !== 'antigravity') return row.windows
-  return [...row.windows].sort((a, b) =>
-    (a.remainingPercent ?? Infinity) - (b.remainingPercent ?? Infinity) || a.key.localeCompare(b.key)
-  ).slice(0, ANTIGRAVITY_OVERVIEW_WINDOW_LIMIT)
+  return row.windows.filter(window => !window.disabled)
+}
+
+export function quotaCardGroups(row: QuotaOverviewAccount): Array<{ name: string; windows: QuotaOverviewWindow[] }> {
+  if (row.account.platform !== 'antigravity') return [{ name: '', windows: quotaCardWindows(row) }]
+  const groups = new Map<string, QuotaOverviewWindow[]>()
+  for (const window of quotaCardWindows(row)) {
+    const name = window.pool || ''
+    groups.set(name, [...(groups.get(name) || []), window])
+  }
+  return [...groups].map(([name, windows]) => ({ name, windows }))
 }
 
 export function isSubscriptionQuotaAccount(account: Pick<AccountListItem, 'type' | 'platform'>): boolean {
@@ -56,6 +66,9 @@ function timestamp(value: unknown): string | null {
 
 function windowLabel(window: AccountQuotaWindow): Pick<QuotaOverviewWindow, 'labelKey' | 'labelParams'> {
   const base = 'admin.quotaOverview.windows.'
+  if (window.scope === 'pool') {
+    return { labelKey: base + (window.window_minutes === 10080 ? 'poolWeekly' : window.window_minutes === 300 ? 'poolFiveHour' : 'unknown') }
+  }
   if (window.key === 'antigravity_primary') return { labelKey: base + 'antigravityPrimary' }
   const minutes = window.window_minutes
   const model = window.model || ''
@@ -81,11 +94,11 @@ function windowLabel(window: AccountQuotaWindow): Pick<QuotaOverviewWindow, 'lab
 }
 
 // Antigravity's legacy five_hour is a primary-model alias, not an account-wide
-// five-hour pool. Prefer model readings; never duplicate the alias as capacity.
+// five-hour pool. These readings are detail-only, never shared pool capacity.
 // Unlike generic updated_at, this provider's timestamp is the fetch time and
 // survives cache reads unchanged (AntigravityQuotaFetcher.buildUsageInfo).
-function antigravityWindows(usage: AccountUsageInfo | null | undefined): AccountQuotaWindow[] {
-  const canonical = usage?.quota_windows || []
+function antigravityModelWindows(usage: AccountUsageInfo | null | undefined): AccountQuotaWindow[] {
+  const canonical = (usage?.quota_windows || []).filter(window => window.scope === 'model')
   const models = Object.entries(usage?.antigravity_quota || {}).sort(([a], [b]) => a.localeCompare(b))
   const windows = [...canonical]
   for (const [model, quota] of models) {
@@ -113,7 +126,7 @@ function sampleStale(sampledAt: string | null, now: number): boolean {
 }
 
 function normalizeWindow(window: AccountQuotaWindow, now: number, failed: boolean): QuotaOverviewWindow {
-  const utilization = typeof window.utilization === 'number' && Number.isFinite(window.utilization) && window.utilization >= 0
+  const utilization = !window.disabled && typeof window.utilization === 'number' && Number.isFinite(window.utilization) && window.utilization >= 0
     ? window.utilization : null
   const sampledAt = timestamp(window.sampled_at)
   const resetsAt = timestamp(window.resets_at)
@@ -128,14 +141,27 @@ function normalizeWindow(window: AccountQuotaWindow, now: number, failed: boolea
     resetsAt,
     sampledAt,
     source: window.source,
-    scope: ['model', 'standard', 'core'].includes(window.scope) ? window.scope : 'account',
+    scope: ['model', 'standard', 'core', 'pool'].includes(window.scope) ? window.scope : 'account',
     model: window.model,
+    pool: window.pool,
+    displayName: window.display_name,
+    disabled: window.disabled === true,
     stale: failed || age > QUOTA_STALE_AFTER_MS || age < -MAX_SAMPLE_CLOCK_SKEW_MS || (resetsAt !== null && Date.parse(resetsAt) <= now) || !authoritative,
     estimated
   }
 }
 
 function expectedWindows(account: AccountListItem): AccountQuotaWindow[] {
+  if (account.platform === 'antigravity') {
+    return [
+      { id: 'gemini-weekly', pool: 'Gemini Models', minutes: 10080 },
+      { id: 'gemini-5h', pool: 'Gemini Models', minutes: 300 },
+      { id: '3p-weekly', pool: 'Claude and GPT models', minutes: 10080 }
+    ].map(({ id, pool, minutes }) => ({
+      key: `antigravity_pool:${id}`, pool, scope: 'pool' as const, source: 'upstream' as const,
+      window_minutes: minutes, utilization: null, resets_at: null, sampled_at: null
+    }))
+  }
   if (account.platform === 'factory') {
     return (['standard', 'core'] as const).flatMap(scope => ['five_hour', 'weekly', 'monthly'].map(period => ({
       key: `factory_${scope}_${period}`, utilization: null, resets_at: null, sampled_at: null,
@@ -171,7 +197,9 @@ export function normalizeQuotaAccount(
   const prior = previous?.account.id === account.id &&
     (account.platform !== 'factory' || (previous.account.extra?.factory_usage_generation ?? '') === generation)
     ? previous : undefined
-  const rawWindows = isAntigravity ? antigravityWindows(usage) : usage?.quota_windows || []
+  const rawWindows = isAntigravity
+    ? (usage?.quota_windows || []).filter(window => window.scope === 'pool' && window.key.startsWith('antigravity_pool:'))
+    : usage?.quota_windows || []
   const unique = new Map(expectedWindows(account).map(window => [window.key, window]))
   for (const window of rawWindows) unique.set(window.key, window)
   let windows = [...unique.values()].map(window => normalizeWindow(window, now, !!failure || usage?.factory_usage?.stale === true ||
@@ -182,14 +210,16 @@ export function normalizeQuotaAccount(
   if (failure && prior) {
     const current = new Map(windows.map(window => [window.key, window]))
     for (const old of prior.windows) {
-      if (old.utilization !== null && current.get(old.key)?.utilization == null) {
+      if ((old.utilization !== null || old.disabled) && !current.get(old.key)?.disabled && current.get(old.key)?.utilization == null) {
         current.set(old.key, { ...old, stale: true })
       }
     }
     windows = [...current.values()]
   }
 
-  const measured = windows.filter(window => window.remainingPercent !== null && !window.estimated && ['upstream', 'response_headers'].includes(window.source))
+  let modelWindows = isAntigravity ? antigravityModelWindows(usage).map(window => normalizeWindow(window, now, !!failure)) : []
+  if (failure && !modelWindows.length && prior) modelWindows = prior.modelWindows.map(window => ({ ...window, stale: true }))
+  const measured = windows.filter(window => !window.disabled && window.remainingPercent !== null && !window.estimated && ['upstream', 'response_headers'].includes(window.source))
   // If any applicable reading expired, the whole account is labeled stale and
   // ranked below current accounts; the old bottleneck stays visible as history.
   const bottleneck = measured.reduce<QuotaOverviewWindow | null>((tightest, window) => (
@@ -212,10 +242,10 @@ export function normalizeQuotaAccount(
       : typeof credit.amount === 'number' && Number.isFinite(credit.amount) && credit.amount >= 0 ? credit.amount : null
   }))
   return {
-    account, windows, bottleneck, state, error: failure, sampledAt,
+    account, windows, modelWindows, bottleneck, state, error: failure, sampledAt,
     source: bottleneck?.source || windows.find(window => window.utilization !== null)?.source || null,
     remainingPercent: bottleneck?.remainingPercent ?? null,
-    incomplete: measured.length === 0 || windows.some(window => window.utilization === null || window.estimated),
+    incomplete: measured.length === 0 || windows.some(window => !window.disabled && (window.utilization === null || window.estimated)),
     subscriptionTier: isAntigravity ? usage?.subscription_tier?.trim() || (failure ? prior?.subscriptionTier : null) || null : null,
     aiCredits, creditsSampledAt,
     creditsStale: !!failure || sampleStale(creditsSampledAt, now)

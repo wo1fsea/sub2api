@@ -48,7 +48,7 @@ function mountView() {
 }
 
 describe('QuotaOverviewView', () => {
-  it('exposes all six Factory windows and Antigravity model resets, tier and zero credits on the board', async () => {
+  it('keeps all six Factory windows while grouping Antigravity pools and preserving separate model details', async () => {
     const factory = { ...account(13, 'Factory subscription', 'factory'), type: 'apikey' }
     list.mockResolvedValue({ items: [factory, account(12, 'AG subscription', 'antigravity')], total: 2, pages: 1 })
     const factoryWindows = (['standard', 'core'] as const).flatMap(scope => ['five_hour', 'weekly', 'monthly'].map((period, index) => ({
@@ -56,7 +56,12 @@ describe('QuotaOverviewView', () => {
     })))
     getBatchUsage.mockResolvedValue({ usage: {
       13: usage(factoryWindows),
-      12: { ...usage([]), subscription_tier: 'ULTRA', antigravity_quota: {
+      12: { ...usage([
+        { ...window('antigravity_pool:gemini-weekly', 42.70768), scope: 'pool', pool: 'Gemini Models' },
+        { ...window('antigravity_pool:gemini-5h', 0), scope: 'pool', pool: 'Gemini Models', window_minutes: 300 },
+        { ...window('antigravity_pool:3p-weekly', 100), scope: 'pool', pool: 'Claude and GPT models' },
+        { ...window('antigravity_pool:3p-5h', 0), scope: 'pool', pool: 'Claude and GPT models', window_minutes: 300, disabled: true }
+      ]), subscription_tier: 'ULTRA', antigravity_quota: {
         'gemini-3-pro-high': { utilization: 0, reset_time: resetAt },
         'claude-sonnet-4': { utilization: 92, reset_time: resetAt }
       }, ai_credits: [{ credit_type: 'GOOGLE_ONE_AI', amount: 0 }] }
@@ -75,13 +80,20 @@ describe('QuotaOverviewView', () => {
     expect(agCard.text()).toContain('Antigravity · OAuth')
     expect(agCard.text()).toContain('ULTRA')
     expect(agCard.text()).toContain('AI Credits 余额 · GOOGLE_ONE_AI: 0')
-    expect(agCard.findAll('.qo-window')).toHaveLength(2)
-    expect(agCard.findAll('.qo-window-reset')).toHaveLength(2)
-    expect(agCard.text()).toContain('claude-sonnet-4')
+    expect(agCard.findAll('.qo-window')).toHaveLength(3)
+    expect(agCard.findAll('.qo-window-reset')).toHaveLength(3)
+    expect(agCard.findAll('.qo-pool-title').map(title => title.text())).toEqual(['Gemini Models', 'Claude and GPT models'])
+    expect(agCard.text()).not.toContain('claude-sonnet-4')
+    expect(agCard.findAll('.qo-window-value').map(value => value.text())).toEqual(['57.3%', '100%', '0%'])
+    expect(agCard.text()).toContain('周额度剩余')
+    expect(agCard.text()).toContain('5 小时额度剩余')
+    expect(agCard.text()).toContain('分钟后')
     expect(agCard.text()).toContain('100%')
     await agCard.find('.qo-card-open').trigger('click')
     expect(wrapper.find('[data-test="quota-details"]').text()).toContain('ULTRA')
     expect(wrapper.find('[data-test="quota-details"]').text()).toContain('GOOGLE_ONE_AI: 0')
+    expect(wrapper.find('[data-test="quota-details"]').text()).toContain('当前不适用')
+    expect(wrapper.find('.qo-model-details').text()).toContain('claude-sonnet-4')
   })
 
   beforeEach(() => {

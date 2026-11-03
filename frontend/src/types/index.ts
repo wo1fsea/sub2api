@@ -1506,8 +1506,11 @@ export interface AccountQuotaWindow {
   sampled_at: string | null
   source: 'upstream' | 'response_headers' | 'estimated' | 'local'
   window_minutes?: number
-  scope: 'account' | 'model' | 'standard' | 'core'
+  scope: 'account' | 'model' | 'standard' | 'core' | 'pool'
   model?: string
+  pool?: string
+  display_name?: string
+  disabled?: boolean
 }
 
 export interface FactoryUsageInfo {

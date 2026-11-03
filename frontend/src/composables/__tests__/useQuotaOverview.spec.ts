@@ -44,7 +44,7 @@ describe('useQuotaOverview', () => {
   it('fetches Antigravity through the bounded batch endpoint and preserves degraded readings', async () => {
     list.mockResolvedValue(page([account(12, 'antigravity'), account(13, 'factory', 'apikey')]))
     getBatchUsage.mockResolvedValueOnce({ usage: {
-      12: { ...usage(), quota_windows: [], antigravity_quota: { claude: { utilization: 92, reset_time: resetAt } } },
+      12: { ...usage(), quota_windows: [{ key: 'antigravity_pool:3p-weekly', scope: 'pool', pool: 'Claude and GPT models', utilization: 92, resets_at: resetAt, sampled_at: sampledAt, source: 'upstream', window_minutes: 10080 }], antigravity_quota: { claude: { utilization: 92, reset_time: resetAt } } },
       13: { ...usage(), quota_windows: [] }
     }, errors: {} })
     const state = createState()

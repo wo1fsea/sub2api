@@ -1304,7 +1304,7 @@ func antigravityCacheTTL(info *UsageInfo) time.Duration {
 	if info.IsForbidden {
 		return apiCacheTTL // 封号/验证状态不会很快变
 	}
-	if info.ErrorCode != "" || info.Error != "" {
+	if info.ErrorCode != "" || info.Error != "" || info.QuotaSnapshotError != "" {
 		return antigravityErrorTTL
 	}
 	return apiCacheTTL

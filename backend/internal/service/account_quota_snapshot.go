@@ -20,6 +20,9 @@ type AccountQuotaWindow struct {
 	WindowMinutes int        `json:"window_minutes,omitempty"`
 	Scope         string     `json:"scope"`
 	Model         string     `json:"model,omitempty"`
+	Pool          string     `json:"pool,omitempty"`
+	DisplayName   string     `json:"display_name,omitempty"`
+	Disabled      bool       `json:"disabled,omitempty"`
 }
 
 func buildFactoryQuotaWindows(limits map[string]any, sampledAt time.Time) []AccountQuotaWindow {
