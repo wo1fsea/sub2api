@@ -123,10 +123,13 @@ beforeEach(() => {
 afterEach(() => resetPlatformCatalog())
 
 describe('Factory model catalog', () => {
-  it('exposes public native IDs and excludes Gemini, Fast and auto', () => {
+  it('exposes only Claude including Fable and excludes all other families', () => {
     expect(FACTORY_PUBLIC_MODEL_IDS).toContain('factory/claude-opus-5-5')
-    expect(FACTORY_PUBLIC_MODEL_IDS).toContain('factory/gpt-6.1-sol')
-    expect(FACTORY_PUBLIC_MODEL_IDS).toContain('factory/glm-5.3')
+    expect(FACTORY_PUBLIC_MODEL_IDS).toContain('factory/claude-fable-5.1')
+    expect(FACTORY_PUBLIC_MODEL_IDS).toHaveLength(10)
+    expect(FACTORY_PUBLIC_MODEL_IDS.every((id) => id.startsWith('factory/claude-'))).toBe(true)
+    expect(FACTORY_PUBLIC_MODEL_IDS).not.toContain('factory/gpt-6.1-sol')
+    expect(FACTORY_PUBLIC_MODEL_IDS).not.toContain('factory/glm-5.3')
     expect(FACTORY_PUBLIC_MODEL_IDS.some((id) => id.endsWith('-fast'))).toBe(false)
     expect(FACTORY_PUBLIC_MODEL_IDS).not.toContain('factory/auto')
     expect(FACTORY_PUBLIC_MODEL_IDS).not.toContain('factory/gemini-4-argon')

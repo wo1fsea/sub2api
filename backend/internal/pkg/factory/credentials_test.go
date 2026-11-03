@@ -30,7 +30,11 @@ func TestNormalizeCredentialsRejectsMalformedWithoutEchoingSecrets(t *testing.T)
 		{"api_key": "fk-valid", "region": "mars"},
 		{"api_key": "fk-valid", "factory_org_id": "bad org"},
 		{"api_key": "fk-valid", "model_mapping": map[string]any{"alias": "factory/gemini-3.8-flash"}},
-		{"api_key": "fk-valid", "model_mapping": map[string]any{"alias": "glm-5.3", " alias ": "claude-opus-5-5"}},
+		{"api_key": "fk-valid", "model_mapping": map[string]any{"alias": "factory/gpt-6.1-sol"}},
+		{"api_key": "fk-valid", "model_mapping": map[string]any{"factory/gpt-6.1-sol": "claude-opus-5-5"}},
+		{"api_key": "fk-valid", "model_mapping": map[string]any{"gpt-6.1-sol": "claude-opus-5-5"}},
+		{"api_key": "fk-valid", "model_mapping": map[string]any{"*": "claude-opus-5-5"}},
+		{"api_key": "fk-valid", "model_mapping": map[string]any{"alias": "claude-sonnet-4-6", " alias ": "claude-opus-5-5"}},
 		{"api_key": "fk-valid", "base_url": "https://evil.invalid", "opaque-secret-key-name": "do-not-echo"},
 	}
 	for _, credentials := range cases {

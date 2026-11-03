@@ -10,7 +10,7 @@ import (
 
 func TestAccountFromServiceShallow_FactoryRedactsKeyAndPreservesRouting(t *testing.T) {
 	mapping := map[string]any{
-		"factory/gpt-5.5": "gpt-5.5",
+		"factory/claude-sonnet-4-6": "claude-sonnet-4-6",
 	}
 	src := &service.Account{
 		ID:       9101,

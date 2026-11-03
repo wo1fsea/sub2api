@@ -15,8 +15,6 @@ func TestPrepareInferenceBodyAddsOnlyDroidPreambleAndIsIdempotent(t *testing.T) 
 		preamblePath string
 	}{
 		{ProtocolAnthropic, `{"model":"factory/claude-opus-5-5","system":[{"type":"text","text":"caller system 世界","cache_control":{"type":"ephemeral"}}],"messages":[{"role":"user","content":"hi"}],"tools":[{"name":"t","input_schema":{"type":"object"}}],"custom_ext":{"keep":true}}`, "system"},
-		{ProtocolResponses, `{"model":"factory/gpt-6.1-sol","instructions":"caller instructions","input":[{"role":"user","content":[{"type":"input_text","text":"hi"}]}],"tools":[{"type":"function","name":"f"}],"custom_ext":{"keep":true}}`, "instructions"},
-		{ProtocolChatCompletions, `{"model":"factory/glm-5.3","messages":[{"role":"system","content":"caller system"},{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"f"}}],"custom_ext":{"keep":true}}`, "messages.0.content"},
 	}
 	for _, tc := range cases {
 		prepared, model, err := PrepareInferenceBody(tc.protocol, []byte(tc.body))
@@ -71,26 +69,26 @@ func TestPrepareInferenceBodyRejectsFastGeminiAndProtocolMismatch(t *testing.T) 
 
 func TestApplyRequestPolicyForcesFixedEndpointAndHeadersLast(t *testing.T) {
 	credentials := Credentials{APIKey: "fk-test", Region: RegionEU, OrgID: "fac_org"}
-	model, _ := ResolveModel("gpt-6.1-sol")
+	model, _ := ResolveModel("claude-sonnet-4-6")
 	req, _ := http.NewRequest(http.MethodPost, "https://attacker.invalid/generic", strings.NewReader(`{}`))
 	req.Header.Set("Authorization", "Bearer attacker")
 	req.Header.Set("x-api-key", "attacker")
 	req.Header.Set("X-Factory-Org-Id", "wrong")
 	req.Header.Set("User-Agent", "attacker-ua")
-	if err := ApplyRequestPolicy(req, credentials, model, ProtocolResponses); err != nil {
+	if err := ApplyRequestPolicy(req, credentials, model, ProtocolAnthropic); err != nil {
 		t.Fatal(err)
 	}
-	want, _ := url.Parse(HostEU + "/api/llm/o/v1/responses")
+	want, _ := url.Parse(HostEU + "/api/llm/a/v1/messages")
 	if req.URL.String() != want.String() {
 		t.Fatalf("URL = %s, want %s", req.URL, want)
 	}
-	if req.Header.Get("Authorization") != "Bearer fk-test" || req.Header.Get("X-Api-Key") != "" {
+	if req.Header.Get("Authorization") != "Bearer fk-test" || req.Header.Get("X-Api-Key") != "placeholder" {
 		t.Fatalf("auth headers not forced: %#v", req.Header)
 	}
-	if req.Header.Get("X-Factory-Org-Id") != "fac_org" || req.Header.Get("x-provider-routing-source") != "registry_default" || req.Header.Get("x-api-provider") != "openai" {
+	if req.Header.Get("X-Factory-Org-Id") != "fac_org" || req.Header.Get("x-provider-routing-source") != "registry_default" || req.Header.Get("x-api-provider") != "anthropic" {
 		t.Fatalf("Factory headers wrong: %#v", req.Header)
 	}
-	if req.Header.Get("OpenAI-Platform") != OpenAIProjectHeader {
+	if req.Header.Get("OpenAI-Platform") != "" {
 		t.Fatalf("OpenAI-Platform = %q", req.Header.Get("OpenAI-Platform"))
 	}
 	if req.Header.Get("X-Session-Id") == "" || req.Header.Get("X-Assistant-Message-Id") == "" {

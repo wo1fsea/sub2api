@@ -717,6 +717,16 @@ func (a *Account) resolveModelMapping(rawMapping map[string]any) map[string]stri
 	result := make(map[string]string)
 	for k, v := range rawMapping {
 		if s, ok := v.(string); ok {
+			if a.IsFactory() {
+				// Persisted mappings may predate the Claude-only registry. Never
+				// advertise removed targets or revive removed public IDs as aliases.
+				if _, supported := factorypkg.NativeModelID(s); !supported {
+					continue
+				}
+				if factorypkg.IsExcludedModelName(k) {
+					continue
+				}
+			}
 			result[k] = s
 		}
 	}
@@ -978,6 +988,9 @@ func (a *Account) IsModelSupported(requestedModel string) bool {
 
 func (a *Account) isModelMappingSupported(requestedModel string) bool {
 	if a != nil && a.IsFactory() {
+		if factorypkg.IsExcludedModelName(requestedModel) {
+			return false
+		}
 		mapping := a.GetModelMapping()
 		candidate, matched := resolveRequestedModelInMapping(mapping, requestedModel)
 		if matched {
@@ -1025,6 +1038,9 @@ func (a *Account) GetMappedModel(requestedModel string) string {
 // matched=true 表示命中了精确映射或通配符映射，即使映射结果与原模型名相同。
 func (a *Account) ResolveMappedModel(requestedModel string) (mappedModel string, matched bool) {
 	if a != nil && a.IsFactory() {
+		if factorypkg.IsExcludedModelName(requestedModel) {
+			return requestedModel, false
+		}
 		mapping := a.GetModelMapping()
 		if candidate, found := resolveRequestedModelInMapping(mapping, requestedModel); found {
 			if native, ok := factorypkg.NativeModelID(candidate); ok {

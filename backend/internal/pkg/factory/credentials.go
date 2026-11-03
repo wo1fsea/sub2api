@@ -135,6 +135,9 @@ func normalizeModelMapping(raw any) (map[string]string, error) {
 		if public == "" || len(public) > maxMappingKeyLength || containsControlOrSpace(public) {
 			return nil, fmt.Errorf("model_mapping has an invalid request model")
 		}
+		if IsExcludedModelName(public) {
+			return nil, fmt.Errorf("model_mapping request model is not a supported Factory model")
+		}
 		if _, duplicate := seen[public]; duplicate {
 			return nil, fmt.Errorf("model_mapping contains duplicate normalized request models")
 		}

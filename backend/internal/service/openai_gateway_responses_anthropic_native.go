@@ -472,6 +472,18 @@ func (s *OpenAIGatewayService) handleResponsesStreamingFromNativeAnthropic(
 			continue
 		}
 
+		if event.Type == "error" {
+			// An upstream error is terminal, not a successful empty/truncated
+			// stream. Never echo provider diagnostics, which may contain secrets.
+			const message = "upstream Anthropic stream failed"
+			failure := &anthropicCompatStreamFailure{err: errors.New(message), errType: "upstream_error", message: message}
+			if !clientDisconnected {
+				writeAnthropicCompatResponsesStreamFailure(c, state, clientToolRestorer, failure)
+			} else {
+				MarkOpsStreamError(c, failure.errType, failure.message, http.StatusBadGateway)
+			}
+			return resultWithUsage(), failure.err
+		}
 		processAnthropicEvent(&event)
 	}
 

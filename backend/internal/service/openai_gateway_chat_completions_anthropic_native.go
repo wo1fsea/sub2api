@@ -472,6 +472,18 @@ func (s *OpenAIGatewayService) handleCCStreamingFromNativeAnthropic(
 		// The intermediate Responses converter synthesizes usage even when absent.
 		ccState.IncludeUsage = ccState.IncludeUsage || anthropicChatStreamHasUsage(&event, payload)
 
+		if event.Type == "error" {
+			// Preserve accumulated usage, but never finalize an upstream failure
+			// as a successful completion or echo secret-bearing diagnostics.
+			const message = "upstream Anthropic stream failed"
+			failure := &anthropicCompatStreamFailure{err: errors.New(message), errType: "upstream_error", message: message}
+			if !clientDisconnected {
+				writeAnthropicCompatCCStreamFailure(c, failure)
+			} else {
+				MarkOpsStreamError(c, failure.errType, failure.message, http.StatusBadGateway)
+			}
+			return resultWithUsage(), failure.err
+		}
 		if processAnthropicEvent(&event) {
 			return resultWithUsage(), nil
 		}

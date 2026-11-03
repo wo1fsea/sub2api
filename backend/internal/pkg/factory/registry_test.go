@@ -14,19 +14,21 @@ func TestFiniteRegistryProtocolsAndExcludedFamilies(t *testing.T) {
 		}
 		seen[model.ID] = true
 		protocolCounts[model.Protocol]++
-		if model.Provider == "" {
-			t.Fatalf("model %q has no provider", model.ID)
+		if model.Provider != providerAnthropic || !strings.HasPrefix(model.ID, "claude-") {
+			t.Fatalf("non-Claude model in registry: %#v", model)
 		}
 		if IsFastOrGeminiID(model.ID) {
 			t.Fatalf("excluded family leaked into registry: %q", model.ID)
 		}
 	}
-	if protocolCounts[ProtocolAnthropic] == 0 || protocolCounts[ProtocolResponses] == 0 || protocolCounts[ProtocolChatCompletions] == 0 {
-		t.Fatalf("all three protocols must be represented: %#v", protocolCounts)
+	if protocolCounts[ProtocolAnthropic] != 10 || len(protocolCounts) != 1 {
+		t.Fatalf("expected ten Claude models using Anthropic: %#v", protocolCounts)
 	}
-	for _, id := range []string{"claude-opus-5-5-fast", "gemini-3.8-flash", "auto", "gpt-6-astra-ultrafast"} {
-		if _, ok := ResolveModel(id); ok {
-			t.Fatalf("excluded model resolved: %s", id)
+	for _, id := range []string{"claude-opus-5-5-fast", "gemini-3.8-flash", "auto", "gpt-6-astra-ultrafast", "gpt-6.1-sol", "gpt-6-astra", "gpt-5.5", "grok-4.7", "glm-5.3", "minimax-m2.7", "minimax-m3", "deepseek-v4.1-flash", "kimi-k3", "mistral-large-4", "qwen3.8-max", "nemotron-3-ultra"} {
+		for _, input := range []string{id, PublicModelPrefix + id} {
+			if _, ok := ResolveModel(input); ok {
+				t.Fatalf("excluded model resolved: %s", input)
+			}
 		}
 	}
 }

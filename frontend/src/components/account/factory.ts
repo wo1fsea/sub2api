@@ -11,9 +11,8 @@ export const FACTORY_REGION_ENDPOINTS: Record<FactoryRegion, string> = {
 export type FactoryModelProtocol = 'messages' | 'responses' | 'chat_completions'
 
 /**
- * Factory models exposed by the gateway. Fast Mode, auto and Gemini models are
- * intentionally absent: this account adapter only supports Messages,
- * Responses and Chat Completions in the current frontend/backend scope.
+ * Claude-only Factory catalog, including Fable. Keep this aligned with the
+ * backend finite registry; non-Claude models, Fast Mode and auto are excluded.
  */
 export const FACTORY_MODELS = [
   { id: 'claude-fable-5.1', label: 'Fable 5.1', protocol: 'messages' },
@@ -26,30 +25,6 @@ export const FACTORY_MODELS = [
   { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6', protocol: 'messages' },
   { id: 'claude-haiku-5-5', label: 'Haiku 5.5', protocol: 'messages' },
   { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5', protocol: 'messages' },
-  { id: 'minimax-m2.7', label: 'MiniMax M2.7', protocol: 'messages' },
-  { id: 'gpt-6.1-sol', label: 'GPT-6.1 Sol', protocol: 'responses' },
-  { id: 'gpt-6-sol', label: 'GPT-6 Sol', protocol: 'responses' },
-  { id: 'gpt-6-astra', label: 'GPT-6 Astra', protocol: 'responses' },
-  { id: 'gpt-6-luna', label: 'GPT-6 Luna', protocol: 'responses' },
-  { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol', protocol: 'responses' },
-  { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra', protocol: 'responses' },
-  { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna', protocol: 'responses' },
-  { id: 'gpt-5.5', label: 'GPT-5.5', protocol: 'responses' },
-  { id: 'gpt-5.4', label: 'GPT-5.4', protocol: 'responses' },
-  { id: 'gpt-5.3-codex', label: 'GPT-5.3-Codex', protocol: 'responses' },
-  { id: 'grok-4.7', label: 'Grok 4.7', protocol: 'responses' },
-  { id: 'grok-4.6', label: 'Grok 4.6', protocol: 'responses' },
-  { id: 'glm-5.3', label: 'GLM-5.3', protocol: 'chat_completions' },
-  { id: 'glm-5.3-flash', label: 'GLM-5.3-Flash', protocol: 'chat_completions' },
-  { id: 'glm-5.2', label: 'GLM-5.2', protocol: 'chat_completions' },
-  { id: 'kimi-k3', label: 'Kimi K3', protocol: 'chat_completions' },
-  { id: 'deepseek-v4.1-flash', label: 'DeepSeek V4.1 Flash', protocol: 'chat_completions' },
-  { id: 'deepseek-v4.1-flash-1017', label: 'DeepSeek V4.1 Flash 1017', protocol: 'chat_completions' },
-  { id: 'qwen3.8-max', label: 'Qwen3.8 Max', protocol: 'chat_completions' },
-  { id: 'minimax-m3', label: 'MiniMax M3', protocol: 'chat_completions' },
-  { id: 'mistral-large-4', label: 'Mistral Large 4', protocol: 'chat_completions' },
-  { id: 'mistral-medium-3.5', label: 'Mistral Medium 3.5', protocol: 'chat_completions' },
-  { id: 'nemotron-3-ultra', label: 'Nemotron 3 Ultra', protocol: 'chat_completions' }
 ] as const
 
 export type FactoryModel = (typeof FACTORY_MODELS)[number]

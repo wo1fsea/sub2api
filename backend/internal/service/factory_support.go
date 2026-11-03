@@ -57,7 +57,7 @@ func (a *Account) factoryMappingAdmitsNative(native string) bool {
 	if a == nil || a.Credentials == nil {
 		return false
 	}
-	for _, target := range stringMappingFromRaw(a.Credentials["model_mapping"]) {
+	for _, target := range a.GetModelMapping() {
 		if resolved, ok := factorypkg.NativeModelID(target); ok && resolved == native {
 			return true
 		}

@@ -156,21 +156,6 @@ func factoryAcceptanceService(upstream *factoryAcceptanceTransport) *OpenAIGatew
 	}
 }
 
-func factoryResponsesJSON() *http.Response {
-	return &http.Response{
-		StatusCode: http.StatusOK,
-		Header:     http.Header{"Content-Type": []string{"application/json"}, "x-request-id": []string{"rid_factory_acceptance"}},
-		Body: io.NopCloser(strings.NewReader(`{
-"id":"resp_factory_1","object":"response","created_at":1,"status":"completed","model":"gpt-5.5",
-"output":[
-{"id":"msg_factory_1","type":"message","status":"completed","role":"assistant","content":[{"type":"output_text","text":"found Ω","annotations":[]}]},
-{"id":"fc_factory_1","type":"function_call","status":"completed","call_id":"call_factory_1","name":"lookup","arguments":"{\"q\":\"Ω\"}"}
-],
-"usage":{"input_tokens":19,"input_tokens_details":{"cached_tokens":4},"output_tokens":8,"output_tokens_details":{"reasoning_tokens":2},"total_tokens":27}
-}`)),
-	}
-}
-
 func factoryAnthropicJSON() *http.Response {
 	return &http.Response{
 		StatusCode: http.StatusOK,
@@ -187,51 +172,38 @@ func factoryAnthropicJSON() *http.Response {
 	}
 }
 
-func factoryChatJSON() *http.Response {
-	return &http.Response{
-		StatusCode: http.StatusOK,
-		Header:     http.Header{"Content-Type": []string{"application/json"}, "x-request-id": []string{"rid_factory_chat"}},
-		Body: io.NopCloser(strings.NewReader(`{
-"id":"chatcmpl_factory_1","object":"chat.completion","created":1,"model":"glm-5.3",
-"choices":[{"index":0,"message":{"role":"assistant","content":"found Ω","tool_calls":[{"id":"call_factory_chat_1","type":"function","function":{"name":"lookup","arguments":"{\"q\":\"Ω\"}"}}]},"finish_reason":"tool_calls"}],
-"usage":{"prompt_tokens":17,"completion_tokens":6,"total_tokens":23,"prompt_tokens_details":{"cached_tokens":3}}
-}`)),
-	}
-}
-
-func factoryResponsesStream() *http.Response {
+// factoryAnthropicToolStream exercises the Anthropic SSE shape Factory returns
+// for Claude models: text plus a tool_use block whose arguments arrive as
+// input_json_delta events. Responses and Chat Completions inbound requests are
+// converted from this stream even when the client asks for a buffered reply.
+func factoryAnthropicToolStream() *http.Response {
 	sse := strings.Join([]string{
-		`event: response.output_text.delta`,
-		`data: {"type":"response.output_text.delta","sequence_number":0,"delta":"stream Ω"}`,
+		`event: message_start`,
+		`data: {"type":"message_start","message":{"id":"msg_factory_cross","type":"message","role":"assistant","model":"claude-sonnet-4-6","content":[],"stop_reason":null,"usage":{"input_tokens":11,"output_tokens":1,"cache_creation_input_tokens":2,"cache_read_input_tokens":3}}}`,
 		"",
-		`event: response.completed`,
-		`data: {"type":"response.completed","sequence_number":1,"response":{"id":"resp_factory_stream","object":"response","model":"gpt-5.5","status":"completed","usage":{"input_tokens":5,"output_tokens":3,"input_tokens_details":{"cached_tokens":2},"total_tokens":8}}}`,
+		`event: content_block_start`,
+		`data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`,
 		"",
+		`event: content_block_delta`,
+		`data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"found Ω"}}`,
 		"",
-	}, "\n")
-	return &http.Response{
-		StatusCode: http.StatusOK,
-		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_factory_stream"}},
-		Body:       io.NopCloser(strings.NewReader(sse)),
-	}
-}
-
-func factoryResponsesToolStream() *http.Response {
-	sse := strings.Join([]string{
-		`event: response.output_item.added`,
-		`data: {"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","id":"fc_factory_1","call_id":"call_factory_1","name":"lookup","arguments":"","status":"in_progress"}}`,
+		`event: content_block_stop`,
+		`data: {"type":"content_block_stop","index":0}`,
 		"",
-		`event: response.function_call_arguments.delta`,
-		`data: {"type":"response.function_call_arguments.delta","item_id":"fc_factory_1","output_index":0,"delta":"{\"q\":\"Ω\"}"}`,
+		`event: content_block_start`,
+		`data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_factory_1","name":"lookup","input":{}}}`,
 		"",
-		`event: response.output_item.done`,
-		`data: {"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","id":"fc_factory_1","call_id":"call_factory_1","name":"lookup","arguments":"{\"q\":\"Ω\"}","status":"completed"}}`,
+		`event: content_block_delta`,
+		`data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"q\":\"Ω\"}"}}`,
 		"",
-		`event: response.output_text.delta`,
-		`data: {"type":"response.output_text.delta","output_index":1,"delta":"found Ω"}`,
+		`event: content_block_stop`,
+		`data: {"type":"content_block_stop","index":1}`,
 		"",
-		`event: response.completed`,
-		`data: {"type":"response.completed","response":{"id":"resp_factory_cross","object":"response","model":"gpt-5.5","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"found Ω"}]},{"type":"function_call","id":"fc_factory_1","call_id":"call_factory_1","name":"lookup","arguments":"{\"q\":\"Ω\"}"}],"usage":{"input_tokens":19,"output_tokens":8,"input_tokens_details":{"cached_tokens":4},"total_tokens":27}}}`,
+		`event: message_delta`,
+		`data: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":7}}`,
+		"",
+		`event: message_stop`,
+		`data: {"type":"message_stop"}`,
 		"",
 		"",
 	}, "\n")
@@ -271,26 +243,6 @@ func factoryAnthropicStream() *http.Response {
 	}
 }
 
-func factoryResponsesErrorStream(secret string) *http.Response {
-	sse := strings.Join([]string{
-		`event: response.created`,
-		`data: {"type":"response.created","response":{"id":"resp_factory_error_stream","object":"response","model":"gpt-5.5","status":"in_progress"}}`,
-		"",
-		`event: response.failed`,
-		`data: {"type":"response.failed","response":{"id":"resp_factory_error_stream","object":"response","model":"gpt-5.5","status":"failed","error":{"type":"server_error","code":"server_error","message":"upstream failed with ` + secret + `"}}}`,
-		"",
-		"",
-	}, "\n")
-	return &http.Response{
-		StatusCode: http.StatusOK,
-		Header: http.Header{
-			"Content-Type": []string{"text/event-stream"},
-			"x-request-id": []string{secret},
-		},
-		Body: io.NopCloser(strings.NewReader(sse)),
-	}
-}
-
 func factoryAnthropicErrorStream(secret string) *http.Response {
 	sse := strings.Join([]string{
 		`event: error`,
@@ -308,34 +260,27 @@ func factoryAnthropicErrorStream(secret string) *http.Response {
 	}
 }
 
-func factoryChatErrorStream(secret string) *http.Response {
-	sse := strings.Join([]string{
-		`data: {"id":"chatcmpl_factory_error","object":"chat.completion.chunk","model":"glm-5.3","choices":[],"error":{"type":"server_error","message":"upstream failed with ` + secret + `"}}`,
-		"",
-		`data: [DONE]`,
-		"",
-		"",
-	}, "\n")
-	return &http.Response{
-		StatusCode: http.StatusOK,
-		Header: http.Header{
-			"Content-Type": []string{"text/event-stream"},
-			"x-request-id": []string{secret},
-		},
-		Body: io.NopCloser(strings.NewReader(sse)),
+func factoryAcceptanceBodyForSurface(surface, model, extra string) []byte {
+	switch surface {
+	case "anthropic":
+		return []byte(`{"model":"` + model + `","max_tokens":32,"messages":[{"role":"user","content":"must not leave"}]` + extra + `,"stream":false}`)
+	case "chat":
+		return []byte(`{"model":"` + model + `","messages":[{"role":"user","content":"must not leave"}]` + extra + `,"stream":false}`)
+	default:
+		return []byte(`{"model":"` + model + `","input":"must not leave"` + extra + `,"stream":false}`)
 	}
 }
 
-func TestFactoryAcceptance_ForwardResponsesSameProtocolPreservesToolsAndUsage(t *testing.T) {
+func TestFactoryAcceptance_ForwardResponsesToClaudeCrossProtocolPreservesToolsAndUsage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	body := []byte(`{
-"model":"factory/gpt-5.5",
+"model":"factory/claude-sonnet-4-6",
 "instructions":"PRESERVE_ME_SYSTEM_Ω",
 "input":[{"role":"user","content":[{"type":"input_text","text":"PRESERVE_ME_INPUT_λ"}]}],
 "tools":[{"type":"function","name":"lookup","description":"PRESERVE_ME_TOOL","parameters":{"type":"object","properties":{"q":{"type":"string"}},"required":["q"]}}],
 "stream":false
 }`)
-	upstream := &factoryAcceptanceTransport{responses: []*http.Response{factoryResponsesJSON()}}
+	upstream := &factoryAcceptanceTransport{responses: []*http.Response{factoryAnthropicToolStream()}}
 	svc := factoryAcceptanceService(upstream)
 	c, rec := factoryAcceptanceContext("/v1/responses", body)
 
@@ -346,16 +291,17 @@ func TestFactoryAcceptance_ForwardResponsesSameProtocolPreservesToolsAndUsage(t 
 
 	req := upstream.requests[0]
 	require.Equal(t, http.MethodPost, req.Method)
-	require.Equal(t, "https://api.factory.ai/api/llm/o/v1/responses", req.URL.String())
+	require.Equal(t, "https://api.factory.ai/api/llm/a/v1/messages", req.URL.String())
 	require.Equal(t, "Bearer fk-factory-acceptance-9101", req.Header.Get("Authorization"))
+	require.Equal(t, "placeholder", req.Header.Get("X-Api-Key"))
 	require.Equal(t, "cli", req.Header.Get("X-Factory-Client"))
-	require.Equal(t, "org-bHuLtG1fGmYk5YaOihAAXFBw", req.Header.Get("OpenAI-Platform"))
-	require.Equal(t, "openai", req.Header.Get("x-api-provider"))
+	require.Empty(t, req.Header.Get("OpenAI-Platform"))
+	require.Equal(t, "anthropic", req.Header.Get("x-api-provider"))
 	require.Equal(t, "registry_default", req.Header.Get("x-provider-routing-source"))
 	require.NotEmpty(t, req.Header.Get("x-session-id"))
 	require.NotEmpty(t, req.Header.Get("x-assistant-message-id"))
 	require.Empty(t, req.Header.Get("X-Factory-Org-Id"))
-	require.Equal(t, "gpt-5.5", gjson.GetBytes(upstream.bodies[0], "model").String())
+	require.Equal(t, "claude-sonnet-4-6", gjson.GetBytes(upstream.bodies[0], "model").String())
 	sent := string(upstream.bodies[0])
 	require.Contains(t, sent, "You are Droid, an AI software engineering agent built by Factory.")
 	require.Contains(t, sent, "PRESERVE_ME_SYSTEM_Ω")
@@ -363,11 +309,16 @@ func TestFactoryAcceptance_ForwardResponsesSameProtocolPreservesToolsAndUsage(t 
 	require.Contains(t, sent, "PRESERVE_ME_TOOL")
 	require.NotContains(t, sent, "caller-must-not-leak")
 
-	require.Equal(t, 19, result.Usage.InputTokens)
-	require.Equal(t, 8, result.Usage.OutputTokens)
-	require.Equal(t, 4, result.Usage.CacheReadInputTokens)
-	require.Contains(t, rec.Body.String(), "call_factory_1")
-	require.Contains(t, rec.Body.String(), "found Ω")
+	require.Equal(t, 16, result.Usage.InputTokens)
+	require.Equal(t, 7, result.Usage.OutputTokens)
+	require.Equal(t, 3, result.Usage.CacheReadInputTokens)
+	require.Equal(t, 2, result.Usage.CacheCreationInputTokens)
+	responseBody := rec.Body.String()
+	responseJSON := gjson.Parse(responseBody)
+	require.Equal(t, "found Ω", responseJSON.Get(`output.#(type=="message").content.0.text`).String())
+	require.Equal(t, "toolu_factory_1", responseJSON.Get(`output.#(type=="function_call").call_id`).String())
+	require.Equal(t, "lookup", responseJSON.Get(`output.#(type=="function_call").name`).String())
+	require.JSONEq(t, `{"q":"Ω"}`, responseJSON.Get(`output.#(type=="function_call").arguments`).String())
 }
 
 func TestFactoryAcceptance_ForwardAsAnthropicNativePreservesToolsAndUsage(t *testing.T) {
@@ -410,15 +361,15 @@ func TestFactoryAcceptance_ForwardAsAnthropicNativePreservesToolsAndUsage(t *tes
 	require.Contains(t, responseBody, "found Ω")
 }
 
-func TestFactoryAcceptance_ForwardAsChatCompletionsNativePreservesToolsAndUsage(t *testing.T) {
+func TestFactoryAcceptance_ForwardChatCompletionsToClaudeCrossProtocolPreservesToolsAndUsage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	body := []byte(`{
-"model":"factory/glm-5.3",
+"model":"factory/claude-sonnet-4-6",
 "messages":[{"role":"system","content":"PRESERVE_CHAT_SYSTEM_Ω"},{"role":"user","content":"PRESERVE_CHAT_INPUT_λ"}],
 "tools":[{"type":"function","function":{"name":"lookup","description":"PRESERVE_CHAT_TOOL","parameters":{"type":"object","properties":{"q":{"type":"string"}},"required":["q"]}}}],
 "stream":false
 }`)
-	upstream := &factoryAcceptanceTransport{responses: []*http.Response{factoryChatJSON()}}
+	upstream := &factoryAcceptanceTransport{responses: []*http.Response{factoryAnthropicToolStream()}}
 	svc := factoryAcceptanceService(upstream)
 	c, rec := factoryAcceptanceContext("/v1/chat/completions", body)
 
@@ -428,9 +379,10 @@ func TestFactoryAcceptance_ForwardAsChatCompletionsNativePreservesToolsAndUsage(
 	require.Len(t, upstream.requests, 1)
 
 	req := upstream.requests[0]
-	require.Equal(t, "https://api.factory.ai/api/llm/o/v1/chat/completions", req.URL.String())
+	require.Equal(t, "https://api.factory.ai/api/llm/a/v1/messages", req.URL.String())
 	require.Equal(t, "Bearer fk-factory-acceptance-9101", req.Header.Get("Authorization"))
-	require.Equal(t, "glm-5.3", gjson.GetBytes(upstream.bodies[0], "model").String())
+	require.Equal(t, "placeholder", req.Header.Get("X-Api-Key"))
+	require.Equal(t, "claude-sonnet-4-6", gjson.GetBytes(upstream.bodies[0], "model").String())
 	sent := string(upstream.bodies[0])
 	require.Contains(t, sent, "You are Droid, an AI software engineering agent built by Factory.")
 	require.Contains(t, sent, "PRESERVE_CHAT_SYSTEM_Ω")
@@ -438,54 +390,21 @@ func TestFactoryAcceptance_ForwardAsChatCompletionsNativePreservesToolsAndUsage(
 	require.Contains(t, sent, "PRESERVE_CHAT_TOOL")
 	require.NotContains(t, sent, "caller-must-not-leak")
 
-	require.Equal(t, 17, result.Usage.InputTokens)
-	require.Equal(t, 6, result.Usage.OutputTokens)
+	require.Equal(t, 16, result.Usage.InputTokens)
+	require.Equal(t, 7, result.Usage.OutputTokens)
 	require.Equal(t, 3, result.Usage.CacheReadInputTokens)
-	require.Contains(t, rec.Body.String(), "call_factory_chat_1")
-	require.Contains(t, rec.Body.String(), "found Ω")
+	require.Equal(t, 2, result.Usage.CacheCreationInputTokens)
+	responseJSON := gjson.Parse(rec.Body.String())
+	require.Equal(t, "found Ω", responseJSON.Get("choices.0.message.content").String())
+	require.Equal(t, "toolu_factory_1", responseJSON.Get("choices.0.message.tool_calls.0.id").String())
+	require.Equal(t, "lookup", responseJSON.Get("choices.0.message.tool_calls.0.function.name").String())
+	require.Equal(t, "tool_calls", responseJSON.Get("choices.0.finish_reason").String())
 }
 
-func TestFactoryAcceptance_ForwardAsAnthropicCrossProtocolUsesRegistryResponsesRoute(t *testing.T) {
+func TestFactoryAcceptance_ForwardResponsesToClaudeStreamingPreservesDeltaAndUsage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	body := []byte(`{
-"model":"factory/gpt-5.5",
-"max_tokens":128,
-"system":"PRESERVE_CROSS_SYSTEM_Ω",
-"tools":[{"name":"lookup","description":"PRESERVE_CROSS_TOOL","input_schema":{"type":"object","properties":{"q":{"type":"string"}},"required":["q"]}}],
-"messages":[{"role":"user","content":[{"type":"text","text":"PRESERVE_CROSS_INPUT_λ"}]}],
-"stream":false
-}`)
-	upstream := &factoryAcceptanceTransport{responses: []*http.Response{factoryResponsesToolStream()}}
-	svc := factoryAcceptanceService(upstream)
-	c, rec := factoryAcceptanceContext("/v1/messages", body)
-
-	result, err := svc.ForwardAsAnthropic(context.Background(), c, factoryAcceptanceAccount("us", ""), body, "", "")
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.Len(t, upstream.requests, 1)
-
-	req := upstream.requests[0]
-	require.Equal(t, "https://api.factory.ai/api/llm/o/v1/responses", req.URL.String())
-	require.Equal(t, "Bearer fk-factory-acceptance-9101", req.Header.Get("Authorization"))
-	require.Equal(t, "gpt-5.5", gjson.GetBytes(upstream.bodies[0], "model").String())
-	sent := string(upstream.bodies[0])
-	require.Contains(t, sent, "PRESERVE_CROSS_SYSTEM_Ω")
-	require.Contains(t, sent, "PRESERVE_CROSS_INPUT_λ")
-	require.Contains(t, sent, "PRESERVE_CROSS_TOOL")
-	require.Contains(t, sent, "You are Droid, an AI software engineering agent built by Factory.")
-
-	require.Equal(t, 19, result.Usage.InputTokens)
-	require.Equal(t, 8, result.Usage.OutputTokens)
-	require.Equal(t, 4, result.Usage.CacheReadInputTokens)
-	responseBody := rec.Body.String()
-	require.Contains(t, responseBody, "call_factory_1")
-	require.Contains(t, responseBody, "found Ω")
-}
-
-func TestFactoryAcceptance_ForwardResponsesStreamingPreservesDeltaAndUsage(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	body := []byte(`{"model":"factory/gpt-5.5","input":"stream please","stream":true}`)
-	upstream := &factoryAcceptanceTransport{responses: []*http.Response{factoryResponsesStream()}}
+	body := []byte(`{"model":"factory/claude-sonnet-4-6","input":"stream please","stream":true}`)
+	upstream := &factoryAcceptanceTransport{responses: []*http.Response{factoryAnthropicToolStream()}}
 	svc := factoryAcceptanceService(upstream)
 	c, rec := factoryAcceptanceContext("/v1/responses", body)
 
@@ -493,46 +412,47 @@ func TestFactoryAcceptance_ForwardResponsesStreamingPreservesDeltaAndUsage(t *te
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.True(t, result.Stream)
-	require.Equal(t, 5, result.Usage.InputTokens)
-	require.Equal(t, 3, result.Usage.OutputTokens)
-	require.Equal(t, 2, result.Usage.CacheReadInputTokens)
+	require.Equal(t, 16, result.Usage.InputTokens)
+	require.Equal(t, 7, result.Usage.OutputTokens)
+	require.Equal(t, 3, result.Usage.CacheReadInputTokens)
+	require.Equal(t, 2, result.Usage.CacheCreationInputTokens)
 	require.Len(t, upstream.requests, 1)
-	require.Equal(t, "https://api.factory.ai/api/llm/o/v1/responses", upstream.requests[0].URL.String())
+	require.Equal(t, "https://api.factory.ai/api/llm/a/v1/messages", upstream.requests[0].URL.String())
 	responseBody := rec.Body.String()
 	require.Contains(t, responseBody, "response.output_text.delta")
-	require.Contains(t, responseBody, "stream Ω")
+	require.Contains(t, responseBody, "found Ω")
 	require.Contains(t, responseBody, "response.completed")
+	require.Contains(t, responseBody, "toolu_factory_1")
+	require.Contains(t, responseBody, "lookup")
 }
 
-func TestFactoryAcceptance_ForwardAsChatCompletionsCrossProtocolUsesRegistryResponsesRoute(t *testing.T) {
+func TestFactoryAcceptance_ForwardChatCompletionsToClaudeStreamingPreservesEventsAndUsage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	body := []byte(`{
-"model":"factory/gpt-5.5",
-"messages":[{"role":"system","content":"PRESERVE_CHAT_CROSS_SYSTEM_Ω"},{"role":"user","content":"PRESERVE_CHAT_CROSS_INPUT_λ"}],
-"tools":[{"type":"function","function":{"name":"lookup","description":"PRESERVE_CHAT_CROSS_TOOL","parameters":{"type":"object","properties":{"q":{"type":"string"}},"required":["q"]}}}],
-"stream":false
+"model":"factory/claude-sonnet-4-6",
+"messages":[{"role":"user","content":"stream please"}],
+"tools":[{"type":"function","function":{"name":"lookup","parameters":{"type":"object","properties":{"q":{"type":"string"}}}}}],
+"stream":true
 }`)
-	upstream := &factoryAcceptanceTransport{responses: []*http.Response{factoryResponsesToolStream()}}
+	upstream := &factoryAcceptanceTransport{responses: []*http.Response{factoryAnthropicToolStream()}}
 	svc := factoryAcceptanceService(upstream)
 	c, rec := factoryAcceptanceContext("/v1/chat/completions", body)
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, factoryAcceptanceAccount("us", ""), body, "", "")
 	require.NoError(t, err)
 	require.NotNil(t, result)
+	require.True(t, result.Stream)
+	require.Equal(t, 16, result.Usage.InputTokens)
+	require.Equal(t, 7, result.Usage.OutputTokens)
+	require.Equal(t, 3, result.Usage.CacheReadInputTokens)
+	require.Equal(t, 2, result.Usage.CacheCreationInputTokens)
 	require.Len(t, upstream.requests, 1)
-	require.Equal(t, "https://api.factory.ai/api/llm/o/v1/responses", upstream.requests[0].URL.String())
-	require.Equal(t, "gpt-5.5", gjson.GetBytes(upstream.bodies[0], "model").String())
-	sent := string(upstream.bodies[0])
-	require.Contains(t, sent, "PRESERVE_CHAT_CROSS_SYSTEM_Ω")
-	require.Contains(t, sent, "PRESERVE_CHAT_CROSS_INPUT_λ")
-	require.Contains(t, sent, "PRESERVE_CHAT_CROSS_TOOL")
-	require.Contains(t, sent, "You are Droid, an AI software engineering agent built by Factory.")
-	require.Equal(t, 19, result.Usage.InputTokens)
-	require.Equal(t, 8, result.Usage.OutputTokens)
-	require.Equal(t, 4, result.Usage.CacheReadInputTokens)
+	require.Equal(t, "https://api.factory.ai/api/llm/a/v1/messages", upstream.requests[0].URL.String())
 	responseBody := rec.Body.String()
-	require.Contains(t, responseBody, "call_factory_1")
+	require.Contains(t, responseBody, "chat.completion.chunk")
 	require.Contains(t, responseBody, "found Ω")
+	require.Contains(t, responseBody, "toolu_factory_1")
+	require.Contains(t, responseBody, "[DONE]")
 }
 
 func TestFactoryAcceptance_ForwardAsAnthropicStreamingPreservesEventsAndUsage(t *testing.T) {
@@ -559,8 +479,8 @@ func TestFactoryAcceptance_ForwardAsAnthropicStreamingPreservesEventsAndUsage(t 
 
 func TestFactoryAcceptance_EUOrgAndCallerOverridesAreCanonicalized(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	body := []byte(`{"model":"factory/gpt-5.5","input":"credential check","stream":false}`)
-	upstream := &factoryAcceptanceTransport{responses: []*http.Response{factoryResponsesJSON()}}
+	body := []byte(`{"model":"factory/claude-sonnet-4-6","input":"credential check","stream":false}`)
+	upstream := &factoryAcceptanceTransport{responses: []*http.Response{factoryAnthropicToolStream()}}
 	svc := factoryAcceptanceService(upstream)
 	c, _ := factoryAcceptanceContext("/v1/responses", body)
 	c.Request.Header.Set("X-Factory-Org-Id", "caller-org")
@@ -572,45 +492,93 @@ func TestFactoryAcceptance_EUOrgAndCallerOverridesAreCanonicalized(t *testing.T)
 	require.NoError(t, err)
 	require.Len(t, upstream.requests, 1)
 	req := upstream.requests[0]
-	require.Equal(t, "https://api.eu.factory.ai/api/llm/o/v1/responses", req.URL.String())
+	require.Equal(t, "https://api.eu.factory.ai/api/llm/a/v1/messages", req.URL.String())
 	require.Equal(t, "Bearer fk-factory-acceptance-9101", req.Header.Get("Authorization"))
 	require.Equal(t, "fac_org_acceptance", req.Header.Get("X-Factory-Org-Id"))
 	require.Equal(t, "cli", req.Header.Get("X-Factory-Client"))
-	require.Empty(t, req.Header.Get("X-Api-Key"))
+	require.Equal(t, "placeholder", req.Header.Get("X-Api-Key"))
 	require.Empty(t, req.Header.Get("Cookie"))
 	require.NotContains(t, string(upstream.bodies[0]), "caller-must-not-leak")
 }
 
-func TestFactoryAcceptance_RejectsUnsupportedModelsAndFastIntentWithoutUpstreamCall(t *testing.T) {
+func TestFactoryAcceptance_RejectsNonClaudeFamiliesAndStaleModelsWithoutUpstreamCall(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cases := []struct {
-		name  string
-		model string
-		extra string
-		path  string
+		name    string
+		surface string
+		model   string
+		extra   string
+		path    string
 	}{
-		{name: "gemini", model: "factory/gemini-3.1-pro-preview"},
-		{name: "fast id", model: "factory/gpt-5.5-fast"},
-		{name: "auto", model: "factory/auto"},
-		{name: "unknown", model: "factory/not-a-real-model"},
-		{name: "responses fast intent", model: "factory/gpt-5.5", extra: `,"service_tier":"priority"`},
-		{name: "unsupported compact path", model: "factory/gpt-5.5", path: "/v1/responses/compact"},
+		{name: "responses fast id", model: "factory/gpt-5.5-fast"},
+		{name: "responses bare gpt", model: "gpt-5.5"},
+		{name: "responses auto", model: "factory/auto"},
+		{name: "responses compact subpath", model: "factory/claude-sonnet-4-6", path: "/v1/responses/compact"},
+		{name: "responses fast intent on claude", model: "factory/claude-sonnet-4-6", extra: `,"service_tier":"priority"`},
+		{name: "anthropic stale gpt", surface: "anthropic", model: "factory/gpt-5.5"},
+		{name: "anthropic stale glm", surface: "anthropic", model: "factory/glm-5.3"},
+		{name: "chat stale gpt", surface: "chat", model: "factory/gpt-5.5"},
+		{name: "chat stale deepseek", surface: "chat", model: "factory/deepseek-v4.1-flash"},
+	}
+	for _, family := range []string{
+		"gpt-5.5",
+		"gpt-6.1-sol",
+		"gpt-5.3-codex",
+		"glm-5.3",
+		"glm-5.3-flash",
+		"deepseek-v4.1-flash",
+		"deepseek-v4.1-flash-1017",
+		"grok-4.7",
+		"grok-4.6",
+		"kimi-k3",
+		"minimax-m3",
+		"minimax-m2.7",
+		"mistral-large-4",
+		"mistral-medium-3.5",
+		"qwen3.8-max",
+		"nemotron-3-ultra",
+		"gemini-3.1-pro-preview",
+		"not-a-real-model",
+	} {
+		cases = append(cases, struct {
+			name    string
+			surface string
+			model   string
+			extra   string
+			path    string
+		}{name: "family-" + family, model: "factory/" + family})
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			body := []byte(`{"model":"` + tt.model + `","input":"must not leave` + tt.extra + `,"stream":false}`)
+			body := factoryAcceptanceBodyForSurface(tt.surface, tt.model, tt.extra)
 			upstream := &factoryAcceptanceTransport{}
 			svc := factoryAcceptanceService(upstream)
 			path := tt.path
 			if path == "" {
-				path = "/v1/responses"
+				switch tt.surface {
+				case "anthropic":
+					path = "/v1/messages"
+				case "chat":
+					path = "/v1/chat/completions"
+				default:
+					path = "/v1/responses"
+				}
 			}
 			c, rec := factoryAcceptanceContext(path, body)
 
-			result, err := svc.Forward(context.Background(), c, factoryAcceptanceAccount("us", ""), body)
+			var result *OpenAIForwardResult
+			var err error
+			switch tt.surface {
+			case "anthropic":
+				result, err = svc.ForwardAsAnthropic(context.Background(), c, factoryAcceptanceAccount("us", ""), body, "", "")
+			case "chat":
+				result, err = svc.ForwardAsChatCompletions(context.Background(), c, factoryAcceptanceAccount("us", ""), body, "", "")
+			default:
+				result, err = svc.Forward(context.Background(), c, factoryAcceptanceAccount("us", ""), body)
+			}
 			require.Error(t, err)
 			require.Nil(t, result)
-			require.Empty(t, upstream.requests, "unsupported Factory model/intent must not reach the transport")
+			require.Empty(t, upstream.requests, "non-Claude or stale Factory model/intent must not reach the transport")
 			require.NotContains(t, rec.Body.String(), "fk-factory-acceptance-9101")
 		})
 	}
@@ -627,19 +595,6 @@ func TestFactoryAcceptance_RejectsAnthropicFastIntentWithoutUpstreamCall(t *test
 	require.Error(t, err)
 	require.Nil(t, result)
 	require.Empty(t, upstream.requests, "Anthropic Fast intent must not reach the transport")
-}
-
-func TestFactoryAcceptance_RejectsAnthropicCrossProtocolFastIntentWithoutUpstreamCall(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	body := []byte(`{"model":"factory/gpt-5.5","max_tokens":32,"speed":"fast","messages":[{"role":"user","content":"fast across protocols"}],"stream":false}`)
-	upstream := &factoryAcceptanceTransport{}
-	svc := factoryAcceptanceService(upstream)
-	c, _ := factoryAcceptanceContext("/v1/messages", body)
-
-	result, err := svc.ForwardAsAnthropic(context.Background(), c, factoryAcceptanceAccount("us", ""), body, "", "")
-	require.Error(t, err)
-	require.Nil(t, result)
-	require.Empty(t, upstream.requests, "Messages Fast intent must be rejected before a Responses conversion can drop it")
 }
 
 func TestFactoryAcceptance_RejectsResponsesCrossProtocolFastIntentWithoutUpstreamCall(t *testing.T) {
@@ -671,7 +626,7 @@ func TestFactoryAcceptance_RejectsAnthropicFastBetaHeaderWithoutUpstreamCall(t *
 
 func TestFactoryAcceptance_RejectsInvalidAccountStateWithoutUpstreamCall(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	body := []byte(`{"model":"factory/gpt-5.5","input":"must not leave","stream":false}`)
+	body := []byte(`{"model":"factory/claude-sonnet-4-6","input":"must not leave","stream":false}`)
 	cases := []struct {
 		name   string
 		mutate func(*Account)
@@ -702,7 +657,7 @@ func TestFactoryAcceptance_RejectsInvalidAccountStateWithoutUpstreamCall(t *test
 
 func TestFactoryAcceptance_HostilePersistedCredentialsCannotRedirect(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	body := []byte(`{"model":"factory/gpt-5.5","input":"hostile state check","stream":false}`)
+	body := []byte(`{"model":"factory/claude-sonnet-4-6","input":"hostile state check","stream":false}`)
 	cases := []struct {
 		name   string
 		mutate func(*Account)
@@ -724,7 +679,7 @@ func TestFactoryAcceptance_HostilePersistedCredentialsCannotRedirect(t *testing.
 		t.Run(tt.name, func(t *testing.T) {
 			account := factoryAcceptanceAccount("us", "")
 			tt.mutate(account)
-			upstream := &factoryAcceptanceTransport{responses: []*http.Response{factoryResponsesJSON()}}
+			upstream := &factoryAcceptanceTransport{responses: []*http.Response{factoryAnthropicToolStream()}}
 			svc := factoryAcceptanceService(upstream)
 			c, _ := factoryAcceptanceContext("/v1/responses", body)
 
@@ -736,7 +691,7 @@ func TestFactoryAcceptance_HostilePersistedCredentialsCannotRedirect(t *testing.
 			}
 			require.Len(t, upstream.requests, 1)
 			req := upstream.requests[0]
-			require.Equal(t, "https://api.factory.ai/api/llm/o/v1/responses", req.URL.String())
+			require.Equal(t, "https://api.factory.ai/api/llm/a/v1/messages", req.URL.String())
 			require.Equal(t, "Bearer fk-factory-acceptance-9101", req.Header.Get("Authorization"))
 			require.Empty(t, req.Header.Get("X-Factory-Org-Id"))
 			require.NotContains(t, string(upstream.bodies[0]), "nested-caller")
@@ -774,10 +729,10 @@ func TestFactoryAcceptance_CompositeRouteSchedulerAndNativePricing(t *testing.T)
 		{
 			ID:             1,
 			GroupID:        7,
-			PublicModel:    "factory/deepseek-v4.1-flash",
+			PublicModel:    "factory/claude-sonnet-4-6",
 			MatchType:      CompositeRouteMatchExact,
 			TargetPlatform: PlatformFactory,
-			UpstreamModel:  "deepseek-v4.1-flash",
+			UpstreamModel:  "claude-sonnet-4-6",
 			Endpoint:       CompositeRouteEndpointChatCompletions,
 			Priority:       100,
 			Enabled:        true,
@@ -788,7 +743,7 @@ func TestFactoryAcceptance_CompositeRouteSchedulerAndNativePricing(t *testing.T)
 			PublicModel:    "team-chat",
 			MatchType:      CompositeRouteMatchExact,
 			TargetPlatform: PlatformFactory,
-			UpstreamModel:  "factory/deepseek-v4.1-flash",
+			UpstreamModel:  "factory/claude-sonnet-4-6",
 			Endpoint:       CompositeRouteEndpointChatCompletions,
 			Priority:       100,
 			Enabled:        true,
@@ -796,25 +751,25 @@ func TestFactoryAcceptance_CompositeRouteSchedulerAndNativePricing(t *testing.T)
 	}}
 	resolver := NewCompositeRouteResolver(repo)
 
-	canonical, err := resolver.Resolve(context.Background(), 7, "factory/deepseek-v4.1-flash", CompositeRouteEndpointChatCompletions)
+	canonical, err := resolver.Resolve(context.Background(), 7, "factory/claude-sonnet-4-6", CompositeRouteEndpointChatCompletions)
 	require.NoError(t, err)
 	require.True(t, canonical.Matched)
 	require.Equal(t, CompositeRouteSourceExplicit, canonical.Source)
 	require.Equal(t, PlatformFactory, canonical.TargetPlatform)
-	require.Equal(t, "deepseek-v4.1-flash", canonical.UpstreamModel)
+	require.Equal(t, "claude-sonnet-4-6", canonical.UpstreamModel)
 
 	alias, err := resolver.Resolve(context.Background(), 7, "team-chat", CompositeRouteEndpointChatCompletions)
 	require.NoError(t, err)
 	require.True(t, alias.Matched)
 	require.Equal(t, PlatformFactory, alias.TargetPlatform)
-	require.Equal(t, "factory/deepseek-v4.1-flash", alias.UpstreamModel)
+	require.Equal(t, "factory/claude-sonnet-4-6", alias.UpstreamModel)
 
 	account := factoryAcceptanceAccount("us", "")
 	native, matched := account.ResolveMappedModel(alias.UpstreamModel)
 	require.True(t, matched)
-	require.Equal(t, "deepseek-v4.1-flash", native, "pricing must receive the actual native model")
+	require.Equal(t, "claude-sonnet-4-6", native, "pricing must receive the actual native model")
 
-	platform, ok := DetectModelPlatform("factory/deepseek-v4.1-flash")
+	platform, ok := DetectModelPlatform("factory/claude-sonnet-4-6")
 	require.True(t, ok)
 	require.Equal(t, PlatformFactory, platform)
 	require.True(t, isConcreteRequestPlatform(PlatformFactory))
@@ -834,8 +789,8 @@ func TestFactoryAcceptance_CountTokensFailsClosedWithoutTransport(t *testing.T) 
 	svc := factoryAcceptanceService(upstream)
 	account := factoryAcceptanceAccount("us", "")
 
-	c, rec := factoryAcceptanceContext("/v1/responses/input_tokens", []byte(`{"model":"factory/gpt-5.5","input":"count me"}`))
-	err := svc.ForwardResponsesInputTokens(context.Background(), c, account, []byte(`{"model":"factory/gpt-5.5","input":"count me"}`))
+	c, rec := factoryAcceptanceContext("/v1/responses/input_tokens", []byte(`{"model":"factory/claude-sonnet-4-6","input":"count me"}`))
+	err := svc.ForwardResponsesInputTokens(context.Background(), c, account, []byte(`{"model":"factory/claude-sonnet-4-6","input":"count me"}`))
 	require.Error(t, err)
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 	require.Empty(t, upstream.requests)
@@ -878,7 +833,7 @@ func TestFactoryAcceptance_RealSchedulerSelectsFactoryForNativeAndCompositeGroup
 			"api_key": "fk-factory-acceptance-9101",
 			"region":  "us",
 			"model_mapping": map[string]any{
-				"team-chat": "factory/gpt-5.5",
+				"team-chat": "factory/claude-sonnet-4-6",
 			},
 		},
 	}
@@ -905,7 +860,7 @@ func TestFactoryAcceptance_RealSchedulerSelectsFactoryForNativeAndCompositeGroup
 	}
 
 	nativeSelection, _, err := svc.SelectAccountWithSchedulerForCapability(
-		context.Background(), &groupNative, "", "", "factory/gpt-5.5", nil,
+		context.Background(), &groupNative, "", "", "factory/claude-sonnet-4-6", nil,
 		OpenAIUpstreamTransportAny, OpenAIEndpointCapabilityResponses, false, false, false, PlatformFactory,
 	)
 	require.NoError(t, err)
@@ -918,7 +873,7 @@ func TestFactoryAcceptance_RealSchedulerSelectsFactoryForNativeAndCompositeGroup
 
 	routeRepo := &factoryAcceptanceCompositeRouteRepo{routes: []CompositeModelRoute{{
 		ID: 7002, GroupID: groupComposite, PublicModel: "team-chat", MatchType: CompositeRouteMatchExact,
-		TargetPlatform: PlatformFactory, UpstreamModel: "factory/gpt-5.5", Endpoint: CompositeRouteEndpointChatCompletions,
+		TargetPlatform: PlatformFactory, UpstreamModel: "factory/claude-sonnet-4-6", Endpoint: CompositeRouteEndpointChatCompletions,
 		Priority: 100, Enabled: true,
 	}}}
 	decision, err := NewCompositeRouteResolver(routeRepo).Resolve(context.Background(), groupComposite, "team-chat", CompositeRouteEndpointChatCompletions)
@@ -936,6 +891,113 @@ func TestFactoryAcceptance_RealSchedulerSelectsFactoryForNativeAndCompositeGroup
 	require.Equal(t, int64(7201), compositeSelection.Account.ID)
 	if compositeSelection.ReleaseFunc != nil {
 		defer compositeSelection.ReleaseFunc()
+	}
+}
+
+func TestFactoryAcceptance_StaleGPTModelMappingIsNotSchedulableAndOpenAIGPTStillWorks(t *testing.T) {
+	resetOpenAIAdvancedSchedulerSettingCacheForTest()
+	staleGroup := int64(7501)
+	claudeGroup := int64(7502)
+	openAIGroup := int64(7503)
+	stale := Account{
+		ID:          7501,
+		Name:        "factory-stale-gpt-mapping",
+		Platform:    PlatformFactory,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Priority:    1,
+		Status:      StatusActive,
+		Schedulable: true,
+		GroupIDs:    []int64{staleGroup},
+		Credentials: map[string]any{
+			"api_key": "fk-factory-acceptance-9101",
+			"region":  "us",
+			"model_mapping": map[string]any{
+				"team-chat": "factory/gpt-5.5",
+			},
+		},
+	}
+	claude := Account{
+		ID:          7502,
+		Name:        "factory-claude-only",
+		Platform:    PlatformFactory,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Priority:    1,
+		Status:      StatusActive,
+		Schedulable: true,
+		GroupIDs:    []int64{claudeGroup},
+		Credentials: map[string]any{"api_key": "fk-factory-acceptance-9101", "region": "us"},
+	}
+	openAI := Account{
+		ID:          7503,
+		Name:        "openai-gpt-platform",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Priority:    1,
+		Status:      StatusActive,
+		Schedulable: true,
+		GroupIDs:    []int64{openAIGroup},
+		Credentials: map[string]any{"api_key": "sk-openai-platform"},
+	}
+
+	require.False(t, stale.IsModelSupported("team-chat"), "a stale GPT mapping must not make an alias schedulable")
+	require.False(t, stale.IsModelSupported("factory/gpt-5.5"), "Factory no longer serves the GPT registry")
+	require.True(t, claude.IsModelSupported("factory/claude-sonnet-4-6"))
+	protocol, ok := claude.FactoryProtocolForModel("factory/claude-sonnet-4-6")
+	require.True(t, ok)
+	require.Equal(t, APIProtocolAnthropic, protocol)
+	_, ok = stale.FactoryProtocolForModel("factory/gpt-5.5")
+	require.False(t, ok, "stale GPT ids must no longer resolve to a Factory protocol")
+	require.True(t, openAI.IsModelSupported("gpt-5.5"), "OpenAI platform GPT must remain supported")
+
+	repo := schedulerGroupAwareOpenAIAccountRepo{schedulerTestOpenAIAccountRepo{accounts: []Account{stale, claude, openAI}}}
+	cfg := &config.Config{}
+	cfg.Gateway.Scheduling.LoadBatchEnabled = false
+	svc := &OpenAIGatewayService{
+		accountRepo:        repo,
+		cache:              &schedulerTestGatewayCache{},
+		cfg:                cfg,
+		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+	}
+
+	selection, _, err := svc.SelectAccountWithSchedulerForCapability(
+		context.Background(), &staleGroup, "", "", "team-chat", nil,
+		OpenAIUpstreamTransportAny, OpenAIEndpointCapabilityChatCompletions, false, false, false, PlatformFactory,
+	)
+	require.ErrorIs(t, err, ErrNoAvailableAccounts)
+	require.Nil(t, selection)
+
+	selection, _, err = svc.SelectAccountWithSchedulerForCapability(
+		context.Background(), &staleGroup, "", "", "factory/gpt-5.5", nil,
+		OpenAIUpstreamTransportAny, OpenAIEndpointCapabilityResponses, false, false, false, PlatformFactory,
+	)
+	require.ErrorIs(t, err, ErrNoAvailableAccounts)
+	require.Nil(t, selection)
+
+	selection, _, err = svc.SelectAccountWithSchedulerForCapability(
+		context.Background(), &claudeGroup, "", "", "factory/claude-sonnet-4-6", nil,
+		OpenAIUpstreamTransportAny, OpenAIEndpointCapabilityResponses, false, false, false, PlatformFactory,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.NotNil(t, selection.Account)
+	require.Equal(t, int64(7502), selection.Account.ID)
+	if selection.ReleaseFunc != nil {
+		defer selection.ReleaseFunc()
+	}
+
+	selection, _, err = svc.SelectAccountWithSchedulerForCapability(
+		context.Background(), &openAIGroup, "", "", "gpt-5.5", nil,
+		OpenAIUpstreamTransportAny, OpenAIEndpointCapabilityResponses, false, false, false, PlatformOpenAI,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.NotNil(t, selection.Account)
+	require.Equal(t, int64(7503), selection.Account.ID)
+	if selection.ReleaseFunc != nil {
+		defer selection.ReleaseFunc()
 	}
 }
 
@@ -957,7 +1019,7 @@ func TestFactoryAcceptance_RealCompositeSelectionForwardAndRecordUsageUsesNative
 			"api_key": "fk-factory-acceptance-9101",
 			"region":  "us",
 			"model_mapping": map[string]any{
-				"team-chat": "factory/gpt-5.5",
+				"team-chat": "factory/claude-sonnet-4-6",
 			},
 		},
 	}
@@ -973,7 +1035,7 @@ func TestFactoryAcceptance_RealCompositeSelectionForwardAndRecordUsageUsesNative
 		GroupIDs:    []int64{groupID},
 		Credentials: map[string]any{"api_key": "sk-wrong-platform"},
 	}
-	upstream := &factoryAcceptanceTransport{responses: []*http.Response{factoryResponsesToolStream()}}
+	upstream := &factoryAcceptanceTransport{responses: []*http.Response{factoryAnthropicToolStream()}}
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	userRepo := &openAIRecordUsageUserRepoStub{}
 	subRepo := &openAIRecordUsageSubRepoStub{}
@@ -987,7 +1049,7 @@ func TestFactoryAcceptance_RealCompositeSelectionForwardAndRecordUsageUsesNative
 
 	routeRepo := &factoryAcceptanceCompositeRouteRepo{routes: []CompositeModelRoute{{
 		ID: 7003, GroupID: groupID, PublicModel: "team-chat", MatchType: CompositeRouteMatchExact,
-		TargetPlatform: PlatformFactory, UpstreamModel: "factory/gpt-5.5", Endpoint: CompositeRouteEndpointChatCompletions,
+		TargetPlatform: PlatformFactory, UpstreamModel: "factory/claude-sonnet-4-6", Endpoint: CompositeRouteEndpointChatCompletions,
 		Priority: 100, Enabled: true,
 	}}}
 	decision, err := NewCompositeRouteResolver(routeRepo).Resolve(context.Background(), groupID, "team-chat", CompositeRouteEndpointChatCompletions)
@@ -1012,10 +1074,10 @@ func TestFactoryAcceptance_RealCompositeSelectionForwardAndRecordUsageUsesNative
 	require.NotNil(t, result)
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Len(t, upstream.requests, 1)
-	require.Equal(t, "gpt-5.5", gjson.GetBytes(upstream.bodies[0], "model").String())
-	require.Equal(t, "gpt-5.5", result.UpstreamModel)
+	require.Equal(t, "claude-sonnet-4-6", gjson.GetBytes(upstream.bodies[0], "model").String())
+	require.Equal(t, "claude-sonnet-4-6", result.UpstreamModel)
 
-	expected := expectedOpenAICost(t, svc, "gpt-5.5", result.Usage, 1.1)
+	expected := expectedOpenAICost(t, svc, "claude-sonnet-4-6", result.Usage, 1.1)
 	require.Greater(t, expected.TotalCost, 0.0)
 	err = svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
 		Result:  result,
@@ -1027,13 +1089,13 @@ func TestFactoryAcceptance_RealCompositeSelectionForwardAndRecordUsageUsesNative
 	require.NotNil(t, usageRepo.lastLog)
 	require.Equal(t, "team-chat", usageRepo.lastLog.RequestedModel)
 	require.NotNil(t, usageRepo.lastLog.UpstreamModel)
-	require.Equal(t, "gpt-5.5", *usageRepo.lastLog.UpstreamModel)
+	require.Equal(t, "claude-sonnet-4-6", *usageRepo.lastLog.UpstreamModel)
 	require.InDelta(t, expected.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
 	require.InDelta(t, expected.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
 	require.InDelta(t, expected.ActualCost, userRepo.lastAmount, 1e-12)
 }
 
-func TestFactoryAcceptance_GetAvailableModelsReachesFactoryDefaultAndExplicitMappings(t *testing.T) {
+func TestFactoryAcceptance_GetAvailableModelsReturnsClaudeOnlyCatalog(t *testing.T) {
 	resetGatewayHotpathStatsForTest()
 	groupDefault := int64(8101)
 	groupExplicit := int64(8102)
@@ -1055,7 +1117,7 @@ func TestFactoryAcceptance_GetAvailableModelsReachesFactoryDefaultAndExplicitMap
 			"api_key": "fk-factory-acceptance-9101",
 			"region":  "us",
 			"model_mapping": map[string]any{
-				"team-chat": "factory/gpt-5.5",
+				"team-chat": "factory/claude-sonnet-4-6",
 			},
 		},
 	}
@@ -1071,14 +1133,29 @@ func TestFactoryAcceptance_GetAvailableModelsReachesFactoryDefaultAndExplicitMap
 
 	defaultModels := svc.GetAvailableModels(context.Background(), &groupDefault, PlatformFactory)
 	require.NotEmpty(t, defaultModels)
-	require.Contains(t, defaultModels, "factory/gpt-5.5")
-	require.Contains(t, defaultModels, "factory/deepseek-v4.1-flash")
+	require.ElementsMatch(t, DefaultFactoryModelIDs(), defaultModels)
+	require.Contains(t, defaultModels, "factory/claude-sonnet-4-6")
+	fableFound := false
 	for _, model := range defaultModels {
-		require.True(t, strings.HasPrefix(model, "factory/"), "unexpected model in Factory list: %s", model)
-		require.NotContains(t, strings.ToLower(model), "gemini")
-		require.NotContains(t, strings.ToLower(model), "-fast")
-		require.NotContains(t, strings.ToLower(model), "/auto")
-		require.NotContains(t, strings.ToLower(model), "not-a-real-model")
+		require.True(t, strings.HasPrefix(model, "factory/claude-"), "unexpected non-Claude model in Factory list: %s", model)
+		if strings.Contains(model, "fable") {
+			fableFound = true
+		}
+	}
+	require.True(t, fableFound, "Factory Claude catalog must include a fable model")
+	for _, stale := range []string{
+		"factory/gpt-5.5",
+		"factory/gpt-6.1-sol",
+		"factory/glm-5.3",
+		"factory/deepseek-v4.1-flash",
+		"factory/grok-4.7",
+		"factory/kimi-k3",
+		"factory/minimax-m3",
+		"factory/mistral-large-4",
+		"factory/qwen3.8-max",
+		"factory/nemotron-3-ultra",
+	} {
+		require.NotContains(t, defaultModels, stale)
 	}
 
 	explicitModels := svc.GetAvailableModels(context.Background(), &groupExplicit, PlatformFactory)
@@ -1088,7 +1165,7 @@ func TestFactoryAcceptance_GetAvailableModelsReachesFactoryDefaultAndExplicitMap
 func TestFactoryAcceptance_UpstreamHTTP400SecretEchoSanitizedInClientAndOps(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	secret := "fk-factory-echo-secret-9101"
-	body := []byte(`{"model":"factory/gpt-5.5","input":"trigger sanitized error","stream":false}`)
+	body := []byte(`{"model":"factory/claude-sonnet-4-6","input":"trigger sanitized error","stream":false}`)
 	upstreamBody := `{"error":{"type":"invalid_request_error_` + secret + `","code":"` + secret + `","param":"` + secret + `","message":"upstream rejected ` + secret + `"}}`
 	upstream := &factoryAcceptanceTransport{responses: []*http.Response{{
 		StatusCode: http.StatusBadRequest,
@@ -1128,42 +1205,6 @@ func TestFactoryAcceptance_UpstreamHTTP400SecretEchoSanitizedInClientAndOps(t *t
 	}
 }
 
-func TestFactoryAcceptance_UpstreamSSEErrorSecretEchoSanitized(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	secret := "fk-factory-sse-secret-9101"
-	body := []byte(`{"model":"factory/gpt-5.5","input":"trigger stream error","stream":true}`)
-	upstream := &factoryAcceptanceTransport{responses: []*http.Response{factoryResponsesErrorStream(secret)}}
-	svc := factoryAcceptanceService(upstream)
-	svc.cfg.Gateway.LogUpstreamErrorBody = true
-	svc.cfg.Gateway.LogUpstreamErrorBodyMaxBytes = 4096
-	account := factoryAcceptanceAccount("us", "")
-	account.Credentials["api_key"] = secret
-	c, rec := factoryAcceptanceContext("/v1/responses", body)
-
-	result, err := svc.Forward(context.Background(), c, account, body)
-	require.Len(t, upstream.requests, 1)
-	if err != nil {
-		require.NotContains(t, err.Error(), secret, "returned stream error must be sanitized")
-	}
-	require.True(t, rec.Body.Len() > 0 || err != nil, "the SSE error case should produce a client signal or error")
-	require.NotContains(t, rec.Body.String(), secret, "SSE client frames must not echo the Factory key")
-	require.NotContains(t, strings.Join(rec.Header().Values("x-request-id"), ","), secret)
-	if result != nil {
-		require.NotContains(t, result.UpstreamResponseModel, secret)
-	}
-	if streamErr, ok := GetOpsStreamError(c); ok {
-		raw, marshalErr := json.Marshal(streamErr)
-		require.NoError(t, marshalErr)
-		require.NotContains(t, string(raw), secret, "ops stream error must sanitize upstream detail and request id")
-	}
-	if value, ok := c.Get(OpsUpstreamErrorsKey); ok {
-		events, _ := value.([]*OpsUpstreamErrorEvent)
-		raw, marshalErr := json.Marshal(events)
-		require.NoError(t, marshalErr)
-		require.NotContains(t, string(raw), secret, "ops upstream events must sanitize SSE error detail and request id")
-	}
-}
-
 func factoryAssertNoSecretInSSESurface(t *testing.T, c *gin.Context, rec *httptest.ResponseRecorder, err error, secret string) {
 	t.Helper()
 	if err != nil {
@@ -1185,6 +1226,38 @@ func factoryAssertNoSecretInSSESurface(t *testing.T, c *gin.Context, rec *httpte
 	}
 }
 
+func TestFactoryAcceptance_UpstreamResponsesSSEErrorSecretSanitized(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	secret := "fk-factory-responses-sse-secret-9101"
+	body := []byte(`{"model":"factory/claude-sonnet-4-6","input":"trigger header sanitize","stream":true}`)
+	stream := factoryAnthropicErrorStream(secret)
+	stream.Header.Set("x-request-id", secret)
+	upstream := &factoryAcceptanceTransport{responses: []*http.Response{stream}}
+	svc := factoryAcceptanceService(upstream)
+	svc.cfg.Gateway.LogUpstreamErrorBody = true
+	svc.cfg.Gateway.LogUpstreamErrorBodyMaxBytes = 4096
+	account := factoryAcceptanceAccount("us", "")
+	account.Credentials["api_key"] = secret
+	c, rec := factoryAcceptanceContext("/v1/responses", body)
+
+	result, err := svc.Forward(context.Background(), c, account, body)
+	require.Len(t, upstream.requests, 1)
+	require.Error(t, err)
+	require.Contains(t, rec.Body.String(), `"type":"response.failed"`)
+	payload := strings.TrimSpace(strings.TrimPrefix(rec.Body.String(), "event: response.failed\ndata: "))
+	failed := gjson.Parse(payload)
+	require.Equal(t, "failed", failed.Get("response.status").String())
+	require.NotEmpty(t, failed.Get("response.id").String())
+	require.Positive(t, failed.Get("response.created_at").Int())
+	require.True(t, failed.Get("sequence_number").Exists())
+	require.Equal(t, "[]", failed.Get("response.output").Raw)
+	require.NotContains(t, rec.Body.String(), "response.completed")
+	factoryAssertNoSecretInSSESurface(t, c, rec, err, secret)
+	if result != nil {
+		require.NotContains(t, result.UpstreamResponseModel, secret)
+	}
+}
+
 func TestFactoryAcceptance_UpstreamAnthropicSSEErrorSecretEchoSanitized(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	secret := "fk-factory-anthropic-sse-secret-9101"
@@ -1202,11 +1275,13 @@ func TestFactoryAcceptance_UpstreamAnthropicSSEErrorSecretEchoSanitized(t *testi
 	factoryAssertNoSecretInSSESurface(t, c, rec, err, secret)
 }
 
-func TestFactoryAcceptance_UpstreamChatSSEErrorSecretEchoSanitized(t *testing.T) {
+func TestFactoryAcceptance_UpstreamChatSSEErrorSecretSanitized(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	secret := "fk-factory-chat-sse-secret-9101"
-	body := []byte(`{"model":"factory/glm-5.3","messages":[{"role":"user","content":"stream error"}],"stream":true}`)
-	upstream := &factoryAcceptanceTransport{responses: []*http.Response{factoryChatErrorStream(secret)}}
+	body := []byte(`{"model":"factory/claude-sonnet-4-6","messages":[{"role":"user","content":"stream error"}],"stream":true}`)
+	stream := factoryAnthropicErrorStream(secret)
+	stream.Header.Set("x-request-id", secret)
+	upstream := &factoryAcceptanceTransport{responses: []*http.Response{stream}}
 	svc := factoryAcceptanceService(upstream)
 	svc.cfg.Gateway.LogUpstreamErrorBody = true
 	svc.cfg.Gateway.LogUpstreamErrorBodyMaxBytes = 4096
@@ -1214,9 +1289,52 @@ func TestFactoryAcceptance_UpstreamChatSSEErrorSecretEchoSanitized(t *testing.T)
 	account.Credentials["api_key"] = secret
 	c, rec := factoryAcceptanceContext("/v1/chat/completions", body)
 
-	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
+	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 	require.Len(t, upstream.requests, 1)
+	require.Error(t, err)
+	require.Contains(t, rec.Body.String(), `"error":`)
+	require.NotContains(t, rec.Body.String(), "[DONE]")
 	factoryAssertNoSecretInSSESurface(t, c, rec, err, secret)
+	if result != nil {
+		require.NotContains(t, result.UpstreamResponseModel, secret)
+	}
+}
+
+func TestFactoryAcceptance_ClaudeSSEFailurePreservesPartialUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, surface := range []string{"responses", "chat"} {
+		t.Run(surface, func(t *testing.T) {
+			secret := "fk-partial-stream-secret"
+			stream := factoryAnthropicErrorStream(secret)
+			prefix := "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_partial\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-sonnet-4-6\",\"content\":[],\"usage\":{\"input_tokens\":11,\"output_tokens\":1}}}\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{},\"usage\":{\"output_tokens\":3}}\n\n"
+			stream.Body = io.NopCloser(io.MultiReader(strings.NewReader(prefix), stream.Body))
+			upstream := &factoryAcceptanceTransport{responses: []*http.Response{stream}}
+			svc := factoryAcceptanceService(upstream)
+			account := factoryAcceptanceAccount("us", "")
+			account.Credentials["api_key"] = secret
+			body := []byte(`{"model":"factory/claude-sonnet-4-6","input":"hi","messages":[{"role":"user","content":"hi"}],"stream":true}`)
+			c, rec := factoryAcceptanceContext("/v1/responses", body)
+			var result *OpenAIForwardResult
+			var err error
+			if surface == "responses" {
+				result, err = svc.Forward(context.Background(), c, account, body)
+			} else {
+				result, err = svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
+			}
+			require.Error(t, err)
+			require.NotNil(t, result)
+			require.Equal(t, 11, result.Usage.InputTokens)
+			require.Equal(t, 3, result.Usage.OutputTokens)
+			require.Contains(t, rec.Body.String(), "upstream_error")
+			require.NotContains(t, rec.Body.String(), "response.completed")
+			require.NotContains(t, rec.Body.String(), "[DONE]")
+			if surface == "responses" {
+				require.Contains(t, rec.Body.String(), `"type":"response.failed"`)
+				require.Contains(t, rec.Body.String(), `"id":"msg_partial"`)
+			}
+			factoryAssertNoSecretInSSESurface(t, c, rec, err, secret)
+		})
+	}
 }
 
 func factoryLiveFail(t *testing.T, label string, err error, secret string) {
@@ -1237,10 +1355,11 @@ func factoryLiveRequireNoSecret(t *testing.T, label, text, secret string) {
 
 // TestFactoryLiveSmoke is skipped unless FACTORY_LIVE_KEY_FILE points to a
 // mode-0600 file containing an authorized fk- key. It runs two auth-only whoami
-// probes (without and with the explicit org) and exactly one small Chat
-// inference through the Fork gateway adapter. It uses only in-memory state and
-// a real net/http transport: no database, listener, container, migration, or
-// environment mutation.
+// probes (without and with the explicit org) and exactly one small Claude
+// Messages inference through the Fork gateway adapter. It uses only in-memory
+// state and a real net/http transport: no database, listener, container,
+// migration, or environment mutation. By default no credential is present, so
+// the test skips and no paid call is made.
 func TestFactoryLiveSmoke(t *testing.T) {
 	keyPath := strings.TrimSpace(os.Getenv("FACTORY_LIVE_KEY_FILE"))
 	if keyPath == "" {
@@ -1278,7 +1397,7 @@ func TestFactoryLiveSmoke(t *testing.T) {
 	if orgID == "" {
 		t.Fatal("FACTORY_LIVE_ORG_ID is required for the with-org whoami probe")
 	}
-	const model = "factory/deepseek-v4.1-flash"
+	const model = "factory/claude-sonnet-4-6"
 	newAccount := func(withOrg bool) *Account {
 		credentials := map[string]any{"api_key": secret, "region": region}
 		if withOrg {
@@ -1298,8 +1417,8 @@ func TestFactoryLiveSmoke(t *testing.T) {
 	noOrgAccount := newAccount(false)
 	orgAccount := newAccount(true)
 	protocol, ok := noOrgAccount.FactoryProtocolForModel(model)
-	if !ok || protocol != APIProtocolChatCompletions {
-		t.Fatal("live smoke model must resolve to the Factory Chat Completions protocol")
+	if !ok || protocol != APIProtocolAnthropic {
+		t.Fatal("live smoke model must resolve to the Factory Anthropic Messages protocol")
 	}
 	cfg := factoryAcceptanceService(nil).cfg
 	transport := newFactoryLiveHTTPUpstream()
@@ -1329,16 +1448,15 @@ func TestFactoryLiveSmoke(t *testing.T) {
 		t.Fatal("with-org whoami probe did not report auth-only semantics")
 	}
 
-	path := "/v1/chat/completions"
-	request := []byte(`{"model":"factory/deepseek-v4.1-flash","messages":[{"role":"user","content":"Reply with exactly OK"}],"max_tokens":32,"reasoning_effort":"none","stream":false}`)
+	request := []byte(`{"model":"factory/claude-sonnet-4-6","messages":[{"role":"user","content":"Reply with exactly OK"}],"max_tokens":32,"stream":false}`)
 	inferenceCtx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
-	c, rec := factoryAcceptanceContext(path, request)
+	c, rec := factoryAcceptanceContext("/v1/messages", request)
 	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: transport}
 	// This is intentionally a single call. A failure is reported, not retried
 	// with another request or model.
-	result, err := svc.ForwardAsChatCompletions(inferenceCtx, c, noOrgAccount, request, "", "")
-	factoryLiveFail(t, "Factory live Chat inference", err, secret)
+	result, err := svc.ForwardAsAnthropic(inferenceCtx, c, noOrgAccount, request, "", "")
+	factoryLiveFail(t, "Factory live Claude inference", err, secret)
 	if result == nil {
 		t.Fatal("Factory live inference returned no result")
 	}
@@ -1356,5 +1474,5 @@ func TestFactoryLiveSmoke(t *testing.T) {
 	if whoamiCalls != 2 || inferenceCalls != 1 {
 		t.Fatalf("live smoke must make exactly two whoami and one inference call, got whoami=%d inference=%d", whoamiCalls, inferenceCalls)
 	}
-	t.Logf("Factory live smoke passed: auth-only whoami without/with org; exactly one Chat inference; status=%d input_tokens=%d output_tokens=%d", rec.Code, result.Usage.InputTokens, result.Usage.OutputTokens)
+	t.Logf("Factory live smoke passed: auth-only whoami without/with org; exactly one Claude inference; status=%d input_tokens=%d output_tokens=%d", rec.Code, result.Usage.InputTokens, result.Usage.OutputTokens)
 }
