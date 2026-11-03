@@ -2,7 +2,52 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { once } from 'node:events'
 import { test } from 'node:test'
-import { liveGateway } from './live-gateway.mjs'
+import childProcess from 'node:child_process'
+import { syncBuiltinESMExports } from 'node:module'
+import { currentCodex, liveGateway } from './live-gateway.mjs'
+
+test('configuration parser uses the process-only interpreter override and preserves validation', t => {
+  const priorPython = process.env.SUB2API_CONFIG_PYTHON, priorKey = process.env.SUB2API_API_KEY
+  const executable = '/synthetic/python3.11'
+  const key = 'synthetic-private-key'
+  process.env.SUB2API_CONFIG_PYTHON = executable
+  process.env.SUB2API_API_KEY = key
+  const metadata = { provider: 'sub2api', model: 'synthetic-model',
+    baseUrl: 'https://openclaw-macmini-ts.tailff52e6.ts.net/v1', envKey: 'SUB2API_API_KEY', wireApi: 'responses' }
+  let result = { status: 0, stdout: JSON.stringify(metadata) }, calls = 0
+  const mock = t.mock.method(childProcess, 'spawnSync', (command, args, options) => {
+    calls++
+    assert.equal(command, executable)
+    assert.equal(args[0], '-c')
+    assert(args[1].includes('import tomllib'))
+    assert(!JSON.stringify(args).includes(key))
+    assert.equal(options.timeout, 5000)
+    assert.equal(options.maxBuffer, 16 << 10)
+    return result
+  })
+  syncBuiltinESMExports()
+  try {
+    assert.deepEqual(currentCodex(), { ...metadata, key })
+    result = { status: null, error: Object.assign(new Error(key), { code: 'ENOENT' }) }
+    assert.throws(() => currentCodex(), error => /Cannot parse/.test(error.message) && !error.message.includes(key))
+    assert.equal(calls, 2, 'A missing explicit override must fail without silently trying another runtime')
+    result = { status: 1, stderr: key }
+    assert.throws(() => currentCodex(), error => /Cannot parse/.test(error.message) && !error.message.includes(key))
+    for (const change of [{ provider: 'other' }, { wireApi: 'chat' }, { envKey: 'OTHER_KEY' }, { baseUrl: 'https://example.invalid/v1' }]) {
+      result = { status: 0, stdout: JSON.stringify({ ...metadata, ...change }) }
+      assert.throws(() => currentCodex())
+    }
+    result = { status: 0, stdout: JSON.stringify(metadata) }
+    delete process.env.SUB2API_API_KEY
+    assert.throws(() => currentCodex(), /key is not available/)
+  } finally {
+    mock.mock.restore(); syncBuiltinESMExports()
+    if (priorPython === undefined) delete process.env.SUB2API_CONFIG_PYTHON
+    else process.env.SUB2API_CONFIG_PYTHON = priorPython
+    if (priorKey === undefined) delete process.env.SUB2API_API_KEY
+    else process.env.SUB2API_API_KEY = priorKey
+  }
+})
 
 const config = { key: 'synthetic-not-a-real-key', model: 'synthetic-model' }
 const complete = [{ type: 'response.output_text.delta', delta: 'OK' },
