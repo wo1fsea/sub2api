@@ -174,3 +174,19 @@ export function assertExpectedFactoryPlatformQuotaProjection(before, after) {
     afterSha256: stableSha256(after)
   }
 }
+
+// Docker can retain Running=true after containerd has recorded STOPPED.
+// That state alone is never evidence that the restore command succeeded.
+export function restoreHelperStopped(state, runtimeStatus) {
+  if (state.OOMKilled) throw new Error('Private restore helper was OOM killed')
+  if (state.Status === 'exited') {
+    if (state.ExitCode !== 0) throw new Error('Private restore helper failed')
+    return true
+  }
+  if (state.Status === 'dead') throw new Error('Private restore helper is dead')
+  return state.Running === true && runtimeStatus === 'STOPPED'
+}
+
+export function assertRestoreReceipt(actual, expected) {
+  if (actual !== expected) throw new Error('Private restore helper completion receipt missing or invalid')
+}

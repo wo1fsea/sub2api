@@ -6,7 +6,7 @@ import { dirname, join, resolve } from 'node:path'
 import { spawn, spawnSync } from 'node:child_process'
 import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import { assertExpectedFactoryPlatformQuotaProjection, assertMigrationRowsMatchSource, assertPersistedConfigurationEqual, sameVersionMode,
+import { assertRestoreReceipt, restoreHelperStopped, assertExpectedFactoryPlatformQuotaProjection, assertMigrationRowsMatchSource, assertPersistedConfigurationEqual, sameVersionMode,
   selectRehearsalMode, validateMigrationTransition, validateSameVersionPreserved } from './rehearse-private-validation.mjs'
 import { assertProtectedFileMetadata, assertVolumeCoverage, protectedBackupFileNames } from './backup-manifest.mjs'
 
@@ -150,26 +150,62 @@ function docker(args, input, timeout = 180_000) {
   }
   return result.stdout.trim()
 }
-function restoreVolume(name, command) {
+function assertProductionUnchanged() {
+  const [production] = JSON.parse(docker(['inspect', originals[0].Id], undefined, 5000))
+  assert.equal(production.Image, backupManifest.oldImageId)
+  assert.equal(production.State.StartedAt, originals[0].State.StartedAt)
+  assert.equal(production.RestartCount, originals[0].RestartCount)
+  assert.equal(production.State.Running, true)
+  assert.equal(production.State.Health.Status, 'healthy')
+}
+async function restoreVolume(name, command) {
   const helper = `${project}-restore-${name.slice(project.length + 1)}`
+  const receipt = randomBytes(32).toString('hex')
+  const receiptPath = '/tmp/sub2api-restore-complete'
   helpers.add(helper)
   const args = ['create', '--name', helper, '--network', 'none', '--entrypoint', 'sh',
     '--cpus', '0.25', '--memory', '128m', '--log-driver', 'none',
     '--label', `io.sub2api.rehearsal=${project}`, '--mount', `type=volume,source=${name},target=/restore`,
-    '--mount', `type=bind,source=${backup},target=/backup,readonly`, candidate.imageId, '-ec', command]
+    '--mount', `type=bind,source=${backup},target=/backup,readonly`, candidate.imageId, '-ec',
+    `${command}\nprintf '%s' '${receipt}' > ${receiptPath}`]
   assert(args.includes('--network') && args[args.indexOf('--network') + 1] === 'none')
   helperCount++
   helperNetworkNone &&= args[args.indexOf('--network') + 1] === 'none'
-  docker(args, undefined, 60_000)
-  docker(['start', helper], undefined, 60_000)
-  const exit = docker(['wait', helper])
-  const [state] = JSON.parse(docker(['inspect', helper]))
+  const helperId = docker(args, undefined, 30_000)
+  assert.match(helperId, /^[a-f0-9]{64}$/)
+  docker(['start', helperId], undefined, 30_000)
+  const deadline = Date.now() + 60_000
+  let state, runtimeStatus, finished = false
+  while (Date.now() < deadline) {
+    ;[state] = JSON.parse(docker(['inspect', helperId], undefined, 5000))
+    assert.equal(state.Config.Labels['io.sub2api.rehearsal'], project)
+    assert.equal(state.Image, candidate.imageId)
+    assert.equal(state.HostConfig.NetworkMode, 'none')
+    runtimeStatus = null
+    if (state.State.Running && docker(['context', 'show'], undefined, 5000) === 'colima') {
+      const result = spawnSync('colima', ['ssh', '--', 'sudo', 'ctr', '-n', 'moby', 'tasks', 'ls'],
+        { encoding: 'utf8', timeout: 5000, maxBuffer: 1 << 20 })
+      if (!result.error && result.status === 0) {
+        runtimeStatus = result.stdout.split('\n').map(line => line.trim().split(/\s+/))
+          .find(parts => parts[0] === helperId)?.[2] || null
+      }
+    }
+    if (restoreHelperStopped(state.State, runtimeStatus)) { finished = true; break }
+    await delay(1000)
+  }
   writeFileSync(join(directory, `${helper}-state.json`), JSON.stringify({ id: state.Id,
-    name: state.Name, state: state.State }), { flag: 'wx', mode: 0o600 })
-  assert.equal(state.Config.Labels['io.sub2api.rehearsal'], project)
-  assert.equal(state.State.OOMKilled, false)
-  assert.equal(exit, '0', 'Private restore helper failed')
-  docker(['rm', helper])
+    name: state.Name, state: state.State, runtimeStatus }), { flag: 'wx', mode: 0o600 })
+  assert(finished, 'Private restore helper did not finish within 60 seconds')
+  // Copy from the owned helper layer, not restored app data. Only a completed
+  // shell with errexit reaches the fresh nonce write; STOPPED never bypasses it.
+  const receiptFile = join(directory, `${helper}-receipt`)
+  docker(['cp', `${helperId}:${receiptPath}`, receiptFile], undefined, 10_000)
+  assertRestoreReceipt(await readFile(receiptFile, 'utf8'), receipt)
+  report.restoreHelpers.push({ id: helperId, network: 'none', dockerStatus: state.State.Status,
+    runtimeStatus, completionReceiptVerified: true, staleRuntimeState: state.State.Running })
+  if (state.State.Running) assertProductionUnchanged()
+  docker(['rm', ...(state.State.Running ? ['--force'] : []), helperId], undefined, 30_000)
+  if (state.State.Running) assertProductionUnchanged()
   helpers.delete(helper)
 }
 function id(service) { return docker([...compose, 'ps', '--all', '--quiet', service]) }
@@ -293,7 +329,7 @@ const report = { project, directory, backup, opsToolSha, toolWorktreeClean, tool
   candidateManifestPath: candidatePath, candidateManifestSha256, candidateManifestHash: candidateManifestSha256,
   candidateCommit: candidate.commit, candidateImageId: candidate.imageId, candidateVersion: candidate.version,
   oldVersion, oldContainerId: backupManifest.oldContainerId, oldImageId: backupManifest.oldImageId,
-  migrationMode: selection.mode, checks: [], productionDeploymentPerformed: false, realGatewayCallsTested: false,
+  migrationMode: selection.mode, checks: [], restoreHelpers: [], productionDeploymentPerformed: false, realGatewayCallsTested: false,
   isolation: { networkInternal: false, separateImplementationVolumes: false, noHostPublishedPorts: false,
     noProviderBackgroundJobs: false, helperNetworkNone: false, productionDependenciesReferenced: true },
   compatibility: { oldImageReadWrite: false, candidateImageReadWrite: false, restartStable: false },
@@ -328,7 +364,7 @@ try {
   for (const volume of ['blue-data', 'green-data', 'redis-data']) {
     const name = `${project}_${volume}`
     const command = volume === 'redis-data' ? 'cp /backup/redis.rdb /restore/dump.rdb' : 'tar -xzf /backup/app-data.tar.gz -C /restore; chown -R 1000:1000 /restore'
-    restoreVolume(name, command)
+    await restoreVolume(name, command)
   }
   assert.equal(helperNetworkNone && helperCount > 0, true)
   report.isolation.helperNetworkNone = true
@@ -548,7 +584,8 @@ try {
       assert(!result.error && result.status === 0, 'Cannot inspect owned restore helper')
       const [item] = JSON.parse(result.stdout)
       assert.equal(item.Config.Labels['io.sub2api.rehearsal'], project)
-      docker(['rm', '--force', item.Id])
+      assertProductionUnchanged()
+      docker(['rm', '--force', item.Id], undefined, 30_000)
     } catch (error) { report.cleanupErrors.push(error.message) }
   }
   try {

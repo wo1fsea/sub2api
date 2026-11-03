@@ -5,12 +5,25 @@ import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import {
-  assertExpectedFactoryPlatformQuotaProjection, assertMigrationRowsMatchSource, assertNoMigrationChanges, assertPersistedConfigurationEqual,
+  assertRestoreReceipt, restoreHelperStopped, assertExpectedFactoryPlatformQuotaProjection, assertMigrationRowsMatchSource, assertNoMigrationChanges, assertPersistedConfigurationEqual,
   expectedFirstUpgradeMigrations, firstUpgradeMode, normalizeMigrationRows, sameVersionMode, selectRehearsalMode,
   validateMigrationTransition, validateSameVersionPreserved
 } from './rehearse-private-validation.mjs'
 
 const baseMigration = { filename: '241_groups.sql', checksum: '1'.repeat(64) }
+test('restore helper recognizes STOPPED without accepting missing success evidence', () => {
+  const running = { Running: true, Status: 'running', OOMKilled: false, ExitCode: 0 }
+  assert.equal(restoreHelperStopped(running, 'RUNNING'), false)
+  assert.equal(restoreHelperStopped(running, null), false)
+  assert.equal(restoreHelperStopped(running, 'STOPPED'), true)
+  assert.throws(() => assertRestoreReceipt('', 'fresh-nonce'), /receipt/)
+  assert.throws(() => assertRestoreReceipt('previous-run', 'fresh-nonce'), /receipt/)
+  assert.doesNotThrow(() => assertRestoreReceipt('fresh-nonce', 'fresh-nonce'))
+  assert.equal(restoreHelperStopped({ ...running, Running: false, Status: 'exited' }), true)
+  assert.throws(() => restoreHelperStopped({ ...running, Running: false, Status: 'exited', ExitCode: 1 }), /failed/)
+  assert.throws(() => restoreHelperStopped({ ...running, OOMKilled: true }, 'STOPPED'), /OOM/)
+  assert.throws(() => restoreHelperStopped({ ...running, Running: false, Status: 'dead' }), /dead/)
+})
 const sameMigrations = [
   baseMigration,
   { filename: '242_drop_platform_check_constraints.sql', checksum: '2'.repeat(64) },
