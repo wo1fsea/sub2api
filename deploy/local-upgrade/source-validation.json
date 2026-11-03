@@ -1,98 +1,77 @@
 {
   "status": "source-checks-passed-not-production-approved",
-  "recordedDate": "2026-11-02",
+  "recordedDate": "2026-11-03",
   "version": "0.2.19",
   "releaseBranch": "codex/sync/20261028-v0.2.19",
-  "integrationMergeCommit": "8a8a181a842b7f96ee87a80c0e039d9616f5722e",
-  "qualifiedApplicationFeatureCommit": "b51bdd1e87419b4ef204e87d937618d50a8ab919",
+  "qualifiedApplicationCommit": "694def1af9c095884d96e1d7e8f6c3e5d40a188f",
   "upstreamTag": "v0.2.19",
   "upstreamCommit": "dece26153621959ccd7635814f4b2d08304e681a",
-  "backendTree": "10abc0abb3b12e546efb88b32855f8f16ec2c06e",
-  "frontendTree": "e8931d4ec1f7adb8438276d8d3c93aff4c66d978",
+  "backendTree": "9dea630958d0a55634b654f0f646140fa5986302",
+  "frontendTree": "509b083b7da75684081bf2ac1596f327bb970b43",
   "migrationsTree": "ba0fd03a1d669aacc81cf9f4da180cdbd5b25f2d",
-  "sourceMigrationFiles": 299,
-  "sourceMigrationInventorySha256": "5267cb070ab449db5256fe19e2c5f5dc88e0115579a3d1a27575e986aee4b314",
-  "treeEvidence": {
-    "applicationTreesMatchFeature": true,
-    "featureBackendTree": "10abc0abb3b12e546efb88b32855f8f16ec2c06e",
-    "featureFrontendTree": "e8931d4ec1f7adb8438276d8d3c93aff4c66d978",
-    "evidence": "/tmp/factory-formal-release/tree-identity.json",
-    "evidenceSha256": "0b0b807bb2627b8245b58d58609aeac40ed4289e6c601a6d5faeda7d9088fec5",
-    "note": "Formal release integration changes only deploy, docs and NOTES; backend/frontend trees are exactly the accepted b51 application tree."
-  },
-  "qualificationScope": "Accepted Factory upstream feature b51 merged by a no-ff merge onto the approved 0.2.19 release lineage. This release keeps version 0.2.19 with a new exact source revision/image and adds no schema migration beyond the 299 already deployed. It adds the P0 same-version rehearsal, mandatory exact restore report, candidate-independent emergency rollback, protected .env/private compose/state plus actual PGDATA coverage checks, and real migration-filename admissibility.",
-  "toolchain": "Go 1.27.3; local Node 26.7.0 (CI target Node 20); pnpm 9.15.9; linux/arm64 target. Base image pins and bounded build resources remain unchanged.",
+  "qualificationScope": "Factory subscription-only billing limits, six quota windows and metadata in accounts.extra, request-driven 5-minute cache, 30-second manual cooldown, timeout/singleflight/backoff/stale, credential-generation CAS invalidation, bilingual account and quota overview UI. No schema migration, inference route, billing analytics or token-total extrapolation.",
+  "evidenceReused": false,
+  "toolchain": "Go 1.27.3; Node 26.7.0 host; frozen pnpm 9.15.9 dependencies; linux/arm64 image uses existing pinned Node 24 / Go 1.27.3 inputs.",
   "backendUnit": {
     "passed": true,
     "packagesPassed": 59,
+    "testsPassed": 24500,
+    "testsSkipped": 36,
     "failures": 0,
-    "scope": "go test -tags=unit -p 2 -parallel 2 -count=1 -timeout=20m ./... with GOTOOLCHAIN=go1.27.3 and a sanitized environment",
-    "counting": "59 package-level ok results; the direct text run did not enumerate pass events",
-    "evidence": "/tmp/factory-formal-release/backend-unit-direct.log",
-    "evidenceSha256": "bb7b4c5e98300bb7b2c1b218e0c51099b894afd59bfcc2d3a47bab9153a95c68",
-    "productionDeploymentPerformed": false
-  },
-  "backendServerBuild": {
-    "passed": true,
-    "scope": "go build -buildvcs=false -o /tmp/factory-build-server ./cmd/server against the exact b51 application tree",
-    "evidence": "/tmp/factory-build-backend-server-build.log",
-    "evidenceSha256": "af0d9274124d951e3f7d57c921d97df16b521f45eb2fed972251d6b6b7aab3e3"
+    "scope": "go test -json -tags=unit -p 2 -parallel 2 -count=1 -timeout=10m ./...; sanitized allowlisted environment",
+    "evidence": "frontend/tmp/backend-tests/run-T17GJP/report.json",
+    "evidenceSha256": "26cdb03b464c01850a666a204d09de5d0420397292a3e2676fdb7a2ced29033e"
   },
   "backendIntegration": {
     "passed": true,
     "packagesPassed": 52,
-    "testsPassed": 14658,
-    "testsSkipped": 19,
+    "testsPassed": 14674,
+    "testsSkipped": 17,
     "failures": 0,
-    "scope": "go test -json -tags=integration -p 1 -parallel 2 -count=1 -timeout=20m ./... with a sanitized environment and isolated testcontainers",
-    "evidence": "/tmp/factory-formal-release/backend-integration.jsonl",
-    "evidenceSha256": "399180f94dac6a9a018fbc812aa3555c79f7aa102ea31382512d65220f7750c4",
-    "stderrBytes": 0,
-    "productionDeploymentPerformed": false,
-    "liveTestCredentialsInherited": false
+    "scope": "go test -json -tags=integration -p 1 -parallel 2 -count=1 -timeout=10m ./...; isolated testcontainers and sanitized allowlisted environment",
+    "coverage": "Includes TestFactoryUsageGenerationAtomicCredentialChanges across Create/Update/UpdateCredentials/BulkUpdate and stale snapshot CAS.",
+    "evidence": "frontend/tmp/backend-tests/run-zaK5cC/report.json",
+    "evidenceSha256": "35a2863f79af5b5ba14e1bd51ac73fcf1e9b9ba9efdac3bafaa10b8dd7656ec1"
   },
   "securityAuditDependencies": {
     "passed": true,
     "testsPassed": 218,
     "testsSkipped": 0,
-    "scope": "go test -tags=integration -count=1 -v -timeout=120s ./internal/securityaudit against isolated pinned PostgreSQL and Redis containers",
-    "evidence": "/tmp/factory-formal-release/security-audit.log",
-    "evidenceSha256": "a702654032325ef91b6178fd00e7deb2f211d9e833891be9e5697a9be2ed1a30",
-    "productionDeploymentPerformed": false
+    "scope": "go test -tags=integration -count=1 -v -timeout=120s ./internal/securityaudit; isolated pinned PostgreSQL/Redis",
+    "evidence": "frontend/tmp/audit-tests/run-PEZZx9/report.txt",
+    "evidenceSha256": "e3d85e3d4ddfeba8c346017a0636a8b0226e8b9c05f8c212adfd20232a53cafe"
   },
   "frontend": {
-    "testFilesPassed": 386,
-    "testsPassed": 3075,
+    "testFilesPassed": 387,
+    "testsPassed": 3091,
     "testsFailed": 0,
     "testsSkipped": 0,
     "typecheck": "passed",
-    "lint": "full-suite-passed-no-errors",
-    "productionBuild": "passed-i18n-vue-tsc-b-vite",
-    "evidenceReused": true,
-    "exactTree": "e8931d4ec1f7adb8438276d8d3c93aff4c66d978",
+    "lint": "passed",
+    "productionBuild": "passed: locale completeness, vue-tsc -b, vite build",
+    "exactTree": "509b083b7da75684081bf2ac1596f327bb970b43",
     "evidence": [
       {
-        "path": "/tmp/factory-build-frontend-ui-vitest-full.log",
-        "sha256": "0793fb49afc4ea9e8ad78a4813acd1cf2e897766e02c4fe9fe0283ec1526d701"
+        "path": "/tmp/factory-usage-frontend-vitest.log",
+        "sha256": "22da750413309831483770c605177b66ed9792a38adb10d99f06c56f069ded57"
       },
       {
-        "path": "/tmp/factory-build-frontend-ui-final-typecheck.log",
-        "sha256": "cc25112850e8c8ef3a02f9b32c8faa7610c34f922e75364c63be10c336c96c75"
+        "path": "/tmp/factory-usage-frontend-typecheck.log",
+        "sha256": "353b1bdc97529cfcf877b58b3ce2f9399f63ad1fec58105017022faa3506993c"
       },
       {
-        "path": "/tmp/factory-build-frontend-ui-final-lint.log",
-        "sha256": "b74b83c9bb82597de91ce96ef6c94fee31c48a36d8e24207334cdd2bf7bfd968"
+        "path": "/tmp/factory-usage-frontend-lint.log",
+        "sha256": "81d0c5af190cca5644e82c3ae1f8ff0cf1822c524fc336888cbc99cd4a442615"
       },
       {
-        "path": "/tmp/factory-build-frontend-ui-final-build.log",
-        "sha256": "6fbd25fb1bbf2c99f05c4406cf202d925c45f224269e010060a572ed95f7afdd"
+        "path": "/tmp/factory-usage-frontend-production-build-final.log",
+        "sha256": "75a76f14601362d0b4a78dca72f2f0482482de657cdc7f64b016fa5a12fa3c96"
       }
-    ],
-    "note": "Reused only because the formal backend/frontend trees exactly equal the accepted b51 application tree; no stale 0.2.19 baseline qualification counts were carried."
+    ]
   },
   "operationsTests": {
     "passed": true,
-    "testsPassed": 74,
+    "testsPassed": 80,
     "testsFailed": 0,
     "suites": [
       "cleanup-retired.test.mjs",
@@ -101,59 +80,70 @@
       "upgrade-current.test.mjs",
       "rehearse-private.test.mjs"
     ],
-    "coverage": [
-      "same-version 0.2.19 zero migration and checksum changes with real 299-file source inventory",
-      "business, migration-246 gates, scoped keys, image-count billing and configuration preservation through startup and restart",
-      "mandatory exact isolated restore report with cleanup and isolation evidence",
-      "candidate-independent emergency rollback that restores prior state and route before post-verification; auth/upstream failures remain unverified and non-blocking",
-      "protected .env/private compose/state bytes plus actual PGDATA longest-volume coverage",
-      "binary-safe bounded pg_restore --list TOC handling"
+    "newCoverage": [
+      "Factory account 13 reserved in bounded 6 existing plus 2 Factory quota sample",
+      "Exact standard/core six-window identities, upstream source, null/unknown states and 5-minute staleness",
+      "Unknown scopes, duplicate/incomplete windows and malformed Factory state rejected"
     ],
-    "evidence": "/tmp/factory-formal-release/ops-tests.log",
-    "evidenceSha256": "42caea1eaf286c2b63ebd105a61057bb078b14d5037122a2d80ba1ec5ff8394a"
+    "evidence": "/tmp/factory-usage-deploy-tests.log",
+    "evidenceSha256": "669f3726b121c97eeec90841a4523addb4661807354a866450385240110dff26"
+  },
+  "syntheticUI": {
+    "passed": true,
+    "scope": "Isolated component browser QA: six windows, cooldown, stale/429, Chinese/English, dark mode and mobile unknown state. Root reviewed screenshots for readability. Not live account 13 acceptance.",
+    "script": "/tmp/factory-usage-ui-qa.mjs",
+    "screenshots": [
+      { "path": "/tmp/factory-usage-ui-fresh-zh.png", "sha256": "135b8cb54439cab244b8e3f470f6f48b3ba6e3ca8dad327af41066d490e849a5" },
+      { "path": "/tmp/factory-usage-ui-stale-en-dark.png", "sha256": "6b81ad8953baf1c95834df051805d78dd03ee13979cc0307a6f1d45365d99c07" },
+      { "path": "/tmp/factory-usage-ui-unknown-mobile.png", "sha256": "c008bbadff03bdd57fd199e594329e41041eafcc038591e7429248e6401cbde4" }
+    ]
+  },
+  "localAssetInventory": {
+    "previousCount": 1378,
+    "previousBytes": 58917928,
+    "newBuildCount": 180,
+    "newBuildBytes": 6576916,
+    "additionsCount": 112,
+    "additionsBytes": 4894174,
+    "mergedCount": 1490,
+    "mergedBytes": 63812102,
+    "fileCap": 1500,
+    "byteCap": 100663296,
+    "capChanged": false,
+    "scope": "Local production-build graph versus read-only live historical inventory; exact-image asset continuity is still pending.",
+    "evidence": "/tmp/factory-usage-assets-inventory.json",
+    "evidenceSha256": "e8aa834605722f3adbca1f061753b1534bc02b9d89a31b4c3db5bce4bddf89f0"
   },
   "migrations": {
     "sameVersionUpgrade": true,
-    "deployedSchemaRows": 299,
     "sourceMigrationFiles": 299,
     "newMigrationsForThisRelease": 0,
-    "firstUpgradeLegacyPathSupported": true,
-    "firstUpgradeExpectedFiles": [
-      "242_drop_platform_check_constraints.sql",
-      "242_group_i18n.sql",
-      "243_gemini_cached_contents.sql",
-      "244_gemini_cached_contents_channel_usage.sql",
-      "245_gemini_cached_contents_mutation_lease.sql",
-      "246_enable_gemini_image_generation_groups.sql",
-      "247_scoped_admin_api_keys.sql",
-      "248_group_image_count_billing.sql"
-    ],
-    "productionSourceMatch": {
-      "sourceFiles": 299,
-      "productionRows": 299,
-      "missing": [],
-      "extra": [],
-      "checksumMismatches": [],
-      "exact": true,
-      "evidence": "/tmp/factory-formal-release/prod-migration-verification.json",
-      "evidenceSha256": "8cc87d53faf576c506cff4a2defc697a6cee7a05703a6c74640201bf5190cf6f"
-    }
+    "unchangedSinceImageSource": "d784fb507d192ed6c203d0291be03b1abe600480",
+    "sourceMigrationInventorySha256": "aa2b75698d8524ffcce67ee3b1919470c410b6c238872484eaff8932544bb850",
+    "inventoryEncoding": "SHA256(JSON.stringify(filename-sorted [{filename,checksum:SHA256(trimmed SQL)}]))",
+    "productionRestoreVerification": "pending fresh protected backup and exact-image isolated rehearsal"
   },
-  "migration246PolicyGate": {
-    "status": "not-reapplied-same-version",
-    "detail": "Migration 246 was explicitly approved and is already applied in the current 0.2.19 schema. This source revision adds no migration; same-version rehearsal must preserve existing group gate values rather than reopen or reinterpret them."
+  "buildEnvironment": {
+    "temporaryVolume": "/Volumes/FactoryUsageBuild",
+    "sparseImage": "/Volumes/SSD/factory-usage-build.JfBhb5/compile-apfs.sparseimage",
+    "logicalSizeGiB": 32,
+    "containsProductionData": false,
+    "testTemporaryDirectory": "/Volumes/FactoryUsageBuild/tmp",
+    "testBuildCache": "/Volumes/FactoryUsageBuild/gocache",
+    "hostFreeSpaceFloorGiB": 3,
+    "note": "exFAT executable test failed with exec format error; successful final suites used APFS. Only task-created dependencies and five task-created cache objects were moved recoverably, not deleted. Earlier environment failures and pre-generation-fix unit result are not qualification evidence."
   },
   "lockfilesChanged": false,
   "realGatewayCallsTested": false,
   "productionDeploymentPerformed": false,
   "liveTestCredentialsInherited": false,
   "pendingProductionGates": [
-    "exact-image smoke and frontend asset continuity",
-    "fresh protected backup of .env, private compose/state, PostgreSQL logical dump, Redis snapshot and named volume data",
-    "same-version isolated no-egress restore rehearsal report with actual PGDATA coverage",
-    "real candidate and stable-entry model probes plus t18 existing-client regressions",
-    "concrete digest-pinned release manifest and rollback command",
-    "launchd recovery identity and post-cutover .env/Serve/unrelated-container preservation"
+    "Exact linux/arm64 image identity, empty-database smoke and historical static asset continuity",
+    "Fresh protected backup with credential-handling boundary settled, exact-image no-egress same-version restore rehearsal",
+    "Account 13 real billing display and Factory Claude inference acceptance after its existing production quota exhaustion recovers",
+    "Explicit P0 go relayed by E0 before any traffic switch",
+    "Stable-entry health, prior image rollback readiness, .env/Serve preservation and host recovery identity",
+    "Repository publication review: configured fork is currently public, unlike the historical private-fork assumption"
   ],
-  "note": "Source qualification only. No production deployment or live provider inference is claimed; exact-image smoke, fresh backup, isolated restore rehearsal, real gateway/client regressions and rollback evidence remain production gates."
+  "note": "All pass counts above are new evidence for this exact application tree. Source qualification does not imply production activation, successful live Factory inference, new backup or successful restore."
 }

@@ -421,22 +421,31 @@ export function quotaResponseSummary(batch, ids, now = Date.now()) {
     const usage = batch.usage[id]
     if (usage === undefined) { unknownAccounts++; continue }
     check(object(usage), 'Quota usage must be an object')
+    if (usage.factory_usage !== undefined) check(object(usage.factory_usage) && typeof usage.factory_usage.stale === 'boolean', 'Factory quota state is invalid')
     if (usage.quota_windows === undefined) { unknownAccounts++; continue }
     check(Array.isArray(usage.quota_windows), 'Quota windows must be an array')
-    let measured = false, stale = !!batch.errors[id] || !!usage.quota_snapshot_error || !!usage.error
+    let measured = false, stale = !!batch.errors[id] || !!usage.quota_snapshot_error || !!usage.error || usage.factory_usage?.stale === true
+    const factoryKeys = new Set()
     for (const window of usage.quota_windows) {
       check(object(window) && typeof window.key === 'string' && window.key.length > 0 && (window.utilization === null || (typeof window.utilization === 'number' && Number.isFinite(window.utilization) && window.utilization >= 0)), 'Quota window has invalid numeric data')
-      check(['upstream', 'response_headers', 'estimated', 'local'].includes(window.source) && ['account', 'model'].includes(window.scope), 'Quota window source/scope is invalid')
+      const factory = ['standard', 'core'].includes(window.scope)
+      check(['upstream', 'response_headers', 'estimated', 'local'].includes(window.source) && (factory || ['account', 'model'].includes(window.scope)), 'Quota window source/scope is invalid')
+      if (factory || window.key.startsWith('factory_')) {
+        check(factory && window.source === 'upstream' && new RegExp(`^factory_${window.scope}_(five_hour|weekly|monthly)$`).test(window.key), 'Factory quota window identity is invalid')
+        check(!factoryKeys.has(window.key), 'Factory quota window is duplicated')
+        factoryKeys.add(window.key)
+      }
       for (const key of ['resets_at', 'sampled_at']) check(window[key] === null || (typeof window[key] === 'string' && Number.isFinite(Date.parse(window[key]))), 'Quota window timestamp is invalid')
       check(window.window_minutes === undefined || (Number.isInteger(window.window_minutes) && window.window_minutes > 0), 'Quota window duration is invalid')
       check(window.model === undefined || typeof window.model === 'string', 'Quota window model is invalid')
       if (window.utilization !== null && ['upstream', 'response_headers'].includes(window.source)) {
         measured = true
         const age = window.sampled_at === null ? Infinity : now - Date.parse(window.sampled_at)
-        stale ||= age > 15 * 60_000 || age < -60_000 || (window.resets_at !== null && Date.parse(window.resets_at) <= now)
+        stale ||= (factory ? age >= 5 * 60_000 : age > 15 * 60_000) || age < -60_000 || (window.resets_at !== null && Date.parse(window.resets_at) <= now)
       }
       windows++
     }
+    if (factoryKeys.size > 0) check(factoryKeys.size === 6 && usage.quota_windows.length === 6, 'Factory quota observation must contain all six windows')
     if (!measured) unknownAccounts++
     else if (stale) staleAccounts++
   }
@@ -444,10 +453,19 @@ export function quotaResponseSummary(batch, ids, now = Date.now()) {
   // completion, rather than the availability of quota observations, gates serving.
   return { accountsChecked: ids.length, quotaWindows: windows, errors: Object.keys(batch.errors).length, unknownAccounts, staleAccounts }
 }
+export function selectQuotaAccountIDs(accounts) {
+  check(Array.isArray(accounts), 'Compact account list is invalid')
+  const existing = accounts.filter(account => (account.platform === 'openai' && account.type === 'oauth') || (account.platform === 'anthropic' && ['oauth', 'setup-token'].includes(account.type))).slice(0, 6)
+  // Keep the current rollout account in the bounded Factory sample even when
+  // the list contains many other subscription accounts ahead of it.
+  const factory = accounts.filter(account => account.platform === 'factory' && account.type === 'apikey')
+    .sort((left, right) => Number(right.id === 13) - Number(left.id === 13)).slice(0, 2)
+  return [...existing, ...factory].map(account => account.id)
+}
 async function verifyQuota(base, token, frontend) {
   const list = await api(base, '/admin/accounts?page=1&page_size=100&lite=1', { token })
   check(Array.isArray(list.items), 'Compact account list is invalid')
-  const ids = list.items.filter(account => (account.platform === 'openai' && account.type === 'oauth') || (account.platform === 'anthropic' && ['oauth', 'setup-token'].includes(account.type))).slice(0, 6).map(account => account.id)
+  const ids = selectQuotaAccountIDs(list.items)
   const batch = await api(base, '/admin/accounts/usage/batch', { token, body: { account_ids: ids, force: false }, timeoutMs: 45_000 })
   const summary = quotaResponseSummary(batch, ids)
   if (frontend) {

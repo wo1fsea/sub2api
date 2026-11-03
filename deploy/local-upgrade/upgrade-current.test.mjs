@@ -7,7 +7,7 @@ import test from 'node:test'
 import {
   applyRecoveryResult, assertActivePin, assertAppearanceMatch, assertFreshBackup, assertPrepareRetry, assertRestoreReport, assertSnapshotPins, candidateCompose, mergeAssetInventory,
   postgresDumpListToc, promotedCompose, promotedState, publicSummary, quotaResponseSummary, releaseIdentity,
-  rollbackPlan, runHotSwitch, runPriorImageRestore, validateTerraUsage
+  rollbackPlan, runHotSwitch, runPriorImageRestore, selectQuotaAccountIDs, validateTerraUsage
 } from './upgrade-current.mjs'
 import { desiredCompose, names, routing } from './service-recovery.mjs'
 import { assertLivePostgresCoverage, backupArchiveNames, backupArchiveSpecs, protectedBackupFileNames } from './backup-manifest.mjs'
@@ -521,6 +521,53 @@ test('quota API validation rejects malformed maps, windows, timestamps, provenan
   for (const change of [{ utilization: -1 }, { utilization: NaN }, { source: 'local-as-upstream' }, { scope: 'other' }, { sampled_at: 'invalid' }, { resets_at: undefined }, { window_minutes: 0 }, { model: {} }]) {
     assert.throws(() => quotaResponseSummary({ usage: { 1: { quota_windows: [quotaWindow(now, change)] } }, errors: {} }, [1], now))
   }
+})
+
+const factoryQuotaWindows = (now, changes = {}) => ['standard', 'core'].flatMap(scope => ['five_hour', 'weekly', 'monthly'].map(period => ({
+  key: `factory_${scope}_${period}`, scope, source: 'upstream', utilization: scope === 'standard' ? 100 : 2.5,
+  sampled_at: new Date(now - 60_000).toISOString(), resets_at: new Date(now + 3600_000).toISOString(), ...changes
+})))
+
+test('release quota sampling reserves Factory slots and includes current account 13', () => {
+  const list = [...Array.from({ length: 10 }, (_, n) => ({ id: n + 20, platform: 'openai', type: 'oauth' })),
+    ...[50, 51, 13].map(id => ({ id, platform: 'factory', type: 'apikey' }))]
+  assert.deepEqual(selectQuotaAccountIDs(list), [20, 21, 22, 23, 24, 25, 13, 50])
+  assert.deepEqual(selectQuotaAccountIDs([{ id: 13, platform: 'factory', type: 'apikey' }]), [13])
+})
+
+test('Factory six-window observations accept zero, percent over 100 and explicit unknown without inventing totals', () => {
+  const now = Date.parse('2026-11-03T01:00:00Z')
+  const windows = factoryQuotaWindows(now)
+  windows[0].utilization = 0
+  windows[1].utilization = 130
+  windows[2].utilization = null
+  const summary = quotaResponseSummary({ usage: { 13: { quota_windows: windows, factory_usage: { stale: false } } }, errors: {} }, [13], now)
+  assert.deepEqual(summary, { accountsChecked: 1, quotaWindows: 6, errors: 0, unknownAccounts: 0, staleAccounts: 0 })
+  const unknown = quotaResponseSummary({ usage: { 13: { quota_windows: factoryQuotaWindows(now, { utilization: null, sampled_at: null, resets_at: null }), factory_usage: { stale: true } } }, errors: {} }, [13], now)
+  assert.equal(unknown.unknownAccounts, 1)
+  assert.equal(unknown.quotaWindows, 6)
+  assert.equal(quotaResponseSummary({ usage: { 13: { factory_usage: { stale: true } } }, errors: {} }, [13], now).unknownAccounts, 1)
+})
+
+test('Factory freshness uses the five-minute boundary and explicit stale flag', () => {
+  const now = Date.parse('2026-11-03T01:00:00Z')
+  for (const usage of [
+    { quota_windows: factoryQuotaWindows(now, { sampled_at: new Date(now - 5 * 60_000).toISOString() }), factory_usage: { stale: false } },
+    { quota_windows: factoryQuotaWindows(now), factory_usage: { stale: true } }
+  ]) assert.equal(quotaResponseSummary({ usage: { 13: usage }, errors: {} }, [13], now).staleAccounts, 1)
+})
+
+test('Factory validation rejects mismatched pool keys, unsupported scopes, wrong provenance and incomplete observations', () => {
+  const now = Date.parse('2026-11-03T01:00:00Z')
+  for (const change of [{ key: 'factory_core_five_hour' }, { key: 'five_hour' }, { key: 'factory_standard_daily' }, { scope: 'account' }, { scope: 'other' }, { source: 'response_headers' }]) {
+    const windows = factoryQuotaWindows(now)
+    windows[0] = { ...windows[0], ...change }
+    assert.throws(() => quotaResponseSummary({ usage: { 13: { quota_windows: windows } }, errors: {} }, [13], now))
+  }
+  for (const windows of [factoryQuotaWindows(now).slice(0, 5), [...factoryQuotaWindows(now), factoryQuotaWindows(now)[0]]]) {
+    assert.throws(() => quotaResponseSummary({ usage: { 13: { quota_windows: windows } }, errors: {} }, [13], now))
+  }
+  assert.throws(() => quotaResponseSummary({ usage: { 13: { factory_usage: { stale: 'false' } } }, errors: {} }, [13], now))
 })
 
 test('asset inventory retains exact hashed old paths, deduplicates matches and rejects path/hash collisions', () => {

@@ -18,6 +18,8 @@
 
 旧资源清单为 1378 件、58,917,928 字节；现限额 1500 件/96 MiB。新构建若 180 件全部改变 hash，合并上界约 1558 件。构建后先计算精确增量；如需提高件数限制，必须记录真实清单/字节容量并保持明确上限及原 96 MiB 总字节限制，禁止静默修剪正在使用的旧资源。
 
+本次精确应用树 production build 后的实际清单为 180 件、6,576,916 字节，其中仅 112 件新增 hash、4,894,174 字节；与既有清单合并为 1490 件、63,812,102 字节。尚未超出原上限，因此不提高 cap。镜像构建后仍需对确切嵌入资源验证。
+
 本轮 Go 验证曾因宿主空间降到 3 GiB 以下暂停。直接把临时可执行文件放在 SSD 的 exFAT/fskit 文件系统会产生 `exec format error`；该失败是环境验证失败，不能记为源码测试失败或通过。为此在 `/Volumes/SSD/factory-usage-build.JfBhb5/compile-apfs.sparseimage` 创建仅供本任务使用、32 GiB 逻辑上限的 APFS 稀疏盘，挂载 `/Volumes/FactoryUsageBuild`（nobrowse）。小型 Go 程序已执行通过。后续 `TMPDIR=/Volumes/FactoryUsageBuild/tmp`，`SUB2API_TEST_GOCACHE=/Volumes/FactoryUsageBuild/gocache`；测试工具仅允许显式绝对路径、已存在目录的 cache override，其余环境仍白名单过滤。该盘不放凭证、生产数据或备份。root 将本轮新安装的 `frontend/node_modules` 完整移动到该盘并在原位留符号链接；又仅转存五个本轮生成、可验证包含当前 checkout 路径的 Go 缓存对象，共约 1.047 GiB，保存在 `retained-task-cache` 供恢复。其余原有缓存、旧临时目录和回滚材料均保留，没有删除。
 
 ## 执行顺序
@@ -36,3 +38,5 @@
 ## 交付证据
 
 最终写入 `/tmp/factory-usage-release-report-cn.md`：正式分支和远端 SHA、镜像 ID/标签、manifest 摘要、备份/恢复报告、P0 放行状态、候选/生产验收结果、确切回滚命令、已知限制。未执行项明确写为未执行，不把源码测试或预发布检查写成生产完成。
+
+执行中发现的外部门槛：配置的 `fork` 当前为 public，和原规范的 private 前提不符，未经解决不推送。旧生产 `b11cdf9f…` 的账号 13 已因 standard 五小时额度耗尽返回 402 并暂停调度；该事件发生在本次部署之前，不是本次功能回归。继续完成合成与隔离验证，但不清除现网错误、不启用超额、不重复付费调用；真实 Factory Claude 验收待额度恢复及现网门槛满足。
