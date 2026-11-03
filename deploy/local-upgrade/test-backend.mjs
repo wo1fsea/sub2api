@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
+import { mkdir, mkdtemp, readdir, stat, writeFile } from 'node:fs/promises'
+import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { spawn } from 'node:child_process'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
@@ -15,6 +15,13 @@ assert((await readdir(output)).length < 10, 'Review/archive previous backend rep
 const directory = await mkdtemp(join(output, 'run-'))
 const env = { PATH: process.env.PATH, HOME: process.env.HOME, TMPDIR: process.env.TMPDIR,
   GOTOOLCHAIN: 'go1.27.3', GOMAXPROCS: '2', GOMEMLIMIT: '1GiB' }
+// Explicit operator-owned build cache keeps low-space hosts from growing their
+// default cache. Do not inherit the rest of the caller's test/credential env.
+if (process.env.SUB2API_TEST_GOCACHE) {
+  assert(isAbsolute(process.env.SUB2API_TEST_GOCACHE), 'Pass an absolute test build-cache directory')
+  assert((await stat(process.env.SUB2API_TEST_GOCACHE)).isDirectory(), 'Test build-cache directory must already exist')
+  env.GOCACHE = process.env.SUB2API_TEST_GOCACHE
+}
 if (suite === 'integration') Object.assign(env, {
   DOCKER_HOST: process.env.DOCKER_HOST || 'unix:///Users/clawbotbot/.colima/default/docker.sock',
   TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: '/var/run/docker.sock', TESTCONTAINERS_HOST_OVERRIDE: '127.0.0.1', CI: 'true'

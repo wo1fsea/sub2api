@@ -128,6 +128,8 @@ type UsageCache struct {
 	openAIBatchCache  sync.Map           // accountID -> *openAIBatchQuotaCache (read-only upstream usage)
 	openAIBatchFlight singleflight.Group
 	grokProbeCache    sync.Map // accountID -> last billing probe attempt
+	factoryCache      sync.Map // accountID -> immutable *factoryUsageCacheEntry
+	factoryFlight     singleflight.Group
 }
 
 // NewUsageCache 创建 UsageCache 实例
@@ -189,6 +191,7 @@ type UsageInfo struct {
 	// Unlike legacy progress bars, missing data and elapsed resets never become zero.
 	QuotaWindows       []AccountQuotaWindow `json:"quota_windows,omitempty"`
 	QuotaSnapshotError string               `json:"quota_snapshot_error,omitempty"`
+	FactoryUsage       *FactoryUsageState   `json:"factory_usage,omitempty"`
 	Source             string               `json:"source,omitempty"`               // "passive" or "active"
 	UpdatedAt          *time.Time           `json:"updated_at,omitempty"`           // 更新时间
 	FiveHour           *UsageProgress       `json:"five_hour"`                      // 5小时窗口
@@ -317,6 +320,7 @@ type AccountUsageService struct {
 	tlsFPProfileService     *TLSFingerprintProfileService
 	agentIdentityTaskMu     sync.Mutex
 	agentIdentityWS         agentIdentityWSConnectionInvalidator
+	factoryUsageFetcher     factoryUsageFetcher
 }
 
 // NewAccountUsageService 创建AccountUsageService实例
@@ -403,6 +407,9 @@ func (s *AccountUsageService) getUsageForAccount(ctx context.Context, account *A
 			s.tryClearRecoverableAccountError(ctx, account)
 		}
 		return usage, err
+	}
+	if account.Platform == PlatformFactory && account.Type == AccountTypeAPIKey {
+		return s.getFactoryUsage(ctx, account, forceProbe)
 	}
 
 	// 只有oauth类型账号可以通过API获取usage（有profile scope）
@@ -548,6 +555,9 @@ func (s *AccountUsageService) GetPassiveUsage(ctx context.Context, accountID int
 }
 
 func (s *AccountUsageService) getPassiveUsageForAccount(ctx context.Context, account *Account) (*UsageInfo, error) {
+	if account != nil && account.Platform == PlatformFactory && account.Type == AccountTypeAPIKey {
+		return factoryUsageInfo(factorySnapshotFromExtra(account.Extra), time.Now(), "passive"), nil
+	}
 	if !supportsAnthropicPassiveUsage(account) {
 		return nil, fmt.Errorf("passive usage only supported for Anthropic OAuth/SetupToken accounts")
 	}

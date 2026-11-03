@@ -145,6 +145,7 @@ func createAccountRecord(ctx context.Context, client *dbent.Client, account *ser
 	if account == nil {
 		return service.ErrAccountNilInput
 	}
+	initializeFactoryUsageExtra(account)
 
 	builder := client.Account.Create().
 		SetName(account.Name).
@@ -539,6 +540,10 @@ func (r *accountRepository) updateLockedAccount(
 	if err != nil {
 		return nil, err
 	}
+	extra, err = mergeLockedFactoryUsageExtra(ctx, client, account, extra)
+	if err != nil {
+		return nil, err
+	}
 	account.Extra = extra
 
 	schedulable := account.Schedulable
@@ -902,6 +907,9 @@ func (r *accountRepository) UpdateCredentials(ctx context.Context, id int64, cre
 		SET
 			credentials = $1::jsonb,
 			extra = CASE
+				WHEN platform='factory' AND type='apikey'
+					AND credentials->'api_key' IS DISTINCT FROM $1::jsonb->'api_key'
+				THEN jsonb_set(COALESCE(extra,'{}'::jsonb)-'factory_usage_snapshot','{factory_usage_generation}',to_jsonb(gen_random_uuid()::text),true)
 				-- 正确性依赖（非防御）：OpenCode 分支必须先于 Ollama 分支求值。两分支
 				-- 的 WHEN 并不互斥：Ollama 分支的守卫是宽谓词——NOT(ollamaMatch(old)
 				-- AND ollamaMatch(new)) 在旧行不匹配 ollama.com 基址时恒真，且两侧
@@ -2795,7 +2803,7 @@ func (r *accountRepository) UpdateExtra(ctx context.Context, id int64, updates m
 	if scoped := r.accountTransactionScope(ctx); scoped != r {
 		return scoped.UpdateExtra(ctx, id, updates)
 	}
-	updates = stripCodexFingerprintSeedFromExtraUpdate(updates)
+	updates = stripFactoryUsageManagedExtra(stripCodexFingerprintSeedFromExtraUpdate(updates))
 	if len(updates) == 0 {
 		return nil
 	}
@@ -3072,7 +3080,7 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 	if len(ids) == 0 {
 		return 0, nil
 	}
-	updates.Extra = stripCodexFingerprintSeedFromExtraUpdate(updates.Extra)
+	updates.Extra = stripFactoryUsageManagedExtra(stripCodexFingerprintSeedFromExtraUpdate(updates.Extra))
 
 	setClauses := make([]string, 0, 8)
 	args := make([]any, 0, 8)
@@ -3253,6 +3261,9 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 			}
 		}
 		caseBranches := make([]string, 0, 4)
+		if _, changed := updates.Credentials["api_key"]; changed {
+			caseBranches = append(caseBranches, " WHEN platform='factory' AND type='apikey' AND credentials->'api_key' IS DISTINCT FROM "+credentialPlaceholder+"::jsonb->'api_key' THEN jsonb_set(("+extraExpression+")-'factory_usage_snapshot','{factory_usage_generation}',to_jsonb(gen_random_uuid()::text),true)")
+		}
 		if opencodeGroupIdentityChanged != "" {
 			caseBranches = append(caseBranches,
 				" WHEN "+opencodeGroupIdentityChanged+" THEN ("+extraExpression+") - 'opencode_go_usage_auto_refresh' - 'opencode_go_usage_snapshot'")

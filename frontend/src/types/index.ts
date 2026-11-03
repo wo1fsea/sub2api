@@ -1285,6 +1285,7 @@ export interface Account {
   opencode_go_usage?: OpenCodeGoUsageState
   // Extra fields including Codex usage, OpenAI compact capability, and model-level rate limits.
   extra?: (CodexUsageSnapshot & OpenAICompactState & {
+    factory_usage_generation?: string
     model_rate_limits?: Record<string, { rate_limited_at: string; rate_limit_reset_at: string }>
     antigravity_credits_overages?: Record<string, { activated_at: string; active_until: string }>
     upstream_billing_probe_enabled?: boolean
@@ -1505,11 +1506,25 @@ export interface AccountQuotaWindow {
   sampled_at: string | null
   source: 'upstream' | 'response_headers' | 'estimated' | 'local'
   window_minutes?: number
-  scope: 'account' | 'model'
+  scope: 'account' | 'model' | 'standard' | 'core'
   model?: string
 }
 
+export interface FactoryUsageInfo {
+  generation?: string
+  has_active_subscription?: boolean
+  overage_mode?: string
+  extra_usage_allowed?: boolean
+  extra_usage_balance_cents?: number
+  stale: boolean
+  last_attempt_at?: string
+  next_refresh_at?: string
+  retry_after_seconds?: number
+  error_code?: string
+}
+
 export interface AccountUsageInfo {
+  factory_usage?: FactoryUsageInfo
   quota_windows?: AccountQuotaWindow[]
   quota_snapshot_error?: string
   source?: 'passive' | 'active'

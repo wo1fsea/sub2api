@@ -503,6 +503,7 @@ func TestAccountQuotaSnapshot_DuplicateAccountDropsObservations(t *testing.T) {
 		"session_window_sampled_at": "2030-10-08T00:00:00Z", "session_window_source": "upstream", "session_window_reset": 123,
 		"passive_usage_7d_sonnet_utilization": 0.9, "passive_usage_7d_sonnet_sampled_at": "2030-10-08T00:00:00Z",
 		"codex_5h_sampled_at": "2030-10-08T00:00:00Z", "codex_7d_source": "response_headers", "custom_setting": true,
+		factoryUsageExtraKey: map[string]any{"sampled_at": "2030-10-08T00:00:00Z"},
 	}
 	cloned, err := duplicateAccountExtra(extra)
 	require.NoError(t, err)

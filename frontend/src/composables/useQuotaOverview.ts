@@ -24,7 +24,8 @@ interface QuotaReading {
 // Unsupported subscription providers stay visible as unknown. Only these
 // providers have authoritative subscription windows in the initial release.
 function supportsQuotaReading(account: AccountListItem): boolean {
-  return (account.platform === 'openai' && account.type === 'oauth') ||
+  return (account.platform === 'factory' && account.type === 'apikey') ||
+    (account.platform === 'openai' && account.type === 'oauth') ||
     (account.platform === 'anthropic' && (account.type === 'oauth' || account.type === 'setup-token'))
 }
 

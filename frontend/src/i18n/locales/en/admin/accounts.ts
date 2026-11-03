@@ -629,6 +629,16 @@ export default {
       apiKeyRequired: 'API Key *',
       apiKeyPlaceholder: 'sk-ant-api03-...',
       factory: {
+        usage: {
+          five_hour: '5h', weekly: 'Week', monthly: 'Month',
+          unknown: 'Unknown', stale: 'Stale reading · refresh required',
+          failed: 'Refresh failed; previous readings are retained.',
+          subscription: 'Subscription', overage: 'Overage mode', extraUsage: 'Extra usage',
+          balance: 'Extra usage balance: ${balance}', updated: 'Observed at',
+          active: 'Active', inactive: 'Inactive', resetUnknown: 'Reset time unknown',
+          percentOnly: 'Subscription percentages only; absolute token capacity is unavailable.',
+          refresh: 'Refresh quota', refreshing: 'Refreshing', retryIn: 'Retry in {seconds}s'
+        },
         apiKeyOnly: 'Factory API key only. WorkOS device login/OAuth and token refresh are not supported.',
         apiKeyHint: 'Factory API key (fk-...). Leave blank when editing to keep the current key.',
         region: 'Region',

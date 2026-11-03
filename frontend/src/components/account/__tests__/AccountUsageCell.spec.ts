@@ -113,6 +113,62 @@ const cnUsageCellStubs = {
 }
 
 describe('AccountUsageCell', () => {
+  it('invalidates Factory readings on credential generation changes and rejects late batch responses', async () => {
+    const requestBatchedUsage = vi.fn()
+    const account = makeAccount({ id: 13004, platform: 'factory', type: 'apikey', extra: { factory_usage_generation: 'before' } })
+    const snapshot = {
+      updated_at: '2026-11-03T04:00:00Z', five_hour: null, seven_day: null, seven_day_sonnet: null,
+      factory_usage: { stale: false, generation: 'before' },
+      quota_windows: [{ key: 'factory_core_monthly', utilization: 42, resets_at: null, sampled_at: '2026-11-03T04:00:00Z', source: 'upstream' as const, scope: 'core' as const }]
+    }
+    const wrapper = mount(AccountUsageCell, { props: { account, batchedUsage: snapshot, requestBatchedUsage } })
+    expect(wrapper.get('[data-testid="factory_core_monthly"]').attributes('title')).toBe('42%')
+    await wrapper.setProps({ account: { ...account, extra: { factory_usage_generation: 'after' } } })
+    expect(requestBatchedUsage).toHaveBeenLastCalledWith(expect.objectContaining({ id: 13004 }), { force: true })
+    expect(wrapper.get('[data-testid="factory_core_monthly"]').text()).toContain('usage.unknown')
+    await wrapper.setProps({ batchedUsage: { ...snapshot } })
+    expect(wrapper.get('[data-testid="factory_core_monthly"]').text()).toContain('usage.unknown')
+    await wrapper.setProps({ batchedUsage: { ...snapshot, factory_usage: { stale: false, generation: 'after' } } })
+    expect(wrapper.get('[data-testid="factory_core_monthly"]').attributes('title')).toBe('42%')
+    wrapper.unmount()
+  })
+
+  it('retains a failed Factory batch reading only for the same account', async () => {
+    const snapshot = {
+      updated_at: '2026-11-03T04:00:00Z', five_hour: null, seven_day: null, seven_day_sonnet: null,
+      factory_usage: { stale: false },
+      quota_windows: [{ key: 'factory_core_monthly', utilization: 42, resets_at: null, sampled_at: '2026-11-03T04:00:00Z', source: 'upstream' as const, scope: 'core' as const }]
+    }
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({ id: 13002, platform: 'factory', type: 'apikey' }),
+        batchedUsage: snapshot,
+        requestBatchedUsage: vi.fn()
+      }
+    })
+    await wrapper.setProps({ batchedUsage: null, batchedUsageError: 'failed' })
+    expect(wrapper.get('[data-testid="factory_core_monthly"]').attributes('title')).toBe('42%')
+    await wrapper.setProps({ account: makeAccount({ id: 13003, platform: 'factory', type: 'apikey' }) })
+    expect(wrapper.get('[data-testid="factory_core_monthly"]').text()).toContain('usage.unknown')
+    wrapper.unmount()
+  })
+
+  it('loads Factory API key subscription usage and forwards manual refresh with force', async () => {
+    getUsage.mockResolvedValue({ updated_at: null, quota_windows: [], factory_usage: { stale: false } })
+    const wrapper = mount(AccountUsageCell, { props: { account: makeAccount({ id: 13001, platform: 'factory', type: 'apikey' }) } })
+    await flushPromises()
+    expect(getUsage).toHaveBeenCalledWith(13001)
+    expect(wrapper.find('[data-testid="factory-usage-cell"]').exists()).toBe(true)
+    await wrapper.get('[data-testid="factory-refresh"]').trigger('click')
+    await flushPromises()
+    expect(getUsage).toHaveBeenLastCalledWith(13001, 'active', true)
+    await wrapper.setProps({ manualRefreshToken: 1 })
+    await flushPromises()
+    expect(getUsage).toHaveBeenLastCalledWith(13001, 'active', true)
+    expect(getUsage).toHaveBeenCalledTimes(3)
+    wrapper.unmount()
+  })
+
   beforeEach(() => {
     getUsage.mockReset()
     Object.defineProperty(window, 'matchMedia', {

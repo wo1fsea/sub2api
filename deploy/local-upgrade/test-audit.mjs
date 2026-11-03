@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
+import { mkdir, mkdtemp, stat, writeFile } from 'node:fs/promises'
+import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
+const buildCache = process.env.SUB2API_TEST_GOCACHE
+if (buildCache) {
+  assert(isAbsolute(buildCache), 'Pass an absolute test build-cache directory')
+  assert((await stat(buildCache)).isDirectory(), 'Test build-cache directory must already exist')
+}
 const output = join(root, 'frontend/tmp/audit-tests')
 await mkdir(output, { recursive: true })
 const directory = await mkdtemp(join(output, 'run-'))
@@ -36,6 +41,7 @@ try {
     // Do not inherit live model test credentials from the caller's environment.
     env: { PATH: process.env.PATH, HOME: process.env.HOME, TMPDIR: process.env.TMPDIR,
       GOTOOLCHAIN: 'go1.27.3', GOMAXPROCS: '2', GOMEMLIMIT: '1GiB',
+      ...(buildCache ? { GOCACHE: buildCache } : {}),
       PROMPT_AUDIT_TEST_POSTGRES_DSN: `postgres://audit:${password}@127.0.0.1:18385/audit?sslmode=disable`,
       PROMPT_AUDIT_TEST_REDIS_ADDR: '127.0.0.1:18386' }
   })

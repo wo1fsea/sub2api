@@ -747,6 +747,16 @@ export default {
       apiKeyRequired: 'API Key *',
       apiKeyPlaceholder: 'sk-ant-api03-...',
       factory: {
+        usage: {
+          five_hour: '5 小时', weekly: '本周', monthly: '本月',
+          unknown: '未知', stale: '读数已过期 · 待刷新',
+          failed: '刷新失败，保留上次读数。',
+          subscription: '订阅状态', overage: '超额模式', extraUsage: '超额用量',
+          balance: '超额余额：${balance}', updated: '获取时间',
+          active: '有效', inactive: '无有效订阅', resetUnknown: '重置时间未知',
+          percentOnly: '仅展示订阅百分比；上游未提供 token 总额度。',
+          refresh: '刷新额度', refreshing: '正在刷新', retryIn: '{seconds} 秒后可重试'
+        },
         apiKeyOnly: '仅支持 Factory API Key；不支持 WorkOS 设备登录/OAuth 与令牌刷新。',
         apiKeyHint: 'Factory API Key（fk-...）。编辑时留空可保留当前 Key。',
         region: '区域',

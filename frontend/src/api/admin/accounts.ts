@@ -372,7 +372,8 @@ export async function clearError(id: number): Promise<Account> {
 }
 
 /**
- * Get account usage information (5h/7d window)
+ * Get account usage information, including observed subscription quota_windows.
+ * Factory active reads use a five-minute cache; force requests a rate-limited refresh.
  * @param id - Account ID
  * @returns Account usage info
  */

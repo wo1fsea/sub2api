@@ -17,6 +17,39 @@ const usage = (...windows: AccountQuotaWindow[]): AccountUsageInfo => ({
 const complete = (used: number) => usage(window('five_hour', used), window('seven_day', 10))
 
 describe('subscription quota overview', () => {
+  it('never carries a previous Factory credential generation into the current subscription', () => {
+    const before = { ...account(13, 'factory'), type: 'apikey' as const, extra: { factory_usage_generation: 'before' } }
+    const oldUsage = { ...usage(window('factory_core_monthly', 97, { scope: 'core' })), factory_usage: { stale: false, generation: 'before' } }
+    const prior = normalizeQuotaAccount(before, oldUsage, now)
+    const after = { ...before, extra: { factory_usage_generation: 'after' } }
+    const row = normalizeQuotaAccount(after, oldUsage, now, prior, 'refresh_failed')
+    expect(row.state).toBe('unknown')
+    expect(row.windows.every(window => window.utilization === null)).toBe(true)
+  })
+
+  it('includes Factory API keys and keeps six scoped windows with calendar month labels', () => {
+    const factory = { ...account(13, 'factory'), type: 'apikey' as const }
+    expect(isSubscriptionQuotaAccount(factory)).toBe(true)
+    const row = normalizeQuotaAccount(factory, usage(
+      window('factory_standard_five_hour', 0, { scope: 'standard', window_minutes: 300 }),
+      window('factory_core_monthly', 98, { scope: 'core' })
+    ), now)
+    expect(row.windows).toHaveLength(6)
+    expect(row.bottleneck?.scope).toBe('core')
+    expect(row.bottleneck?.labelKey).toBe('admin.quotaOverview.windows.factoryMonthly')
+    expect(row.bottleneck?.labelParams).toEqual({ tier: 'Core' })
+    expect(row.remainingPercent).toBe(2)
+    expect(row.incomplete).toBe(true)
+    expect(row.windows.find(item => item.key === 'factory_standard_weekly')?.utilization).toBeNull()
+  })
+
+  it('ages Factory snapshots after five minutes and honors explicit stale state', () => {
+    const factory = { ...account(13, 'factory'), type: 'apikey' as const }
+    const snapshot = usage(window('factory_standard_five_hour', 42, { scope: 'standard' }))
+    expect(normalizeQuotaAccount(factory, snapshot, now + 300_000).state).toBe('stale')
+    expect(normalizeQuotaAccount(factory, { ...snapshot, factory_usage: { stale: true } }, now).state).toBe('stale')
+  })
+
   it('highlights the most constrained applicable window without adding capacities', () => {
     const row = normalizeQuotaAccount(account(), usage(window('five_hour', 25), window('seven_day', 92)), now)
     expect(row.bottleneck?.key).toBe('seven_day')

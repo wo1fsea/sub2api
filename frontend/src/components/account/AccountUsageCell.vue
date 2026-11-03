@@ -621,8 +621,15 @@
     <AccountQuotaInfo v-if="account.platform === 'gemini' && !isGeminiThirdPartyApiKey" :account="account" />
     <!-- Key/Bedrock accounts: show today stats + optional quota bars -->
     <div v-else class="space-y-1">
+      <FactoryUsageCell
+        v-if="account.platform === 'factory' && account.type === 'apikey'"
+        :usage="usageInfo"
+        :loading="loading"
+        :error="error"
+        @refresh="refreshFactoryUsage"
+      />
       <OllamaCloudUsageCell
-        v-if="account.ollama_cloud_usage?.eligible"
+        v-else-if="account.ollama_cloud_usage?.eligible"
         :account="account"
         @updated="handleOllamaCloudUsageUpdated"
       />
@@ -691,7 +698,7 @@
 
       <!-- No data at all -->
       <div
-        v-if="!todayStats && !todayStatsLoading && !hasApiKeyQuota && !account.ollama_cloud_usage?.eligible && !account.opencode_go_usage?.eligible"
+        v-if="account.platform !== 'factory' && !todayStats && !todayStatsLoading && !hasApiKeyQuota && !account.ollama_cloud_usage?.eligible && !account.opencode_go_usage?.eligible"
         class="text-xs text-gray-400"
       >-</div>
     </div>
@@ -722,6 +729,7 @@ import {
   isMultiProtocolApiKeyPlatform
 } from './credentialsBuilder'
 import OpenCodeGoUsageCell from './OpenCodeGoUsageCell.vue'
+import FactoryUsageCell from './FactoryUsageCell.vue'
 
 // Module-level cache shared across all AccountUsageCell instances
 const _usageCache = new Map<number, { data: AccountUsageInfo; ts: number }>()
@@ -764,6 +772,13 @@ const loading = ref(false)
 const activeQueryLoading = ref(false)
 const error = ref<string | null>(null)
 const usageInfo = ref<AccountUsageInfo | null>(null)
+const usageAccountID = ref(props.account.id)
+const factoryUsageGeneration = computed(() => {
+  const generation = props.account.extra?.factory_usage_generation
+  return typeof generation === 'string' ? generation : ''
+})
+const matchesFactoryUsageGeneration = (usage: AccountUsageInfo | null | undefined) =>
+  props.account.platform !== 'factory' || (usage?.factory_usage?.generation ?? '') === factoryUsageGeneration.value
 watch(usageInfo, (usage) => {
   if (usage) emit('usage-loaded', usage)
 })
@@ -792,6 +807,8 @@ const isGeminiVertex = computed(() => {
 
 // Show usage windows for OAuth and Setup Token accounts
 const showUsageWindows = computed(() => {
+  // Factory API keys use their subscription cell below, not generic provider probes.
+  if (props.account.platform === 'factory') return false
   // Gemini: we can always compute local usage windows from DB logs (simulated quotas).
   // 第三方上游 API Key 没有模拟配额，按普通 Key 账号展示今日统计与额度进度条。
   if (props.account.platform === 'gemini') return !isGeminiThirdPartyApiKey.value
@@ -804,6 +821,7 @@ const showUsageWindows = computed(() => {
 })
 
 const shouldFetchUsage = computed(() => {
+  if (props.account.platform === 'factory') return props.account.type === 'apikey'
   if (props.account.platform === 'anthropic') {
     return props.account.type === 'oauth' || props.account.type === 'setup-token'
   }
@@ -1446,7 +1464,12 @@ const requestParentBatchUsage = (options?: { force?: boolean }) => {
 
 const syncManagedUsageState = () => {
   if (!isBatchManaged.value) return
-  usageInfo.value = props.batchedUsage ?? null
+  // Keep the last Factory observation if the transport fails before returning
+  // a server snapshot; its original sample time must remain visible as stale.
+  if (props.batchedUsage || props.account.platform !== 'factory' || !props.batchedUsageError || usageAccountID.value !== props.account.id) {
+    usageInfo.value = matchesFactoryUsageGeneration(props.batchedUsage) ? props.batchedUsage ?? null : null
+  }
+  usageAccountID.value = props.account.id
   error.value = props.batchedUsageError ?? null
   loading.value = props.batchedUsageLoading === true
 }
@@ -1461,7 +1484,7 @@ const loadUsage = async (options?: { source?: 'passive' | 'active'; bypassCache?
   // Check cache
   if (!options?.bypassCache) {
     const cached = _usageCache.get(props.account.id)
-    if (cached && Date.now() - cached.ts < USAGE_CACHE_TTL) {
+    if (cached && Date.now() - cached.ts < USAGE_CACHE_TTL && matchesFactoryUsageGeneration(cached.data)) {
       usageInfo.value = cached.data
       loading.value = false
       return
@@ -1476,7 +1499,7 @@ const loadUsage = async (options?: { source?: 'passive' | 'active'; bypassCache?
 			? adminAPI.accounts.getUsage(props.account.id, options.source, options.bypassCache === true)
 			: adminAPI.accounts.getUsage(props.account.id)
     const result = await enqueueUsageRequest(props.account, fetchFn)
-    if (!unmounted.value) {
+    if (!unmounted.value && matchesFactoryUsageGeneration(result)) {
       usageInfo.value = result
       _usageCache.set(props.account.id, { data: result, ts: Date.now() })
     }
@@ -1488,6 +1511,11 @@ const loadUsage = async (options?: { source?: 'passive' | 'active'; bypassCache?
   } finally {
     if (!unmounted.value) loading.value = false
   }
+}
+
+const refreshFactoryUsage = (force: boolean) => {
+  if (loading.value) return
+  void loadUsage({ source: 'active', bypassCache: force })
 }
 
 const flushPendingAutoLoad = () => {
@@ -1726,6 +1754,15 @@ watch(openAIUsageRefreshKey, (nextKey, prevKey) => {
   requestAutoLoad()
 })
 
+watch(factoryUsageGeneration, (generation, previous) => {
+  if (generation === previous || props.account.platform !== 'factory') return
+  _usageCache.delete(props.account.id)
+  usageInfo.value = null
+  error.value = null
+  if (isBatchManaged.value) requestParentBatchUsage({ force: true })
+  else void loadUsage({ source: 'active', bypassCache: true })
+})
+
 watch(
   () => props.manualRefreshToken,
   (nextToken, prevToken) => {
@@ -1737,7 +1774,7 @@ watch(
       return
     }
 
-    const source = isAnthropicOAuthOrSetupToken.value ? 'passive' : undefined
+    const source = isAnthropicOAuthOrSetupToken.value ? 'passive' : props.account.platform === 'factory' ? 'active' : undefined
     _usageCache.delete(props.account.id)
     loadUsage({ source, bypassCache: true }).catch((e) => {
       console.error('Failed to refresh usage after manual refresh:', e)

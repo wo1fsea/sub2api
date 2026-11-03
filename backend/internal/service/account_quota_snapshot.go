@@ -22,6 +22,40 @@ type AccountQuotaWindow struct {
 	Model         string     `json:"model,omitempty"`
 }
 
+func buildFactoryQuotaWindows(limits map[string]any, sampledAt time.Time) []AccountQuotaWindow {
+	windows := make([]AccountQuotaWindow, 0, 6)
+	for _, pool := range []string{"standard", "core"} {
+		values, _ := limits[pool].(map[string]any)
+		for _, spec := range []struct {
+			upstream, key string
+			minutes       int
+		}{
+			{"fiveHour", "five_hour", 300}, {"weekly", "weekly", 10080}, {"monthly", "monthly", 0},
+		} {
+			value, _ := values[spec.upstream].(map[string]any)
+			reset := quotaTime(value["windowEnd"])
+			if reset == nil {
+				if numeric := quotaNumber(value["windowEnd"]); numeric != nil {
+					if *numeric > 1e12 {
+						*numeric /= 1000
+					}
+					reset = quotaUnixTime(*numeric)
+				}
+			}
+			if reset == nil {
+				if seconds := quotaNumber(value["secondsRemaining"]); seconds != nil && *seconds >= 0 && *seconds <= 366*86400 {
+					stamp := sampledAt.Add(time.Duration(*seconds * float64(time.Second)))
+					reset = &stamp
+				}
+			}
+			windows = append(windows, AccountQuotaWindow{Key: "factory_" + pool + "_" + spec.key,
+				Utilization: quotaUtilization(value["usedPercent"], 1), ResetsAt: reset, SampledAt: &sampledAt,
+				Source: "upstream", Scope: pool, WindowMinutes: spec.minutes})
+		}
+	}
+	return windows
+}
+
 func (w *OpenAIRateLimitWindow) UnmarshalJSON(data []byte) error {
 	type legacyWindow OpenAIRateLimitWindow
 	var decoded legacyWindow

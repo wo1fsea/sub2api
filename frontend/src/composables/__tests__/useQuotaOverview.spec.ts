@@ -41,6 +41,16 @@ function createState() {
 }
 
 describe('useQuotaOverview', () => {
+  it('loads Factory subscription usage through the existing batch endpoint', async () => {
+    list.mockResolvedValue(page([account(13, 'factory', 'apikey'), account(14, 'openai', 'apikey')]))
+    getBatchUsage.mockResolvedValue({ usage: { 13: { ...usage(), quota_windows: [], factory_usage: { stale: false } } }, errors: {} })
+    const state = createState()
+    await state.refresh(false)
+    expect(state.rows.value.map(row => row.account.id)).toEqual([13])
+    expect(getBatchUsage).toHaveBeenCalledWith([13], false, { timeout: 45_000, signal: expect.any(AbortSignal) })
+    expect(state.rows.value[0].windows).toHaveLength(6)
+  })
+
   beforeEach(() => {
     list.mockReset()
     getBatchUsage.mockReset()

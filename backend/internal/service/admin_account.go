@@ -132,6 +132,8 @@ var duplicateAccountDiscardedExtraKeys = map[string]struct{}{
 	"passive_usage_7d_oi_source":             {},
 	"passive_usage_sampled_at":               {},
 	"grok_usage_snapshot":                    {},
+	factoryUsageExtraKey:                     {},
+	FactoryUsageGenerationExtraKey:           {},
 	"grok_billing_snapshot":                  {},
 	"openai_responses_supported":             {},
 	"openai_compact_supported":               {},

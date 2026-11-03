@@ -13,7 +13,7 @@ export interface QuotaOverviewWindow {
   resetsAt: string | null
   sampledAt: string | null
   source: string
-  scope: 'account' | 'model'
+  scope: AccountQuotaWindow['scope']
   model?: string
   stale: boolean
   estimated: boolean
@@ -34,7 +34,8 @@ export interface QuotaOverviewAccount {
 export type QuotaOverviewSort = 'remaining' | 'reset'
 
 export function isSubscriptionQuotaAccount(account: Pick<AccountListItem, 'type' | 'platform'>): boolean {
-  return account.type === 'oauth' || (account.platform === 'anthropic' && account.type === 'setup-token')
+  return account.type === 'oauth' || (account.platform === 'anthropic' && account.type === 'setup-token') ||
+    (account.platform === 'factory' && account.type === 'apikey')
 }
 
 function timestamp(value: unknown): string | null {
@@ -45,6 +46,10 @@ function windowLabel(window: AccountQuotaWindow): Pick<QuotaOverviewWindow, 'lab
   const base = 'admin.quotaOverview.windows.'
   const minutes = window.window_minutes
   const model = window.model || ''
+  if (window.scope === 'standard' || window.scope === 'core') {
+    const period = window.key.endsWith('_monthly') ? 'factoryMonthly' : window.key.endsWith('_weekly') ? 'factoryWeekly' : 'factoryFiveHour'
+    return { labelKey: base + period, labelParams: { tier: window.scope === 'standard' ? 'Standard' : 'Core' } }
+  }
   if (window.scope === 'model') {
     if (minutes === 10080 || (!minutes && ['seven_day_sonnet', 'seven_day_fable'].includes(window.key))) {
       return { labelKey: base + 'modelSevenDay', labelParams: { model } }
@@ -78,7 +83,7 @@ function normalizeWindow(window: AccountQuotaWindow, now: number, failed: boolea
     resetsAt,
     sampledAt,
     source: window.source,
-    scope: window.scope === 'model' ? 'model' : 'account',
+    scope: ['model', 'standard', 'core'].includes(window.scope) ? window.scope : 'account',
     model: window.model,
     stale: failed || age > QUOTA_STALE_AFTER_MS || age < -MAX_SAMPLE_CLOCK_SKEW_MS || (resetsAt !== null && Date.parse(resetsAt) <= now) || !authoritative,
     estimated
@@ -86,6 +91,12 @@ function normalizeWindow(window: AccountQuotaWindow, now: number, failed: boolea
 }
 
 function expectedWindows(account: AccountListItem): AccountQuotaWindow[] {
+  if (account.platform === 'factory') {
+    return (['standard', 'core'] as const).flatMap(scope => ['five_hour', 'weekly', 'monthly'].map(period => ({
+      key: `factory_${scope}_${period}`, utilization: null, resets_at: null, sampled_at: null,
+      source: 'upstream' as const, scope
+    })))
+  }
   if (!['openai', 'anthropic'].includes(account.platform)) return []
   return ['five_hour', 'seven_day'].map((key, index) => ({
     key, utilization: null, resets_at: null, sampled_at: null,
@@ -102,14 +113,21 @@ export function normalizeQuotaAccount(
   previous?: QuotaOverviewAccount,
   error?: string
 ): QuotaOverviewAccount {
+  const generation = account.extra?.factory_usage_generation ?? ''
+  const changedCredential = account.platform === 'factory' &&
+    (usage?.factory_usage?.generation ?? '') !== generation
+  if (changedCredential) usage = undefined
   const failure = error || usage?.quota_snapshot_error || usage?.error || undefined
-  const prior = previous?.account.id === account.id ? previous : undefined
+  const prior = previous?.account.id === account.id &&
+    (account.platform !== 'factory' || (previous.account.extra?.factory_usage_generation ?? '') === generation)
+    ? previous : undefined
   const rawWindows = usage?.quota_windows || []
   const unique = new Map(rawWindows.map(window => [window.key, window]))
   for (const expected of expectedWindows(account)) {
     if (!unique.has(expected.key)) unique.set(expected.key, expected)
   }
-  let windows = [...unique.values()].map(window => normalizeWindow(window, now, !!failure))
+  let windows = [...unique.values()].map(window => normalizeWindow(window, now, !!failure || usage?.factory_usage?.stale === true ||
+    (account.platform === 'factory' && now - Date.parse(window.sampled_at || '') >= 300_000)))
 
   // A failed refresh must not erase the previous successful reading. Preserve
   // its actual sample time and reset, and label it stale instead of fresh zero.

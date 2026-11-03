@@ -242,6 +242,9 @@ function remainingCaption(row: QuotaOverviewAccount): string {
   return t(row.incomplete ? 'admin.quotaOverview.knownRemaining' : 'admin.quotaOverview.tightestRemaining')
 }
 function scopeLabel(quotaWindow: QuotaOverviewWindow): string {
+  if (quotaWindow.scope === 'standard' || quotaWindow.scope === 'core') {
+    return t('admin.quotaOverview.factoryScope', { tier: quotaWindow.scope === 'standard' ? 'Standard' : 'Core' })
+  }
   return quotaWindow.scope === 'model'
     ? t('admin.quotaOverview.modelOnly', { model: quotaWindow.model || t('admin.quotaOverview.unknown') })
     : t('admin.quotaOverview.allModels')
