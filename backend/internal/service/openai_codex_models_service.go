@@ -452,6 +452,13 @@ func newConfiguredCodexModelDescriptor(modelID string) configuredCodexModelDescr
 		InputModalities:                   []string{"text"},
 	}
 
+	// Factory-qualified Claude IDs retain their routing namespace, but share
+	// Claude's image-input capability in the client catalog.
+	if isClaudeCodexModel(codexProviderQualifiedModelID(modelID)) {
+		descriptor.InputModalities = []string{"text", "image"}
+		descriptor.SupportsImageDetailOriginal = true
+	}
+
 	if isDeepSeekCodexModel(modelID) {
 		defaultReasoningLevel := "high"
 		descriptor.DisplayName = deepSeekCodexDisplayName(modelID)

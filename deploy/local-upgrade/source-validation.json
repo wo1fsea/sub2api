@@ -2,110 +2,40 @@
   "status": "source-checks-passed-not-production-approved",
   "recordedDate": "2026-11-03",
   "version": "0.2.19",
-  "releaseBranch": "codex/sync/20261028-v0.2.19",
-  "qualifiedApplicationCommit": "95e7dd58b6e2bd87c8385ecf5eacb9e2866a65a7",
+  "releaseBranch": "codex/fix/factory-claude-vision-20261103",
+  "baselineCommit": "92eae2818d1ceac650fb28716a319be5503029e7",
   "upstreamTag": "v0.2.19",
   "upstreamCommit": "dece26153621959ccd7635814f4b2d08304e681a",
-  "backendTree": "9dea630958d0a55634b654f0f646140fa5986302",
-  "frontendTree": "87688c56289c700e4ff3479524259f436a0d6e10",
+  "backendTree": "b6eb1a4febb053c0568fd9403ad5d1adbb7343b7",
+  "frontendTree": "6a3c4283c54ab90baa44727b9c0f1e0edcedcbf5",
   "migrationsTree": "ba0fd03a1d669aacc81cf9f4da180cdbd5b25f2d",
-  "qualificationScope": "Factory six-window overview labels/resets; Antigravity batch loading, model-scoped normalization, six-tightest preview/full detail, tier and separate credits, zero-amount omitempty compatibility, stale/failure retention. Bounded historical asset inventory increased to 1800 files with unchanged 96 MiB byte cap.",
-  "previousReleaseRecordReused": false,
+  "qualificationScope": "Claude and Factory Claude Codex image input advertisement only; no routing, credential, frontend, dependency or migration changes.",
   "backend": {
-    "changed": false,
-    "comparedTo": "ba9188166f847450e638b2cd26303bd32c3a78d0",
-    "testsRerunThisRound": false,
-    "note": "Backend tree is unchanged. No prior suite counts are claimed as new qualification."
-  },
-  "frontend": {
-    "testFilesPassed": 4,
-    "testsPassed": 42,
-    "testsFailed": 0,
-    "scope": "quotaOverview utility/composable/view and locale completeness",
-    "typecheck": "vue-tsc -b passed",
-    "lint": "changed frontend files and QA script passed",
-    "productionBuild": "passed",
-    "exactTree": "87688c56289c700e4ff3479524259f436a0d6e10"
+    "command": "GOTOOLCHAIN=go1.27.3 GOMAXPROCS=2 GOMEMLIMIT=1GiB go test -tags=unit -p 2 -parallel 2 -count=1 -timeout=6m ./internal/service -run 'Test.*(Codex|Factory)'",
+    "passed": true,
+    "log": "/tmp/claude-vision-tests.log",
+    "logSha256": "35d2c21dd1c28a482f802899f27ff723cefadb7882463f61c4f9d55c5c4c5dcb",
+    "fullSuiteRerun": false
   },
   "operationsTests": {
-    "testsPassed": 52,
-    "testsFailed": 0,
-    "scope": "upgrade-current.test.mjs; 1800 accepted, 1801 rejected, 96MiB rejection and prior asset preservation"
+    "passed": 52,
+    "failed": 0,
+    "log": "/tmp/claude-vision-ops-tests.log"
   },
-  "evidence": [
-    {
-      "label": "source-tests",
-      "startedAt": "2026-11-03T08:23:00.494Z",
-      "finishedAt": "2026-11-03T08:23:06.203Z",
-      "code": 0,
-      "signal": null,
-      "bytes": 1460,
-      "log": "/tmp/quota-source-tests.log",
-      "sha256": "a37544da789e207f8c0789a40af3fafe9a034980d17dcd8587f026dcb9be0972"
-    },
-    {
-      "label": "source-typecheck",
-      "startedAt": "2026-11-03T08:23:50.040Z",
-      "finishedAt": "2026-11-03T08:24:02.446Z",
-      "code": 0,
-      "signal": null,
-      "bytes": 0,
-      "log": "/tmp/quota-source-typecheck.log",
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    {
-      "label": "source-lint",
-      "startedAt": "2026-11-03T08:23:50.040Z",
-      "finishedAt": "2026-11-03T08:23:51.323Z",
-      "code": 0,
-      "signal": null,
-      "bytes": 0,
-      "log": "/tmp/quota-source-lint.log",
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    {
-      "label": "source-build",
-      "startedAt": "2026-11-03T08:24:52.032Z",
-      "finishedAt": "2026-11-03T08:25:06.059Z",
-      "code": 0,
-      "signal": null,
-      "bytes": 19019,
-      "log": "/tmp/quota-source-build.log",
-      "sha256": "280f74ab2b4a3f1dd4dbfc4636a3cd06205b6bb6a0c7bbe00492ee166a72aa0f"
-    },
-    {
-      "label": "ops-tests",
-      "startedAt": "2026-11-03T08:23:00.494Z",
-      "finishedAt": "2026-11-03T08:23:00.634Z",
-      "code": 0,
-      "signal": null,
-      "bytes": 5772,
-      "log": "/tmp/quota-ops-tests.log",
-      "sha256": "1f4042b123025ac38c010be2310f716d5afcad26449acaa59e84314b2024eb11"
-    }
-  ],
-  "isolatedUI": {
-    "passed": true,
-    "script": "frontend/scripts/verify-quota-overview.mjs",
-    "report": "frontend/tmp/quota-overview-qa/report.json",
-    "sha256": "e8609c46b1a9859e9bd01d14f6b76c2bae7c169ee31b2636d872a6dd6d2219d2",
-    "scope": "Compiled frontend with synthetic API and sanitized current account 12/13 snapshot replay, not live candidate acceptance. Reviewed desktop/mobile, zh/en, light/dark, all windows/dialogs/refresh failure recovery."
+  "frontend": {
+    "changed": false,
+    "qualificationReusedFrom": "92eae2818d1ceac650fb28716a319be5503029e7",
+    "freshBuild": "required in exact ARM64 image"
   },
   "migrations": {
-    "sourceMigrationFiles": 299,
-    "newMigrationsForThisRelease": 0,
-    "productionRestoreVerification": "pending exact-image no-egress rehearsal"
+    "newMigrations": 0
   },
-  "toolchain": "Host Node 26.7.0 using installed dependency binaries because global pnpm 12 is incompatible with the lockfile. Image build must use unchanged pinned Node24/Go1.27.3/pnpm9.15.9 inputs.",
-  "lockfilesChanged": false,
   "productionDeploymentPerformed": false,
   "pendingProductionGates": [
-    "Exact ARM64 image build and empty database smoke",
-    "Exact-image quota chunk verification and historical asset union",
-    "Fresh protected backup and no-egress same-version restore rehearsal",
-    "prepare and real account 12/13 API plus browser acceptance",
-    "activate only if all gates pass under E0 relayed independent P0 GO",
-    "Post-cutover entry/client/quota checks and pinned rollback readiness"
+    "exact ARM64 build and smoke",
+    "fresh protected backup and isolated restore",
+    "prepare and candidate catalog/inference/quota verification",
+    "activate and unchanged-entry verification"
   ],
-  "approval": "Independent P0 GO relayed in e0-quota-p0-go.txt: all gates must pass; any failure stops cutover. Public fork push prohibited."
+  "approval": "QH + independent P0 GO /tmp/e0-claude-vision-go.txt; no public push; .env untouched; t1d excluded"
 }
