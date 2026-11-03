@@ -3,7 +3,8 @@ import { createHash, randomBytes } from 'node:crypto'
 import { readFile, readdir, mkdtemp, writeFile, stat } from 'node:fs/promises'
 import { writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import { spawn, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
+import { isolatedSettingsPut } from './isolated-put.mjs'
 import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import { assertRestoreReceipt, restoreHelperStopped, assertExpectedFactoryPlatformQuotaProjection, assertMigrationRowsMatchSource, assertPersistedConfigurationEqual, sameVersionMode,
@@ -40,6 +41,7 @@ assert(toolWorktreeClean, 'Rehearsal must run from a clean ops-tool worktree')
 const toolFilePaths = [
   'deploy/local-upgrade/upgrade-current.mjs',
   'deploy/local-upgrade/rehearse-private.mjs',
+  'deploy/local-upgrade/isolated-put.mjs',
   'deploy/local-upgrade/rehearse-private-validation.mjs',
   'deploy/local-upgrade/backup-private.mjs',
   'deploy/local-upgrade/backup-manifest.mjs',
@@ -229,29 +231,15 @@ function request(service, path, token, body) {
   const status = Number([...result.stderr.matchAll(/HTTP\/1\.1 (\d+)/g)].at(-1)?.[1])
   return { status, body: result.stdout }
 }
+let putIndex = 0
 async function putSettings(service, token, body) {
-  // BusyBox wget cannot PUT. Keep the full isolated settings payload on stdin.
-  const json = JSON.stringify(body)
-  const wire = `PUT /api/v1/admin/settings HTTP/1.0\r\nHost: localhost\r\nAuthorization: Bearer ${token}\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(json)}\r\nConnection: close\r\n\r\n${json}`
-  const child = spawn('docker', ['exec', '-i', id(service), 'nc', '-w', '5', '127.0.0.1', '8080'], { stdio: ['pipe', 'pipe', 'pipe'] })
-  let result = ''
-  const timer = setTimeout(() => child.kill('SIGTERM'), 10000)
-  try {
-    child.stdout.setEncoding('utf8')
-    child.stdout.on('data', chunk => { result += chunk; if (result.length > 1 << 20) child.kill('SIGTERM') })
-    child.stderr.resume()
-    const complete = new Promise((resolve, reject) => {
-      child.once('error', reject)
-      child.once('close', code => code === 0 ? resolve() : reject(new Error('Isolated PUT transport failed')))
-    })
-    // Keep stdin open until the server closes its response. Ending it early
-    // makes BusyBox nc close the socket and cancels Go's request context.
-    child.stdin.write(wire)
-    await complete
-  } finally { clearTimeout(timer); child.stdin.destroy(); if (child.exitCode === null) child.kill('SIGTERM') }
-  const boundary = result.indexOf('\r\n\r\n')
-  assert(boundary > 0, 'Missing isolated PUT response headers')
-  return { status: Number(result.slice(0, boundary).match(/^HTTP\/1\.[01] (\d+)/)?.[1]), body: result.slice(boundary + 4) }
+  const path = join(directory, `put-${++putIndex}-${service}-private.json`)
+  return isolatedSettingsPut(id(service), token, body, { record: async diagnostic => {
+    await writeFile(path, JSON.stringify(diagnostic, null, 2) + '\n', { flag: 'wx', mode: 0o600 })
+    report.putTransports.push({ path, service, exitCode: diagnostic.exitCode, signal: diagnostic.signal,
+      elapsedMs: diagnostic.elapsedMs, termination: diagnostic.termination,
+      responseComplete: diagnostic.responseComplete, httpStatus: diagnostic.httpStatus })
+  } })
 }
 async function ready(service) {
   const deadline = Date.now() + 90_000
@@ -329,7 +317,7 @@ const report = { project, directory, backup, opsToolSha, toolWorktreeClean, tool
   candidateManifestPath: candidatePath, candidateManifestSha256, candidateManifestHash: candidateManifestSha256,
   candidateCommit: candidate.commit, candidateImageId: candidate.imageId, candidateVersion: candidate.version,
   oldVersion, oldContainerId: backupManifest.oldContainerId, oldImageId: backupManifest.oldImageId,
-  migrationMode: selection.mode, checks: [], restoreHelpers: [], productionDeploymentPerformed: false, realGatewayCallsTested: false,
+  migrationMode: selection.mode, checks: [], restoreHelpers: [], putTransports: [], productionDeploymentPerformed: false, realGatewayCallsTested: false,
   isolation: { networkInternal: false, separateImplementationVolumes: false, noHostPublishedPorts: false,
     noProviderBackgroundJobs: false, helperNetworkNone: false, productionDependenciesReferenced: true },
   compatibility: { oldImageReadWrite: false, candidateImageReadWrite: false, restartStable: false },
