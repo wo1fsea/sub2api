@@ -248,7 +248,11 @@ func fetchFactoryQuotaWindows(ctx context.Context, account *Account) (QuotaWindo
 		if err != nil {
 			return QuotaWindowSnapshot{}, fmt.Errorf("factory account proxy url is invalid")
 		}
-		transport := http.DefaultTransport.(*http.Transport).Clone()
+		base, ok := http.DefaultTransport.(*http.Transport)
+		if !ok || base == nil {
+			return QuotaWindowSnapshot{}, fmt.Errorf("factory billing limits transport is unavailable")
+		}
+		transport := base.Clone()
 		transport.Proxy = http.ProxyURL(proxyURL)
 		client.Transport = transport
 	}

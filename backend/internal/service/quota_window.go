@@ -342,10 +342,7 @@ func DecideQuotaWindowRecovery(account *Account, now time.Time, grace time.Durat
 		return QuotaRecoveryDecision{}
 	}
 
-	enableSchedulable := false
-	if !account.Schedulable && (block.ClearedSchedulable || legacy) {
-		enableSchedulable = true
-	}
+	enableSchedulable := !account.Schedulable && (block.ClearedSchedulable || legacy)
 	windowID := block.WindowID
 	return QuotaRecoveryDecision{
 		Action:            QuotaRecoveryEnable,
