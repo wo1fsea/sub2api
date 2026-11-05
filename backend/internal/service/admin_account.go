@@ -134,6 +134,8 @@ var duplicateAccountDiscardedExtraKeys = map[string]struct{}{
 	"grok_usage_snapshot":                    {},
 	factoryUsageExtraKey:                     {},
 	FactoryUsageGenerationExtraKey:           {},
+	QuotaWindowsExtraKey:                     {},
+	QuotaBlockExtraKey:                       {},
 	"grok_billing_snapshot":                  {},
 	"openai_responses_supported":             {},
 	"openai_compact_supported":               {},
@@ -1006,6 +1008,8 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 	delete(input.Extra, OllamaCloudUsageSnapshotExtraKey)
 	delete(input.Extra, OpenCodeGoUsageAutoRefreshExtraKey)
 	delete(input.Extra, OpenCodeGoUsageSnapshotExtraKey)
+	delete(input.Extra, QuotaBlockExtraKey)
+	delete(input.Extra, QuotaWindowsExtraKey)
 
 	if len(input.AccountIDs) == 0 && input.Filters != nil {
 		accountIDs, err := s.resolveBulkUpdateTargetIDs(ctx, input.Filters)
@@ -1232,6 +1236,14 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 	}
 	if input.Schedulable != nil {
 		repoUpdates.Schedulable = input.Schedulable
+		// An explicit schedulable write is operator intent. Drop the quota
+		// auto-restore grant so a later window reset cannot override it.
+		if repoUpdates.Extra == nil {
+			repoUpdates.Extra = map[string]any{}
+		}
+		for key, value := range QuotaBlockRevokedUpdate() {
+			repoUpdates.Extra[key] = value
+		}
 	}
 
 	// Run bulk update for column/jsonb fields first.
@@ -1409,6 +1421,11 @@ func (s *adminServiceImpl) SetAccountError(ctx context.Context, id int64, errorM
 }
 
 func (s *adminServiceImpl) SetAccountSchedulable(ctx context.Context, id int64, schedulable bool) (*Account, error) {
+	// Revoke before the column write so a failed schedulable update cannot
+	// leave an armed quota restore that would undo this request on retry.
+	if err := s.accountRepo.UpdateExtra(ctx, id, QuotaBlockRevokedUpdate()); err != nil {
+		return nil, err
+	}
 	if err := s.accountRepo.SetSchedulable(ctx, id, schedulable); err != nil {
 		return nil, err
 	}

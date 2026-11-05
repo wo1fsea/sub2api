@@ -36,6 +36,7 @@ type RateLimitService struct {
 	// ratelimit_service_ollama_429.go for how real-Ollama 429s schedule an async
 	// probe to learn the true usage-window reset.
 	ollamaCloudUsageProbe ollamaCloudUsageProbeScheduler
+	quotaWindowRecovery   *QuotaWindowRecoveryService
 	usageCacheMu          sync.RWMutex
 	usageCache            map[int64]*geminiUsageCacheEntry
 
@@ -134,6 +135,15 @@ func (s *RateLimitService) SetTokenCacheInvalidator(invalidator TokenCacheInvali
 
 func (s *RateLimitService) SetAccountRuntimeBlocker(blocker AccountRuntimeBlocker) {
 	s.runtimeBlocker = blocker
+}
+
+// SetQuotaWindowRecovery receives the scheduler that restores Factory accounts
+// after a stored quota window resets. Nil disables the hook.
+func (s *RateLimitService) SetQuotaWindowRecovery(recovery *QuotaWindowRecoveryService) {
+	if s == nil {
+		return
+	}
+	s.quotaWindowRecovery = recovery
 }
 
 func (s *RateLimitService) IsOpenAIAdvancedSchedulerStickyWeightedEnabled(ctx context.Context) bool {
@@ -551,6 +561,23 @@ func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Acc
 		if account.Platform == PlatformOpenAI && gjson.GetBytes(responseBody, "detail.code").String() == "deactivated_workspace" {
 			msg := "Workspace deactivated (402): workspace has been deactivated"
 			s.handleAuthError(ctx, account, msg)
+			shouldDisable = true
+			break
+		}
+		// Factory subscription windows (Standard/Core 5h, week, month) return 402
+		// when the tightest window is exhausted. SetError sticks schedulable=false
+		// past the reset; record the window and let QuotaWindowRecoveryService
+		// restore the account when resets_at passes. Other 402s stay on the
+		// permanent billing path below.
+		if account.IsFactory() && isQuotaExhaustionText(quotaExhaustionObserveText(upstreamMsg, responseBody)) {
+			msg := "Payment required (402): insufficient balance or billing issue"
+			if upstreamMsg != "" {
+				msg = "Payment required (402): " + upstreamMsg
+			}
+			s.handleAuthError(ctx, account, msg)
+			if s.quotaWindowRecovery != nil {
+				s.quotaWindowRecovery.NoteExhaustion(ctx, account, msg)
+			}
 			shouldDisable = true
 			break
 		}

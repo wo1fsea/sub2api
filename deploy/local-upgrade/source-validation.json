@@ -1,30 +1,31 @@
 {
   "status": "source-checks-passed-not-production-approved",
-  "recordedDate": "2026-11-03",
+  "recordedDate": "2026-11-05",
   "version": "0.2.19",
-  "releaseBranch": "codex/fix/factory-claude-vision-20261103",
-  "baselineCommit": "92eae2818d1ceac650fb28716a319be5503029e7",
+  "releaseBranch": "codex/fix/image-allowlist-20261103",
+  "baselineCommit": "800eba1eeb37ea69953efaf50a92a452918ecc7d",
   "upstreamTag": "v0.2.19",
   "upstreamCommit": "dece26153621959ccd7635814f4b2d08304e681a",
-  "backendTree": "b6eb1a4febb053c0568fd9403ad5d1adbb7343b7",
+  "backendTree": "b4b250454f59121cc6324e5284f989c12bd87cdf",
   "frontendTree": "6a3c4283c54ab90baa44727b9c0f1e0edcedcbf5",
   "migrationsTree": "ba0fd03a1d669aacc81cf9f4da180cdbd5b25f2d",
-  "qualificationScope": "Claude and Factory Claude Codex image input advertisement only; no routing, credential, frontend, dependency or migration changes.",
+  "qualificationScope": "Factory quota-window auto-recovery ported onto live 800eba1e (Claude image input, Antigravity pools, Factory usage display). No VERSION bump, no .env change, no SQL migration, no frontend change. Same-version rehearsal from live 0.2.19 is already accepted on this baseline.",
   "backend": {
-    "command": "GOTOOLCHAIN=go1.27.3 GOMAXPROCS=2 GOMEMLIMIT=1GiB go test -tags=unit -p 2 -parallel 2 -count=1 -timeout=6m ./internal/service -run 'Test.*(Codex|Factory)'",
+    "command": "GOTOOLCHAIN=go1.27.3 GOMAXPROCS=2 GOMEMLIMIT=1GiB go test -tags=unit -count=1 -timeout=8m ./internal/service -run 'Test(TightestExhaustedWindow_|DecideQuotaWindowRecovery_|IsQuotaExhaustionText$|ParseFactoryBillingLimits_|FetchFactoryQuotaWindows_|QuotaWindowRecovery_|HandleUpstreamError_Factory402|SetAccountSchedulable_RevokesQuotaAutoRestore)' && go test -tags=unit -race -count=1 -timeout=10m ./internal/service -run '<same>'",
     "passed": true,
-    "log": "/tmp/claude-vision-tests.log",
-    "logSha256": "35d2c21dd1c28a482f802899f27ff723cefadb7882463f61c4f9d55c5c4c5dcb",
-    "fullSuiteRerun": false
+    "race": true,
+    "fullSuiteRerun": false,
+    "note": "24 focused quota-window tests passed, including -race. Full service suite was not re-run."
   },
   "operationsTests": {
-    "passed": 52,
+    "command": "node --test deploy/local-upgrade/rehearse-private.test.mjs",
+    "passed": 10,
     "failed": 0,
-    "log": "/tmp/claude-vision-ops-tests.log"
+    "note": "Live baseline already accepts oldVersion 0.2.19 via same-version-0.2.19-revision. The oldVersion === 0.2.13 hard pin exists only on codex/feat/factory-upstream."
   },
   "frontend": {
     "changed": false,
-    "qualificationReusedFrom": "92eae2818d1ceac650fb28716a319be5503029e7",
+    "qualificationReusedFrom": "800eba1eeb37ea69953efaf50a92a452918ecc7d",
     "freshBuild": "required in exact ARM64 image"
   },
   "migrations": {
@@ -32,10 +33,10 @@
   },
   "productionDeploymentPerformed": false,
   "pendingProductionGates": [
-    "exact ARM64 build and smoke",
-    "fresh protected backup and isolated restore",
+    "exact ARM64 build from the post-merge SHA on codex/fix/image-allowlist-20261103, not from c5ec507",
+    "fresh protected backup and isolated restore from live 0.2.19",
     "prepare and candidate catalog/inference/quota verification",
     "activate and unchanged-entry verification"
   ],
-  "approval": "QH + independent P0 GO /tmp/e0-claude-vision-go.txt; no public push; .env untouched; t1d excluded"
+  "approval": "Not production-approved. Do not deploy from this record."
 }

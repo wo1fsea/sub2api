@@ -504,6 +504,8 @@ func TestAccountQuotaSnapshot_DuplicateAccountDropsObservations(t *testing.T) {
 		"passive_usage_7d_sonnet_utilization": 0.9, "passive_usage_7d_sonnet_sampled_at": "2030-10-08T00:00:00Z",
 		"codex_5h_sampled_at": "2030-10-08T00:00:00Z", "codex_7d_source": "response_headers", "custom_setting": true,
 		factoryUsageExtraKey: map[string]any{"sampled_at": "2030-10-08T00:00:00Z"},
+		QuotaWindowsExtraKey: map[string]any{"windows": []any{}},
+		QuotaBlockExtraKey:   map[string]any{"active": true},
 	}
 	cloned, err := duplicateAccountExtra(extra)
 	require.NoError(t, err)
