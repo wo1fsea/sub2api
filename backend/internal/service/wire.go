@@ -519,6 +519,9 @@ func ProvideRateLimitService(
 	svc.SetSettingService(settingService)
 	svc.SetTokenCacheInvalidator(tokenCacheInvalidator)
 	svc.SetOllamaCloudUsageProbeScheduler(ollamaCloudUsage)
+	recovery := NewQuotaWindowRecoveryService(accountRepo, svc)
+	svc.SetQuotaWindowRecovery(recovery)
+	recovery.Start()
 	return svc
 }
 
