@@ -254,7 +254,11 @@ func TestHandleUpstreamError_Factory402ArmsQuotaRecovery(t *testing.T) {
 	svc.Start()
 	t.Cleanup(svc.Stop)
 
-	disabled := rateLimit.HandleUpstreamError(context.Background(), repo.account, http.StatusPaymentRequired, nil,
+	// The live repo account is updated by the scheduler goroutine. The request
+	// snapshot must not share that Extra map, or NoteExhaustion races the refresh.
+	request := *repo.account
+	request.Extra = cloneExtraMap(repo.account.Extra)
+	disabled := rateLimit.HandleUpstreamError(context.Background(), &request, http.StatusPaymentRequired, nil,
 		[]byte(`{"error":{"message":"Standard usage limit reached. 5h limit"}}`))
 	require.True(t, disabled)
 	require.Equal(t, 1, repo.setErrorCalls)
