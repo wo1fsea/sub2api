@@ -11,7 +11,7 @@ import {
 } from './upgrade-current.mjs'
 import { desiredCompose, names, routing } from './service-recovery.mjs'
 import { assertLivePostgresCoverage, backupArchiveNames, backupArchiveSpecs, protectedBackupFileNames } from './backup-manifest.mjs'
-import { firstUpgradeMode, sameVersionMode } from './rehearse-private-validation.mjs'
+import { deferred248Migrations, firstUpgradeMode, hotCutover248Mode, sameVersionMode } from './rehearse-private-validation.mjs'
 import { parsePostgresDumpListing } from './pg-dump-toc.mjs'
 
 const currentImage = 'sha256:' + 'a'.repeat(64)
@@ -335,6 +335,30 @@ test('isolated restore report must match exact backup, manifests, image/commit, 
     const report = structuredClone(reportFixture.report); mutate(report)
     assert.throws(() => assertRestoreReport(report, ...args.slice(1)))
   }
+})
+
+test('0.2.21 activation requires exact 248 preservation and cannot accept a legacy or incomplete report', () => {
+  const now = Date.now(), fixture = backupFixture(now), target = { ...manifest, version: '0.2.21' }
+  const { report, reportPath, backup } = restoreReportFixture(now, fixture, target)
+  const validate = candidate => assertRestoreReport(candidate, reportPath, backup, target, 'b'.repeat(64), fixture.container, fixture.record, 'a'.repeat(64))
+  assert.throws(() => validate(report), /migration mode/)
+  report.migrationMode = hotCutover248Mode
+  report.migrations.newMigrations = []
+  for (const stage of ['Before', 'After', 'Restart']) report[`sourceCoverage${stage}`] = { rows: 299, sourceFiles: 302, missing: [...deferred248Migrations] }
+  report.hotCutover248 = { deferred: [...deferred248Migrations], schemaStable: true, restartStable: true,
+    beforeObjects: { tables: 0, columns: 0, index: 0 }, afterObjects: { tables: 0, columns: 0, index: 0 }, restartObjects: { tables: 0, columns: 0, index: 0 } }
+  assert.doesNotThrow(() => validate(report))
+  for (const mutate of [
+    r => { r.migrations.beforeCount = 0; r.migrations.afterCount = 0 },
+    r => { r.migrations.newCount = 1 },
+    r => { r.migrations.newMigrations = [deferred248Migrations[0]] },
+    r => { r.sourceCoverageBefore.missing = [] },
+    r => { delete r.sourceCoverageRestart },
+    r => { r.hotCutover248.afterObjects.index = 1 },
+    r => { r.hotCutover248.restartObjects.columns = 2 },
+    r => { r.hotCutover248.schemaStable = false },
+    r => { r.sameVersion.businessStable = false }
+  ]) { const invalid = structuredClone(report); mutate(invalid); assert.throws(() => validate(invalid)) }
 })
 
 const priorOperationalSteps = ['stopCurrentReplacement', 'installPriorConfiguration', 'startPriorImage', 'waitPriorHealthy',

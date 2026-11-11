@@ -7,6 +7,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import { assertExpectedFactoryPlatformQuotaProjection, assertMigrationRowsMatchSource, assertPersistedConfigurationEqual, sameVersionMode,
+  assert248Ledger, deferred248Migrations, hotCutover248Mode,
   selectRehearsalMode, validateMigrationTransition, validateSameVersionPreserved } from './rehearse-private-validation.mjs'
 import { assertProtectedFileMetadata, assertVolumeCoverage, protectedBackupFileNames } from './backup-manifest.mjs'
 
@@ -21,7 +22,7 @@ const candidate = JSON.parse(candidateBytes)
 const candidateManifestSha256 = createHash('sha256').update(candidateBytes).digest('hex')
 assert.match(candidate.imageId, /^sha256:[a-f0-9]{64}$/)
 assert.equal(candidate.platform, 'linux/arm64')
-assert.equal(candidate.version, '0.2.19', 'Rehearsal candidate must be v0.2.19')
+assert(['0.2.19', '0.2.21'].includes(candidate.version), 'Unsupported rehearsal candidate version')
 const backupManifestBytes = await readFile(join(backup, 'backup-manifest.json'))
 const backupManifest = JSON.parse(backupManifestBytes)
 const backupManifestSha256 = createHash('sha256').update(backupManifestBytes).digest('hex')
@@ -56,7 +57,11 @@ const opsToolTrees = { backend: git(['rev-parse', 'HEAD:backend']), frontend: gi
   migrations: git(['rev-parse', 'HEAD:backend/migrations']) }
 assert.deepEqual(opsToolTrees, imageSourceTrees, 'Ops-tool application trees differ from the image source commit')
 const selection = selectRehearsalMode(oldVersion, candidate.version)
-const sameVersion = selection.mode === sameVersionMode
+const hotCutover248 = selection.mode === hotCutover248Mode
+// Both modes demand zero changes; the cross-version mode additionally proves
+// the exact three deferred files and all post-248 objects remain absent.
+const sameVersion = selection.mode === sameVersionMode || hotCutover248
+const deferred = hotCutover248 ? [...deferred248Migrations] : []
 const expectedMigrationNames = selection.expectedMigrationNames
 const expectedNewMigrations = selection.expectedNewMigrations
 const sourceMigrationChecksums = new Map()
@@ -240,6 +245,17 @@ function migrationRows() {
 function schemaFingerprint() {
   return JSON.parse(sql(`SELECT json_build_object('columns',count(*),'digest',md5(coalesce(string_agg(md5(table_name||'.'||column_name||'.'||data_type||'.'||is_nullable||'.'||coalesce(column_default,'')),'' ORDER BY table_name,column_name),''))) FROM information_schema.columns WHERE table_schema='public';`))
 }
+function post248Objects() {
+  return JSON.parse(sql(`SELECT json_build_object(
+    'tables', (SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name LIKE 'mcp_oauth_%'),
+    'columns', (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND column_name IN ('cache_creation_30m_tokens','cache_creation_12h_tokens','cache_write_12h_price')),
+    'index', (SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND indexname='idx_usage_logs_api_key_created_cost'))`))
+}
+function assertPost248Absent() {
+  const objects = post248Objects()
+  assert.deepEqual(objects, { tables: 0, columns: 0, index: 0 }, 'Post-248 schema objects must remain absent')
+  return objects
+}
 function imageGenerationGate() {
   return JSON.parse(sql("SELECT coalesce(json_agg(json_build_object('id',id,'platform',platform,'allow_image_generation',allow_image_generation) ORDER BY id),'[]'::json) FROM groups;"))
 }
@@ -338,12 +354,16 @@ try {
   report.restored = fingerprints(false)
   report.backgroundInventory = JSON.parse(sql(inventory))
   const migrationsBefore = migrationRows()
+  if (hotCutover248) {
+    assert248Ledger(migrationsBefore)
+    report.hotCutover248 = { beforeObjects: assertPost248Absent(), deferred, schemaStable: false, restartStable: false }
+  }
   const priorByName = new Map(migrationsBefore.map(item => [item.filename, item.checksum]))
   const targetPresentBefore = expectedMigrationNames.filter(name => priorByName.has(name))
   const alreadyMigrated = !sameVersion && targetPresentBefore.length === expectedMigrationNames.length &&
     expectedMigrationNames.every(name => priorByName.get(name) === expectedMigrationChecksums.get(name))
   report.alreadyMigrated = sameVersion ? true : alreadyMigrated
-  const allowMissingBefore = sameVersion ? [] : targetPresentBefore.length === 0 ? expectedMigrationNames : []
+  const allowMissingBefore = sameVersion ? deferred : targetPresentBefore.length === 0 ? expectedMigrationNames : []
   report.sourceCoverageBefore = assertMigrationRowsMatchSource(migrationsBefore, sourceMigrationChecksums, { allowMissing: allowMissingBefore })
   const schemaBefore = schemaFingerprint()
   const imageGenerationBefore = imageGenerationGate()
@@ -381,6 +401,7 @@ try {
   report.isolation.noProviderBackgroundJobs = true
   report.isolation.productionDependenciesReferenced = false
   const migrationsAfter = migrationRows()
+  if (hotCutover248) report.hotCutover248.afterObjects = assertPost248Absent()
   const schemaAfter = schemaFingerprint()
   const businessAfter = fingerprints(sameVersion)
   const imageGenerationAfter = imageGenerationGate()
@@ -389,7 +410,7 @@ try {
   const unlimitedQuotaRowsAfter = unlimitedQuotaRows()
   const transition = validateMigrationTransition({ mode: selection.mode, before: migrationsBefore, after: migrationsAfter,
     expectedChecksums: Object.fromEntries(expectedMigrationChecksums) })
-  report.sourceCoverageAfter = assertMigrationRowsMatchSource(migrationsAfter, sourceMigrationChecksums, { allowMissing: [] })
+  report.sourceCoverageAfter = assertMigrationRowsMatchSource(migrationsAfter, sourceMigrationChecksums, { allowMissing: deferred })
   assert.equal(transition.alreadyMigrated, report.alreadyMigrated)
   report.migrations = { mode: selection.mode, beforeCount: migrationsBefore.length, afterCount: migrationsAfter.length,
     expectedNewCount: expectedNewMigrations, newCount: transition.newMigrations.length, newMigrations: transition.newMigrations,
@@ -397,6 +418,7 @@ try {
   if (sameVersion) {
     assert.deepEqual(migrationsAfter, migrationsBefore, 'Same-version startup changed migration rows')
     assert.deepEqual(schemaAfter, schemaBefore, 'Same-version startup changed schema metadata')
+    if (hotCutover248) report.hotCutover248.schemaStable = true
     assert.deepEqual(businessAfter, businessBefore, 'Same-version startup changed business projections')
     const sameVersionAdminSettingsAfter = readAdminSettings('green', token)
     const configurationAfter = configurationSnapshot('green', token, sameVersionAdminSettingsAfter)
@@ -409,7 +431,7 @@ try {
     assert.deepEqual(imageBillingAfter, imageBillingBefore, 'Same-version startup changed image-count billing values')
     assert.equal(scopedAdminKeysAfter, scopedAdminKeysBefore, 'Same-version startup changed scoped administrator key rows')
     assert.equal(unlimitedQuotaRowsAfter, unlimitedQuotaRowsBefore, 'Same-version startup changed unlimited quota rows')
-    const rechecked = validateMigrationTransition({ mode: sameVersionMode, before: migrationsBefore, after: migrationsAfter })
+    const rechecked = validateMigrationTransition({ mode: selection.mode, before: migrationsBefore, after: migrationsAfter })
     assert.equal(rechecked.newMigrations.length, 0)
     report.checks.push('same-version zero migration/checksum delta', 'all 299 release-source migration rows exact',
       'business projections unchanged through startup', 'persisted configuration/settings/app-data unchanged through startup',
@@ -465,6 +487,15 @@ try {
     assert.equal(version, service === 'green' ? candidate.version : oldVersion)
   }
   report.checks.push('old session valid in both versions', 'existing compliance preserved', 'both admin read workflows')
+  if (hotCutover248) {
+    for (const path of ['/api/v1/usage?page=1&page_size=1', '/api/v1/admin/usage?page=1&page_size=1',
+      '/api/v1/admin/channels', '/api/v1/channels/available']) {
+      assert.equal(request('green', path, token).status, 200, `248 compatibility read failed: ${path}`)
+    }
+    report.checks.push('0.2.21 user/admin usage and channel pricing reads succeed on restored 248 schema')
+    assert.equal(request('green', '/api/v1/user/mcp/grants', token).status, 503, 'MCP OAuth must report unavailable without migration 249')
+    report.checks.push('MCP OAuth without tables returns controlled 503 rather than missing-table failure')
+  }
   const initialSettings = JSON.parse(request('green', '/api/v1/admin/settings', token).body).data
   const sharedAppearance = { skin: 'neubrutalism', mode: 'dark', accent_color: '#112233' }
   const changed = await putSettings('green', token, { ...initialSettings, site_appearance: sharedAppearance })
@@ -515,7 +546,15 @@ try {
   await ready('blue')
   assert.equal(request('blue', '/api/v1/auth/me', token).status, 200)
   const migrationsAfterRestart = migrationRows()
-  assertMigrationRowsMatchSource(migrationsAfterRestart, sourceMigrationChecksums, { allowMissing: [] })
+  report.sourceCoverageRestart = assertMigrationRowsMatchSource(migrationsAfterRestart, sourceMigrationChecksums, { allowMissing: deferred })
+  if (hotCutover248) {
+    assert248Ledger(migrationsAfterRestart)
+    report.hotCutover248.restartObjects = assertPost248Absent()
+    assert.deepEqual(schemaFingerprint(), schemaBefore, '248 schema changed across restarts')
+    report.hotCutover248.restartStable = true
+    report.checks.push('0.2.19 to 0.2.21: all 299 applied filenames/checksums unchanged; exactly three 249/250 files remain unapplied',
+      'post-248 MCP tables, cache TTL columns and cost index absent before/after startup and restart')
+  }
   if (sameVersion) {
     assert.deepEqual(migrationsAfterRestart, migrationsBefore, 'Same-version restart changed migration rows')
     const restartBusinessAfter = fingerprints(true)

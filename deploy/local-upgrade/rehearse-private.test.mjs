@@ -6,6 +6,7 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import {
   assertExpectedFactoryPlatformQuotaProjection, assertMigrationRowsMatchSource, assertNoMigrationChanges, assertPersistedConfigurationEqual,
+  assert248Ledger, deferred248Migrations, hotCutover248Mode,
   expectedFirstUpgradeMigrations, firstUpgradeMode, normalizeMigrationRows, sameVersionMode, selectRehearsalMode,
   validateMigrationTransition, validateSameVersionPreserved
 } from './rehearse-private-validation.mjs'
@@ -20,11 +21,13 @@ const firstChecksums = Object.fromEntries(expectedFirstUpgradeMigrations.map((na
   [name, (index + 1).toString(16).padStart(64, '0')]))
 const firstMigrations = expectedFirstUpgradeMigrations.map(name => ({ filename: name, checksum: firstChecksums[name] }))
 
-test('rehearsal allows only the two explicit version paths', () => {
+test('rehearsal allows only the explicit version paths, with 0.2.21 restricted to schema 248', () => {
   assert.equal(selectRehearsalMode('0.2.13', '0.2.19').mode, firstUpgradeMode)
   assert.equal(selectRehearsalMode('0.2.13', '0.2.19').expectedNewMigrations, 8)
   assert.equal(selectRehearsalMode('0.2.19', '0.2.19').mode, sameVersionMode)
   assert.equal(selectRehearsalMode('0.2.19', '0.2.19').expectedNewMigrations, 0)
+  assert.equal(selectRehearsalMode('0.2.19', '0.2.21').mode, hotCutover248Mode)
+  assert.equal(selectRehearsalMode('0.2.19', '0.2.21').expectedNewMigrations, 0)
   for (const [oldVersion, candidateVersion] of [['0.2.13', '0.2.13'], ['0.2.19', '0.2.20'], ['0.2.18', '0.2.19'], ['0.2.4', '0.2.19']]) {
     assert.throws(() => selectRehearsalMode(oldVersion, candidateVersion), /only 0.2.13 to 0.2.19 or 0.2.19 to 0.2.19/)
   }
@@ -97,11 +100,11 @@ test('same-version rehearsal requires all 299 migration rows to match the releas
     /coverage differs/)
 })
 
-test('real 299 release-source migration filenames and checksums normalize and match exactly', async () => {
+test('real 302 embedded migrations permit exactly the 299-row 248 ledger and three deferred files', async () => {
   const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
   const directory = join(root, 'backend/migrations')
   const sourceNames = (await readdir(directory)).filter(name => name.endsWith('.sql')).sort()
-  assert.equal(sourceNames.length, 299)
+  assert.equal(sourceNames.length, 302)
   const rows = [], source = new Map()
   for (const filename of sourceNames) {
     const checksum = createHash('sha256').update((await readFile(join(directory, filename), 'utf8')).trim()).digest('hex')
@@ -109,10 +112,26 @@ test('real 299 release-source migration filenames and checksums normalize and ma
     source.set(filename, checksum)
   }
   const normalized = normalizeMigrationRows(rows)
-  assert.equal(normalized.length, 299)
+  assert.equal(normalized.length, 302)
   assert.deepEqual(normalized.map(row => row.filename), sourceNames)
   const coverage = assertMigrationRowsMatchSource(rows, source)
-  assert.deepEqual(coverage, { rows: 299, sourceFiles: 299, missing: [] })
+  assert.deepEqual(coverage, { rows: 302, sourceFiles: 302, missing: [] })
+  const rows248 = rows.filter(row => !deferred248Migrations.includes(row.filename))
+  assert248Ledger(rows248)
+  assert.deepEqual(assertMigrationRowsMatchSource(rows248, source, { allowMissing: [...deferred248Migrations] }),
+    { rows: 299, sourceFiles: 302, missing: [...deferred248Migrations] })
+  const transition = validateMigrationTransition({ mode: hotCutover248Mode, before: rows248, after: structuredClone(rows248) })
+  assert.deepEqual(transition.newMigrations, [])
+  for (const invalid of [[], rows248.slice(1), rows, [...rows248.slice(1), rows.at(-1)]]) {
+    assert.throws(() => validateMigrationTransition({ mode: hotCutover248Mode, before: invalid, after: invalid }))
+    assert.throws(() => validateMigrationTransition({ mode: hotCutover248Mode, before: rows248, after: invalid }))
+  }
+  const changed248 = structuredClone(rows248); changed248[0].checksum = 'f'.repeat(64)
+  assert.throws(() => validateMigrationTransition({ mode: hotCutover248Mode, before: rows248, after: changed248 }), /changed/)
+  for (const name of deferred248Migrations) {
+    assert.throws(() => assertMigrationRowsMatchSource([...rows248, rows.find(row => row.filename === name)], source,
+      { allowMissing: [...deferred248Migrations] }), /coverage differs/)
+  }
   const extra = [...rows, { filename: '300_extra.sql', checksum: 'e'.repeat(64) }]
   const missing = rows.slice(0, -1)
   const tampered = structuredClone(rows); tampered[0].checksum = 'f'.repeat(64)

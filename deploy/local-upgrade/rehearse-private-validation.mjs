@@ -3,6 +3,12 @@ import { createHash } from 'node:crypto'
 
 export const firstUpgradeMode = 'first-upgrade-0.2.13-to-0.2.19'
 export const sameVersionMode = 'same-version-0.2.19-revision'
+export const hotCutover248Mode = 'hot-cutover-0.2.19-to-0.2.21-schema-248'
+export const deferred248Migrations = Object.freeze([
+  '249_add_usage_logs_api_key_cost_index_notx.sql',
+  '249_mcp_oauth.sql',
+  '250_openai_cache_write_ttl.sql'
+])
 export const expectedFirstUpgradeMigrations = Object.freeze([
   '242_drop_platform_check_constraints.sql',
   '242_group_i18n.sql',
@@ -24,7 +30,18 @@ export function selectRehearsalMode(oldVersion, candidateVersion) {
   if (oldVersion === '0.2.19' && candidateVersion === '0.2.19') {
     return { mode: sameVersionMode, oldVersion, candidateVersion, expectedMigrationNames: [], expectedNewMigrations: 0 }
   }
-  throw new Error('This rehearsal supports only 0.2.13 to 0.2.19 or 0.2.19 to 0.2.19')
+  if (oldVersion === '0.2.19' && candidateVersion === '0.2.21') {
+    return { mode: hotCutover248Mode, oldVersion, candidateVersion, expectedMigrationNames: [], expectedNewMigrations: 0 }
+  }
+  throw new Error('This rehearsal supports only 0.2.13 to 0.2.19 or 0.2.19 to 0.2.19 or 0.2.19 to 0.2.21 on unchanged schema 248')
+}
+
+export function assert248Ledger(rows) {
+  const normalized = normalizeMigrationRows(rows)
+  assert.equal(normalized.length, 299, '248 cutover requires the complete nonempty 299-row ledger')
+  assert.equal(normalized.at(-1).filename, '248_group_image_count_billing.sql', '248 cutover ledger must end at 248')
+  assert(normalized.every(row => Number(row.filename.slice(0, 3)) <= 248), 'Post-248 migration is already applied')
+  return normalized
 }
 
 export function normalizeMigrationRows(rows) {
@@ -78,7 +95,11 @@ function expectedChecksumMap(names, checksums) {
 export function validateMigrationTransition({ mode, before, after, expectedChecksums }) {
   const normalizedBefore = normalizeMigrationRows(before)
   const normalizedAfter = normalizeMigrationRows(after)
-  if (mode === sameVersionMode) {
+  if (mode === sameVersionMode || mode === hotCutover248Mode) {
+    if (mode === hotCutover248Mode) {
+      assert248Ledger(before)
+      assert248Ledger(after)
+    }
     assert.deepEqual(normalizedAfter, normalizedBefore, 'Same-version rehearsal changed the migration set or checksums')
     return { mode, alreadyMigrated: true, newMigrations: [], beforeCount: normalizedBefore.length, afterCount: normalizedAfter.length }
   }

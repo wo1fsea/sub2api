@@ -1,3 +1,57 @@
+# 2026-11-11 — 0.2.21 / a8314a689286 热切换鉴定：BLOCKED，未 activate
+
+本轮依据本目录 BRIEF.md 执行。鉴定应用源码为 merge commit `a8314a689286dfac8d26b017e2b853d8335c19bb`，未 amend、未推送任何 remote。下面的本地工具改动不代表已完成打包或运行时资格验证。
+
+## 决定与实际 blocker
+
+停止在源码/工具鉴定阶段；未构建候选镜像，未新建备份，未运行隔离演练、prepare、activate 或 rollback。没有可报告的 0.2.21 image tag/digest；不能把 merge SHA 或本地鉴定提交拼成一个未实际生成的镜像 tag。
+
+实际安装的 `/Library/LaunchDaemons/net.clawbotbot.sub2api-recovery.plist` 每 60 秒执行 `/Library/Application Support/Sub2API Recovery/launchd-recovery.mjs`。这个 root-owned dispatcher 固定调用 `/Users/clawbotbot/Projects/sub2api-neubrutalism/deploy/local-upgrade/service-recovery.mjs`，并不使用本工作树。已核对该现网程序：
+
+- `supportedVersions` 仅允许 0.2.13 / 0.2.19；`releasePin` 和 `assertVersion` 拒绝 0.2.21。
+- `boot` 在操作服务之前要求 active manifest 路径匹配 `sub2api_0.2.(13|19)_linux_arm64_<sha>/manifest.json`，因此真实 0.2.21 manifest 也会被路径校验拒绝。
+- 仅 import 其纯校验函数，用合成 manifest/metadata 验证：0.2.19 accepted=true；0.2.21 accepted=false，错误为 `Unsupported release version`。未调用 boot/status/恢复动作，未改其文件或 launchd。
+- dispatcher SHA256：`4625d6e19356df8a4d636dfb5ce48b7fc1bf6c61c43af2512413f9c3a2f203dd`；实际 recovery 程序 SHA256：`37205b5fcbdf773459d083b9547f1884aaafa4c1f9f006e4127eb5521edb3b7d`。
+
+因此，把新 image/manifest 写入 upgrade state 后，已安装的恢复程序将无法接受新版本。这不证明 248 兼容层一定失败，但证明目前尚无完整、可放行的安全切换/恢复路径。BRIEF 只允许改现网 image/compose/upgrade state 和本工作树鉴定/升级脚本；修复另一工作树内实际部署的恢复程序超出该边界。未通过伪造版本、路径或账本规避。后续需 P0 先明确解决该现网恢复兼容范围，再继续实际打包、受保护新备份及现网库副本演练；本轮不自行扩大权限。
+
+## 248 路径已证明与尚未证明的部分
+
+只读核对现网 `schema_migrations`：299 条，最后 `248_group_image_count_billing.sql`，与本 HEAD 的全部已应用文件名/checksum 逐项一致。目标源码共 302 个 SQL，唯独下面三个未入账，不能因它们嵌入镜像而要求应用：
+
+- `249_add_usage_logs_api_key_cost_index_notx.sql`
+- `249_mcp_oauth.sql`
+- `250_openai_cache_write_ttl.sql`
+
+现网 MCP OAuth 表数=0，post-248 TTL/12h 定价列数=0，`idx_usage_logs_api_key_created_cost` 索引数=0。账本 MD5（按 filename 排序拼接 filename:checksum）为 `6881ca3d0765b3d4376b867c6012863a`。public schema 列数=1460，列元数据指纹 `259bcb175bb7a2f0487793af6260f79c`。Atlas 账本原本有 1 条、version=`237_add_minimax_platform`；本轮未改动。
+
+本地新增 mode `hot-cutover-0.2.19-to-0.2.21-schema-248`：复用零变化演练要求，额外强制非空且完整的 299 条 248 账本、精确 source checksum、三条 deferred 文件始终未应用，以及启动/重启前后对应表/列/索引持续缺席。没有新增会应用 249/250 的 mode。prepare/activate 增加只读现网 ledger/source/object 门禁，不能接受同版本旧报告、空库报告或缺失证据。隔离脚本加入真实用量/渠道读取与 MCP 缺表受控 503 检查。
+
+这些是已通过单元测试的本地工具改动，**尚未在现网数据库副本上执行**。没有“0.2.21 进程实际启动后跳过三条迁移”的日志/报告，也没有隔离演练的运行时兼容 PASS；不据此放行。应用源码、SQL 文件、VERSION、build-inputs 均未改变。
+
+## 实际鉴定检查
+
+- 后端 `node deploy/local-upgrade/test-backend.mjs unit`：Go 1.27.4，61 包、27,105 tests PASS，42 skipped，0 failures，未跑 race。包含 page-context、call_id、迁移/248 schema 兼容及 Factory 回归。runner 不继承现网测试凭据。报告 `frontend/tmp/backend-tests/run-RDYxYn/report.json`，仅本地 ignored artifact。
+- 升级工具 `node --test deploy/local-upgrade/*.test.mjs`：81/81 PASS，包含空账本、迁移新增/缺失/checksum 变化、post-248 对象及不完整报告的拒绝检查。
+- 前端使用 pnpm 9.15.9 frozen-lockfile 安装（ignore-scripts），vue-tsc 类型检查 PASS；localeKeyCompleteness、UsageView、MCPView、KeysView 共 4 文件/52 tests PASS。未声称前端全套测试或 ARM64 image build 完成。
+- `source-validation.json` 已更新为上述实际源码树与证据，明确标记生产 blocker、未演练、未部署，未沿用旧 0.2.19 鉴定结果。
+
+## 现网实际状态与不变性
+
+切前重新 inspect，停止后再次核对（2026-11-11 23:38 +0800 附近）：
+
+- 实际 image tag：`sub2api-local:0.2.19-466dc86d2eec`；运行配置使用 digest pin。
+- 实际 image ID/digest：`sha256:ed98069e97165ce50a1286cd7707fa250c8b864e4651ab63cad0d3ce1e5b1655`。
+- 实际 revision：`466dc86d2eec60c8d56398dcae627a3f1c375127`。
+- `sub2api-current-app` = healthy；18480 与 18080 `/health` 均为 `{"status":"ok"}`。StartedAt 仍为 `2026-11-08T08:53:42.616998344Z`，RestartCount 仍为 6；本轮未重启 app，也未处理 OAuth #1。
+- `.env` 未读出内容、未改写：mtime=`2026-09-24T18:02:14+0800`，605 bytes，0600；SHA256=`63503f4f21908be7b28ba9686c109e20498cb489ef429a9f8277c42d08a0bc14`。
+- DB：本轮仅执行只读 SELECT/READ ONLY 检查，未执行数据/DDL 写入、迁移、账本插入、restore 或升级启动。299 条迁移和上述 schema 指纹保持一致，249/250 未应用。这里的“DB 未动”指本轮未操作写库；现网仍承接正常业务，不声称整个活动数据库逐字节静止。
+- 现网 compose/state 未改。`current-0.2.13/compose-private.json` SHA256=`cb98c8985eb2df8f3aeed7073648a15e92538c1c8240d660015ddb5c10a8e325`，`state.json`=`4980a4a2e84efa1988dbc0aecbe27a1edda579ab9aef490e7474160a2c9327cc`；`upgrade-0.2.19-466dc86d2eec/compose-private.json`=`fb241b8221af86cecdbd3c24d37177806729a5e5a8855b889a8cb179368eca23`，`state.json`=`4a8dc232101975055fec2d3e92fdd39c42994e4fac4b1fe134101445eb16b7e0`。
+- 新备份路径/演练报告：无（在鉴定即停）。原 `/Users/clawbotbot/Projects/sub2api-upgrade-private/backup-Omp0Fv` 保留，未覆盖/删除；未删除任何现网 image/volume。
+- 磁盘：起始约 14 GiB 可用，停止时约 16 GiB；Docker data 盘约 20 GiB 可用。未 prune 或清除任何数据；Docker images=12、containers=7、volumes=7、build cache=0。测试报告有界，不采集现网请求日志或 secret snapshot。
+
+---
+
 # Factory upstream implementation
 
 ## M0 — evidence and implementation plan (2026-11-02)

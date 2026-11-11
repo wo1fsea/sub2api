@@ -10,7 +10,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { acquireLock, assertCurrent, deployment, directory, names, routing } from './service-recovery.mjs'
 import { liveGateway } from './live-gateway.mjs'
 import { assertLivePostgresCoverage, assertProtectedFileMetadata, assertVolumeCoverage, backupArchiveNames, backupArchiveSpecs, protectedBackupFileNames } from './backup-manifest.mjs'
-import { firstUpgradeMode, sameVersionMode } from './rehearse-private-validation.mjs'
+import { assert248Ledger, assertMigrationRowsMatchSource, deferred248Migrations, firstUpgradeMode, hotCutover248Mode, sameVersionMode } from './rehearse-private-validation.mjs'
 import { postgresDumpListToc } from './pg-dump-toc.mjs'
 export { postgresDumpListToc } from './pg-dump-toc.mjs'
 
@@ -25,8 +25,8 @@ const backupRoot = '/Users/clawbotbot/Projects/sub2api-upgrade-private'
 const currentComposeArgs = ['compose', '-p', 'sub2api-current', '--env-file', '/dev/null', '-f', composePath]
 const digestPattern = /^sha256:[a-f0-9]{64}$/
 export const currentRecoveryVersion = '0.2.13'
-export const targetVersion = '0.2.19'
-const supportedVersions = new Set([currentRecoveryVersion, targetVersion])
+export const targetVersion = '0.2.21'
+const supportedVersions = new Set([currentRecoveryVersion, '0.2.19', targetVersion])
 const assetPattern = /^\/assets\/[a-zA-Z0-9_.-]+-[a-zA-Z0-9_-]{6,}\.(?:js|css)$/
 const sha = value => createHash('sha256').update(value).digest('hex')
 const restoreReportPattern = new RegExp(`^${backupRoot}/rehearsal-[a-zA-Z0-9]+/rehearsal-report\.json$`)
@@ -196,7 +196,7 @@ async function loadRelease(path, fullChecks = false) {
   const manifestPath = resolve(path || '')
   const bytes = await readFile(manifestPath), manifest = JSON.parse(bytes)
   const identity = releaseIdentity(manifestPath, manifest)
-  check(manifest.version === targetVersion, 'This upgrade tool only prepares the v0.2.19 target')
+  check(manifest.version === targetVersion, 'This upgrade tool only prepares the v0.2.21 target')
   const metadata = imageMetadata(identity.image)
   check(metadata.Id === identity.image && `${metadata.Os}/${metadata.Architecture}` === manifest.platform, 'Release image or platform changed')
   check(metadata.Config.Labels?.['org.opencontainers.image.revision'] === identity.commit && metadata.Config.Labels?.['org.opencontainers.image.version'] === manifest.version, 'Release image source/version labels do not match the manifest')
@@ -261,10 +261,11 @@ export function assertRestoreReport(report, reportPath, backup, manifest, manife
   for (const [relative, hash] of Object.entries(report.toolFiles)) {
     check(/^deploy\/local-upgrade\/[a-zA-Z0-9_.-]+$/.test(relative) && /^[a-f0-9]{64}$/.test(hash), 'Restore report tool-file entry is invalid')
   }
-  check([firstUpgradeMode, sameVersionMode].includes(report.migrationMode), 'Restore report migration mode is unsupported')
+  check([firstUpgradeMode, sameVersionMode, hotCutover248Mode].includes(report.migrationMode), 'Restore report migration mode is unsupported')
   const activeVersion = activeContainer.Config.Labels?.['org.opencontainers.image.version']
   const expectedMode = activeVersion === '0.2.13' && manifest.version === '0.2.19' ? firstUpgradeMode
-    : activeVersion === '0.2.19' && manifest.version === '0.2.19' ? sameVersionMode : null
+    : activeVersion === '0.2.19' && manifest.version === '0.2.19' ? sameVersionMode
+    : activeVersion === '0.2.19' && manifest.version === '0.2.21' ? hotCutover248Mode : null
   check(expectedMode !== null && report.migrationMode === expectedMode, 'Restore report migration mode differs from the current and candidate versions')
   const isolation = report.isolation || {}
   check(isolation.networkInternal === true && isolation.separateImplementationVolumes === true && isolation.noHostPublishedPorts === true &&
@@ -274,11 +275,25 @@ export function assertRestoreReport(report, reportPath, backup, manifest, manife
   const migrations = report.migrations || {}
   check(Number.isInteger(migrations.beforeCount) && migrations.beforeCount >= 0 && Number.isInteger(migrations.afterCount) &&
     migrations.afterCount >= 0 && migrations.restartStable === true && Number.isInteger(migrations.newCount) && migrations.newCount >= 0, 'Restore report migration evidence is incomplete')
-  if (report.migrationMode === sameVersionMode) {
+  if (report.migrationMode === sameVersionMode || report.migrationMode === hotCutover248Mode) {
     check(migrations.beforeCount === migrations.afterCount, 'Same-version restore report migration counts changed')
     check(migrations.alreadyMigrated === true && migrations.newCount === 0, 'Same-version restore report must show zero migration changes')
     check(report.sameVersion?.migrationsStable === true && report.sameVersion?.businessStable === true &&
       report.sameVersion?.configurationStable === true && report.sameVersion?.restartStable === true, 'Same-version restore report must show exact state preservation')
+    if (report.migrationMode === hotCutover248Mode) {
+      check(migrations.beforeCount === 299 && migrations.afterCount === 299 && migrations.expectedNewCount === 0 &&
+        isDeepStrictEqual(migrations.newMigrations, []), '248 cutover requires exactly 299 unchanged migration rows')
+      for (const stage of ['Before', 'After', 'Restart']) {
+        check(isDeepStrictEqual(report[`sourceCoverage${stage}`], { rows: 299, sourceFiles: 302, missing: [...deferred248Migrations] }),
+          '248 cutover requires exact applied source checksums and three unapplied files at every stage')
+      }
+      const evidence = report.hotCutover248
+      check(evidence?.schemaStable === true && evidence?.restartStable === true &&
+        isDeepStrictEqual(evidence.deferred, [...deferred248Migrations]), '248 schema preservation evidence is incomplete')
+      for (const stage of ['beforeObjects', 'afterObjects', 'restartObjects']) {
+        check(isDeepStrictEqual(evidence[stage], { tables: 0, columns: 0, index: 0 }), 'Post-248 objects must remain absent')
+      }
+    }
   } else if (migrations.alreadyMigrated === true) {
     check(migrations.newCount === 0, 'Already-migrated restore report unexpectedly applied migrations')
   } else {
@@ -301,6 +316,7 @@ function postgresMetadata(container) {
 }
 
 async function verifyBackup(backup, active, manifest, manifestSha256, reportPath) {
+  if (manifest.version === '0.2.21') await verifyLive248(active.dependencies[0])
   check(resolve(backup) === backup && new RegExp(`^${backupRoot}/backup-[a-zA-Z0-9]+$`).test(backup), 'Pass an exact private backup directory')
   check(typeof reportPath === 'string' && resolve(reportPath) === reportPath && restoreReportPattern.test(reportPath), 'Prepare and activate require the exact private isolated restore report')
   const info = await lstat(backup)
@@ -338,6 +354,25 @@ async function verifyBackup(backup, active, manifest, manifestSha256, reportPath
   }
   return { archivesVerified: true, protectedFilesVerified: true, volumeCoverageVerified: true, dumpReadable: true,
     livePostgres: liveCoverage, isolatedRestoreReport: reportPath, restoreReportCheck: reportCheck }
+}
+
+async function verifyLive248(postgres) {
+  const query = `BEGIN READ ONLY; SET LOCAL statement_timeout='5s';
+    SELECT json_build_object(
+      'rows', (SELECT json_agg(json_build_object('filename',filename,'checksum',checksum) ORDER BY filename) FROM schema_migrations),
+      'tables', (SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name LIKE 'mcp_oauth_%'),
+      'columns', (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND column_name IN ('cache_creation_30m_tokens','cache_creation_12h_tokens','cache_write_12h_price')),
+      'index', (SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND indexname='idx_usage_logs_api_key_created_cost'));
+    ROLLBACK;`
+  const snapshot = JSON.parse(docker(['exec', '-i', postgres.Id, 'sh', '-c',
+    'exec psql -X -qAt -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'], query))
+  assert248Ledger(snapshot.rows)
+  const source = new Map()
+  for (const name of (await readdir(join(root, 'backend/migrations'))).filter(name => name.endsWith('.sql'))) {
+    source.set(name, sha((await readFile(join(root, 'backend/migrations', name), 'utf8')).trim()))
+  }
+  assertMigrationRowsMatchSource(snapshot.rows, source, { allowMissing: [...deferred248Migrations] })
+  check(snapshot.tables === 0 && snapshot.columns === 0 && snapshot.index === 0, 'Live post-248 objects must remain absent')
 }
 
 async function request(base, path, { token, body, timeoutMs = 10_000 } = {}) {
@@ -684,6 +719,7 @@ async function prepare(manifestPath, backup, restoreReport) {
     const token = await session(active.config)
     const appearance = await verifyShared(direct, token, undefined, state.priorVersion)
     await startCandidate(identity, active.config)
+    await verifyLive248(active.dependencies[0])
     await verifyShared(identity.candidateBase, token, appearance, targetVersion)
     const oldGraph = await assetGraph(direct), nextGraph = await assetGraph(identity.candidateBase)
     state.frontend = [...nextGraph].filter(([path]) => /\/QuotaOverviewView-[^/]+\.(?:js|css)$/.test(path)).map(([path, bytes]) => ({ path, sha256: sha(bytes) }))
@@ -821,6 +857,7 @@ async function activate(path) {
     verifyCandidate: async () => {
       assertCandidate(identity)
       await ready(identity.candidateBase)
+      await verifyLive248(active.dependencies[0])
       await verifyShared(identity.candidateBase, token, appearance, targetVersion)
       await verifyQuota(identity.candidateBase, token, state.frontend)
       await liveGateway(identity.candidateBase + '/v1', null, { timeoutMs: 45_000 })
@@ -841,6 +878,7 @@ async function activate(path) {
     },
     verifyCurrent: async () => {
       await ready(direct)
+      await verifyLive248(active.dependencies[0])
       assertCurrent(inspect(names.app), identity.image)
       await verifyShared(direct, token, appearance, targetVersion)
       state.finalDirectQuota = await verifyQuota(direct, token, state.frontend)
