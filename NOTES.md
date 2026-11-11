@@ -1,3 +1,34 @@
+# 2026-11-12 00:02 +0800 — 续做结果：恢复兼容已完成，打包内存失败，未 activate
+
+依据追加批准继续同一任务，恢复兼容 blocker 已解除；随后按实际干净 HEAD `fe58becea5756f429b33887482d7e6bcf01e134f` 运行 `node deploy/local-upgrade/build-local.mjs`。构建在 frontend-builder 8/8 失败，遵守“失败即停”，未重试或放宽构建资源，也未继续新数据库备份、隔离演练、prepare、activate。0.2.19→0.2.21 的现网副本启动/重启安全证明仍未完成。
+
+## 已完成的现网恢复兼容修改
+
+实际文件 `/Users/clawbotbot/Projects/sub2api-neubrutalism/deploy/local-upgrade/service-recovery.mjs` 仅两处变化：supportedVersions 增加 0.2.21；active manifest 路径正则从 `(13|19)` 扩为 `(13|19|21)`。原 0.2.13/0.2.19 兼容保留，无其他恢复行为变化。改后 SHA256=`644bbcf5ffc36e55c83bc9acb2b3b1d174bf2985ff6f5c2c892488409b05eef6`，本地提交 `00ba0f27d`，未 push。
+
+改前备份 `/Users/clawbotbot/Projects/sub2api-upgrade-private/recovery-021-6YHtqq/service-recovery.mjs`（目录0700/文件0600），SHA256=`37205b5fcbdf773459d083b9547f1884aaafa4c1f9f006e4127eb5521edb3b7d`。改后仅 import 纯校验函数，并从实际文件提取 manifest 正则：0.2.13/0.2.19/0.2.21 均 `accepted=true`、`manifestPathAccepted=true`；0.2.20/0.2.22 仍拒绝。未调用 boot/真实恢复、未改 plist/dispatcher 或 `/Library` 文件；未为 OAuth #1 重启或登录。本工作树同步了这两处校验，81 项升级工具测试全部通过。
+
+## 当前 blocker 与后续边界
+
+构建原始错误摘要：`frontend-builder 8/8 ... cannot allocate memory`；`failed to solve: ResourceExhausted`；docker-buildx exit=102，build-local exit=1。镜像内独立的 i18n 3 tests 和 `vue-tsc -b` 已通过，Vite 在 `transforming...` 阶段失败。构建资源保持原配置（builder 2560 MiB、CPU quota=100000，Vite heap=1664 MiB）。只读进程证据显示 Vite 主进程约901 MiB RSS，同时 `vite-plugin-checker` 又启动 `vue-tsc --noEmit` 约1.5 GiB RSS；cgroup memory.current 接近2684354560，发生持续内存回收。`frontend/vite.config.ts` 的 `checker({ vueTsc: true })` 在生产 build 也开启检查，Dockerfile 在此之前已独立执行 vue-tsc。未修改 frontend/Dockerfile/build-inputs，也未跳过检查、加内存或重跑。后续若获准修复构建，应评估串行完成完整类型检查、避免同阶段重复检查的资源占用；这只是定位建议，本轮没有实施。
+
+另外，只读检查确认现有 `upgrade-current.mjs prepare/activate` 与“不会写现网库”存在独立冲突：`session()` 对现网 `/auth/login` 发 POST；`prepare()` 调用真实 `liveGateway` / `verifyTerra`，后者明确要求 `validateTerraUsage` 查到新持久化 usage row（找不到会报 `Terra usage row was not persisted for this request`）。auth 的 `touchUserLogin` 会写 last_login_at/last_active_at，真实推理还会记录用量/计费。因此即使未来副本迁移演练通过，也不能在当前严格零现网写库约束下直接运行该现网验证路径。本轮未调用这些函数或发送此类现网请求，未将自动业务写入解释为已获豁免。
+
+## 最终实际状态
+
+- **实际现网 image tag**：`sub2api-local:0.2.19-466dc86d2eec`；实际 image ID/digest=`sha256:ed98069e97165ce50a1286cd7707fa250c8b864e4651ab63cad0d3ce1e5b1655`；revision=`466dc86d2eec60c8d56398dcae627a3f1c375127`。
+- **0.2.21 候选镜像**：未生成，无实际 tag/digest、无 manifest、未 load。`release/sub2api_0.2.21_linux_arm64_fe58becea575/` 仅保留 `source.tar.gz` 和 `BUILDING.json`（约14 MiB）；不能当作完成的发布包。
+- **health**：`sub2api-current-app` healthy；18480/18080 均 `{"status":"ok"}`。StartedAt=`2026-11-08T08:53:42.616998344Z`，RestartCount=6，均未变；未切流或重启 app。
+- **.env**：SHA256=`63503f4f21908be7b28ba9686c109e20498cb489ef429a9f8277c42d08a0bc14`，mtime=`2026-09-24T18:02:14+0800`，605 bytes，0600，未变。未输出其中内容。
+- **DB/迁移**：本轮仅 READ ONLY/SELECT，未向现网写库、运行迁移或 restore。最终299条、末条`248_group_image_count_billing.sql`，账本指纹仍`6881ca3d0765b3d4376b867c6012863a`；public schema列数1460、指纹仍`259bcb175bb7a2f0487793af6260f79c`；249/250入账数=0，对应MCP表、TTL/12h定价列、cost索引均为0。现网常规业务仍运行，不声称整个活动数据库字节不变。
+- **现网 compose/state**：未改。current compose SHA256仍`cb98c8985eb2df8f3aeed7073648a15e92538c1c8240d660015ddb5c10a8e325`；current state仍`4980a4a2e84efa1988dbc0aecbe27a1edda579ab9aef490e7474160a2c9327cc`。
+- **备份/演练**：本轮只有上述恢复程序文件备份；新受保护DB/app/Redis备份和现网库副本演练未执行，因为打包失败。旧`backup-Omp0Fv`保留未覆盖/删除。无prepare/activate/rollback。
+- **资源/清理**：最终host约16 GiB可用，Docker data约20 GiB可用；未删除或prune镜像、volume、备份。仅停止本轮启动且构建已结束的`sub2api-release-20261002` builder，恢复其切前stopped状态；保留可供后续诊断的构建缓存和失败包目录，没有停不相关进程。
+
+以下为同一任务前序记录，保留用于追溯。
+
+---
+
 # 2026-11-11 续做 — recovery blocker 已解除，后续门禁仍待证明
 
 已读取 BRIEF-ADDENDUM-recovery-0.2.21.md 与追加后的 BRIEF。按 QH 新授权，只读复核实际 plist/dispatcher 路径和现网 0.2.19 identity/health 后，备份并修改实际运行的 `/Users/clawbotbot/Projects/sub2api-neubrutalism/deploy/local-upgrade/service-recovery.mjs`。仅扩大 supportedVersions 和 active manifest 路径正则，增加 0.2.21；保留 0.2.13/0.2.19。未修改 `/Library` 文件、plist 指向或其他恢复行为，未调用 boot/真实恢复，未重启应用。

@@ -37,7 +37,7 @@
     "testFilesPassed": 4,
     "testsPassed": 52,
     "fullSuiteRerun": false,
-    "freshBuild": "Required in exact ARM64 image; source qualification reused because backend/frontend/migrations trees are unchanged."
+    "freshBuild": "FAILED 2026-11-12: frontend-builder 8/8 cannot allocate memory / ResourceExhausted; no candidate image or manifest produced."
   },
   "migrations": {
     "sourceFiles": 302,
@@ -72,5 +72,18 @@
     ],
     "pureValidationOnly": true,
     "bootOrRestartInvoked": false
-  }
+  },
+  "packaging": {
+    "sourceCommit": "fe58becea5756f429b33887482d7e6bcf01e134f",
+    "command": "node deploy/local-upgrade/build-local.mjs",
+    "passed": false,
+    "buildxExitCode": 102,
+    "runnerExitCode": 1,
+    "error": "frontend-builder 8/8: cannot allocate memory (ResourceExhausted)",
+    "candidateImageProduced": false,
+    "privateBackupPerformed": false,
+    "isolatedRehearsalPerformed": false,
+    "productionDeploymentPerformed": false
+  },
+  "blocker": "Packaging failed under the unchanged 2560 MiB builder limit: Vite plus its additional vue-tsc checker reached the memory limit. Stopped without retry as instructed. Separately, prepare/activate require real login and persisted inference usage, incompatible with the current strict no-live-DB-writes condition."
 }
