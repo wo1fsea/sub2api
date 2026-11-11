@@ -9,7 +9,7 @@
   "backendTree": "94629c84797fc066a407f00e0dac9440f75a228e",
   "frontendTree": "ea2cd82cf1aae491fe701874288b94ff8bb80b0e",
   "migrationsTree": "e5e04ecb8116b6a626154bf399891d0ec89ebefd",
-  "qualificationScope": "PR #5 page-context/call_id and 248-schema compatibility: source/unit qualification only. Never apply 249/250 to production. The zero-migration rehearsal mode is unit-tested but has NOT run on a restored live database. Activation is BLOCKED by the installed recovery dispatcher/version allowlist; see NOTES.md.",
+  "qualificationScope": "PR #5 page-context/call_id and 248-schema compatibility: source/unit qualification only. Never apply 249/250 to production. Zero-migration rehearsal mode is unit-tested but still requires a live-copy isolated rehearsal. Installed recovery version/path blocker resolved under BRIEF-ADDENDUM-recovery-0.2.21.md approval.",
   "backend": {
     "command": "node deploy/local-upgrade/test-backend.mjs unit",
     "toolchain": "go1.27.4",
@@ -37,7 +37,7 @@
     "testFilesPassed": 4,
     "testsPassed": 52,
     "fullSuiteRerun": false,
-    "freshBuild": "NOT performed: stopped before ARM64 packaging at recovery blocker"
+    "freshBuild": "Required in exact ARM64 image; source qualification reused because backend/frontend/migrations trees are unchanged."
   },
   "migrations": {
     "sourceFiles": 302,
@@ -53,12 +53,24 @@
     "runtimeRehearsalPerformed": false
   },
   "productionDeploymentPerformed": false,
-  "blocker": "Installed root-owned launchd dispatcher invokes sub2api-neubrutalism/deploy/local-upgrade/service-recovery.mjs every 60s. That deployed code accepts only 0.2.13/0.2.19 in releasePin/assertVersion and manifest pathname. Pure validation reproduces Unsupported release version for 0.2.21. Editing this worktree does not update installed recovery; BRIEF permits image/compose/upgrade-state writes, not changes to the separate deployed recovery program.",
   "pendingProductionGates": [
-    "P0 must resolve installed recovery incompatibility within approved scope; do not falsify version/manifest identity",
     "Exact clean-HEAD linux/arm64 package and fresh protected backup",
     "Isolated rehearsal from nonempty live 248 database copy, with startup/restart ledger/schema/business/configuration preservation",
     "prepare, activate, status and final environment/schema verification"
   ],
-  "approval": "BRIEF authorizes conditional cutover, but safety conditions are not satisfied. BLOCKED; do not activate from this source-only record."
+  "approval": "BRIEF plus addendum authorize recovery compatibility changes, build, protected backup and isolated live-copy rehearsal. Production prepare/activate remain conditional on proof of no .env changes, no live DB writes and no 249/250 migration application.",
+  "resolvedBlocker": "Installed root-owned launchd dispatcher invokes sub2api-neubrutalism/deploy/local-upgrade/service-recovery.mjs every 60s. That deployed code accepts only 0.2.13/0.2.19 in releasePin/assertVersion and manifest pathname. Pure validation reproduces Unsupported release version for 0.2.21. Editing this worktree does not update installed recovery; BRIEF permits image/compose/upgrade-state writes, not changes to the separate deployed recovery program.",
+  "recoveryQualification": {
+    "livePath": "/Users/clawbotbot/Projects/sub2api-neubrutalism/deploy/local-upgrade/service-recovery.mjs",
+    "backup": "/Users/clawbotbot/Projects/sub2api-upgrade-private/recovery-021-6YHtqq/service-recovery.mjs",
+    "beforeSha256": "37205b5fcbdf773459d083b9547f1884aaafa4c1f9f006e4127eb5521edb3b7d",
+    "afterSha256": "644bbcf5ffc36e55c83bc9acb2b3b1d174bf2985ff6f5c2c892488409b05eef6",
+    "acceptedVersions": [
+      "0.2.13",
+      "0.2.19",
+      "0.2.21"
+    ],
+    "pureValidationOnly": true,
+    "bootOrRestartInvoked": false
+  }
 }

@@ -1,3 +1,16 @@
+# 2026-11-11 续做 — recovery blocker 已解除，后续门禁仍待证明
+
+已读取 BRIEF-ADDENDUM-recovery-0.2.21.md 与追加后的 BRIEF。按 QH 新授权，只读复核实际 plist/dispatcher 路径和现网 0.2.19 identity/health 后，备份并修改实际运行的 `/Users/clawbotbot/Projects/sub2api-neubrutalism/deploy/local-upgrade/service-recovery.mjs`。仅扩大 supportedVersions 和 active manifest 路径正则，增加 0.2.21；保留 0.2.13/0.2.19。未修改 `/Library` 文件、plist 指向或其他恢复行为，未调用 boot/真实恢复，未重启应用。
+
+- 改前受保护备份：`/Users/clawbotbot/Projects/sub2api-upgrade-private/recovery-021-6YHtqq/service-recovery.mjs`，目录 0700 / 文件 0600；SHA256=`37205b5fcbdf773459d083b9547f1884aaafa4c1f9f006e4127eb5521edb3b7d`。
+- 实际现网文件改后 SHA256=`644bbcf5ffc36e55c83bc9acb2b3b1d174bf2985ff6f5c2c892488409b05eef6`。本工作树相同文件同步两处校验改动，供后续包内工具一致使用；真实部署修改首先完成并验证。
+- 纯函数 `releasePin` / `assertVersion` 与从实际文件提取的 manifest 路径正则：0.2.13、0.2.19、0.2.21 均 accepted=true；0.2.20/0.2.22 仍拒绝。未调用恢复 main。
+- 本轮起始现网仍是 `sub2api-local:0.2.19-466dc86d2eec` / `sha256:ed98069e97165ce50a1286cd7707fa250c8b864e4651ab63cad0d3ce1e5b1655`，healthy；18480/18080 ok；StartedAt=`2026-11-08T08:53:42.616998344Z`，RestartCount=6；`.env` 指纹、mtime、size、mode 均与前轮一致。host 可用约16 GiB / Docker data约20 GiB，未清理旧镜像、volume、备份。
+
+后端/frontend/migrations 应用树未变化，沿用本任务上一阶段实际测试证据；恢复校验通过不代表运行时 248 演练通过。接续阶段需按实际干净 HEAD 打包、新受保护备份、现网非空库副本演练；prepare/activate 另须满足“不写现网数据库”的硬约束。旧阶段记录保留如下。
+
+---
+
 # 2026-11-11 — 0.2.21 / a8314a689286 热切换鉴定：BLOCKED，未 activate
 
 本轮依据本目录 BRIEF.md 执行。鉴定应用源码为 merge commit `a8314a689286dfac8d26b017e2b853d8335c19bb`，未 amend、未推送任何 remote。下面的本地工具改动不代表已完成打包或运行时资格验证。
