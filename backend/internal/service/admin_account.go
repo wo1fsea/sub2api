@@ -610,7 +610,7 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		return nil, errors.New("typesafe accounts only support apikey credentials")
 	}
 	if account.IsFactory() && (account.Type != AccountTypeAPIKey || (input.Type != "" && input.Type != AccountTypeAPIKey)) {
-		return nil, errors.New("Factory accounts only support apikey credentials")
+		return nil, errors.New("factory accounts only support apikey credentials")
 	}
 	var normalizedExtra map[string]any
 	if input.Extra != nil {

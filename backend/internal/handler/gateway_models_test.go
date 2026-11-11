@@ -208,11 +208,12 @@ func TestGatewayCodexModels_NonOpenAIGroupsUseMappedModels(t *testing.T) {
 			modalities: []string{"text"},
 		},
 		{
-			name:       "provider-qualified Claude",
-			platform:   service.PlatformAnthropic,
-			model:      "anthropic/claude-sonnet-4-6",
-			efforts:    []string{"low", "medium", "high", "max"},
-			modalities: []string{"text"},
+			name:     "provider-qualified Claude",
+			platform: service.PlatformAnthropic,
+			model:    "anthropic/claude-sonnet-4-6",
+			efforts:  []string{"low", "medium", "high", "max"},
+			// Fork catalogs advertise Claude image input, including provider-qualified IDs.
+			modalities: []string{"text", "image"},
 		},
 	}
 

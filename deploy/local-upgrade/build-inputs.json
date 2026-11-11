@@ -1,7 +1,7 @@
 {
-  "upstreamTag": "v0.2.19",
-  "upstreamCommit": "dece26153621959ccd7635814f4b2d08304e681a",
-  "version": "0.2.19",
+  "upstreamTag": "v0.2.21",
+  "upstreamCommit": "10ba8f9b4dc2e6023d4a9879ab77b21841babd10",
+  "version": "0.2.21",
   "platform": "linux/arm64",
   "pnpmVersion": "9.15.9",
   "buildResources": {

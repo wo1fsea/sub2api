@@ -55,19 +55,19 @@ func NewWhoamiRequest(ctx context.Context, credentials Credentials) (*http.Reque
 // DecodeWhoami decodes only selected fields and enforces a bounded payload.
 func DecodeWhoami(body []byte) (WhoamiResult, error) {
 	if len(body) > MaxWhoamiResponseBytes {
-		return WhoamiResult{}, fmt.Errorf("Factory whoami response is too large")
+		return WhoamiResult{}, fmt.Errorf("factory whoami response is too large")
 	}
 	trimmed := bytes.TrimSpace(body)
 	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
-		return WhoamiResult{}, fmt.Errorf("Factory whoami returned an empty response")
+		return WhoamiResult{}, fmt.Errorf("factory whoami returned an empty response")
 	}
 	var object map[string]json.RawMessage
 	if err := json.Unmarshal(trimmed, &object); err != nil || len(object) == 0 {
-		return WhoamiResult{}, fmt.Errorf("Factory whoami returned an invalid response")
+		return WhoamiResult{}, fmt.Errorf("factory whoami returned an invalid response")
 	}
 	var payload whoamiPayload
 	if err := json.Unmarshal(trimmed, &payload); err != nil {
-		return WhoamiResult{}, fmt.Errorf("Factory whoami returned an invalid response")
+		return WhoamiResult{}, fmt.Errorf("factory whoami returned an invalid response")
 	}
 	legacyRegion, legacySet, err := normalizeWhoamiRegion(payload.Region)
 	if err != nil {
@@ -80,7 +80,7 @@ func DecodeWhoami(body []byte) (WhoamiResult, error) {
 	region := RegionUS
 	if inheritance := inferenceSet || legacySet; inheritance {
 		if inferenceSet && legacySet && inferenceRegion != legacyRegion {
-			return WhoamiResult{}, fmt.Errorf("Factory whoami returned contradictory regions")
+			return WhoamiResult{}, fmt.Errorf("factory whoami returned contradictory regions")
 		}
 		if inferenceSet {
 			region = inferenceRegion
@@ -90,7 +90,7 @@ func DecodeWhoami(body []byte) (WhoamiResult, error) {
 	}
 	userID, email := strings.TrimSpace(payload.UserID), strings.TrimSpace(payload.Email)
 	if userID == "" && email == "" {
-		return WhoamiResult{}, fmt.Errorf("Factory whoami did not identify a user")
+		return WhoamiResult{}, fmt.Errorf("factory whoami did not identify a user")
 	}
 	premHost := strings.TrimRight(strings.TrimSpace(payload.PremBaseHostV2), "/")
 	enterprise := payload.IsEnterprise
@@ -111,7 +111,7 @@ func normalizeWhoamiRegion(raw string) (string, bool, error) {
 	case "eu":
 		return RegionEU, true, nil
 	default:
-		return "", false, fmt.Errorf("Factory whoami returned an unsupported region")
+		return "", false, fmt.Errorf("factory whoami returned an unsupported region")
 	}
 }
 
@@ -119,16 +119,16 @@ func normalizeWhoamiRegion(raw string) (string, bool, error) {
 // hosts, which this API-key adapter does not support.
 func VerifyWhoami(result WhoamiResult, credentials Credentials) error {
 	if result.UserID == "" && result.Email == "" {
-		return fmt.Errorf("Factory whoami did not identify a user")
+		return fmt.Errorf("factory whoami did not identify a user")
 	}
 	if result.EnterpriseHost {
-		return fmt.Errorf("Factory reports an enterprise host, which is not supported; use an official US or EU account")
+		return fmt.Errorf("factory reports an enterprise host, which is not supported; use an official US or EU account")
 	}
 	if result.Region != credentials.Region {
-		return fmt.Errorf("Factory reports region %s but this account is configured for %s; update the account region", result.Region, credentials.Region)
+		return fmt.Errorf("factory reports region %s but this account is configured for %s; update the account region", result.Region, credentials.Region)
 	}
 	if credentials.OrgID != "" && result.OrgID != credentials.OrgID {
-		return fmt.Errorf("Factory active organization does not match factory_org_id; verify or clear the organization")
+		return fmt.Errorf("factory active organization does not match factory_org_id; verify or clear the organization")
 	}
 	return nil
 }

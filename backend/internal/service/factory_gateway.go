@@ -9,10 +9,10 @@ import (
 
 func prepareFactoryUpstream(account *Account, protocol string, body []byte) ([]byte, factorypkg.Credentials, factorypkg.Model, error) {
 	if account == nil || !account.IsFactory() {
-		return nil, factorypkg.Credentials{}, factorypkg.Model{}, fmt.Errorf("Factory account is required")
+		return nil, factorypkg.Credentials{}, factorypkg.Model{}, fmt.Errorf("factory account is required")
 	}
 	if account.Type != AccountTypeAPIKey {
-		return nil, factorypkg.Credentials{}, factorypkg.Model{}, fmt.Errorf("Factory only supports API-key accounts")
+		return nil, factorypkg.Credentials{}, factorypkg.Model{}, fmt.Errorf("factory only supports API-key accounts")
 	}
 	credentials, err := factorypkg.ParseCredentials(account.Credentials, true)
 	if err != nil {
@@ -35,7 +35,7 @@ func applyFactoryRequestPolicy(req *http.Request, account *Account, protocol str
 
 func factoryEndpointURL(account *Account, protocol string) (string, error) {
 	if account == nil || !account.IsFactory() {
-		return "", fmt.Errorf("Factory account is required")
+		return "", fmt.Errorf("factory account is required")
 	}
 	credentials, err := factorypkg.ParseCredentials(account.Credentials, true)
 	if err != nil {

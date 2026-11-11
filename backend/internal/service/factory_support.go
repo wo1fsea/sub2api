@@ -79,10 +79,7 @@ func writeFactoryUnsupportedModelError(c *gin.Context, surface string) error {
 }
 
 func rejectFactoryOriginalFastIntent(c *gin.Context, body []byte, surface string) error {
-	fast := false
-	if strings.EqualFold(strings.TrimSpace(gjson.GetBytes(body, "speed").String()), "fast") {
-		fast = true
-	}
+	fast := strings.EqualFold(strings.TrimSpace(gjson.GetBytes(body, "speed").String()), "fast")
 	if strings.EqualFold(strings.TrimSpace(gjson.GetBytes(body, "service_tier").String()), "priority") {
 		fast = true
 	}

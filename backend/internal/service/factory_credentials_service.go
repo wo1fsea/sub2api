@@ -28,7 +28,7 @@ func normalizeFactoryCreateCredentials(platform, accountType string, credentials
 		return nil
 	}
 	if accountType != AccountTypeAPIKey {
-		return fmt.Errorf("Factory accounts only support apikey credentials")
+		return fmt.Errorf("factory accounts only support apikey credentials")
 	}
 	return factorypkg.NormalizeCredentials(credentials, true)
 }
@@ -79,14 +79,14 @@ func prepareFactoryBulkCredentials(targets []*Account, incoming map[string]any) 
 			continue
 		}
 		if target.Type != AccountTypeAPIKey {
-			return nil, fmt.Errorf("Factory account %d only supports apikey credentials", target.ID)
+			return nil, fmt.Errorf("factory account %d only supports apikey credentials", target.ID)
 		}
 		effective := cloneCredentialMap(target.Credentials)
 		for key, value := range partial {
 			effective[key] = value
 		}
 		if err := factorypkg.NormalizeCredentials(effective, true); err != nil {
-			return nil, fmt.Errorf("Factory account %d: %w", target.ID, err)
+			return nil, fmt.Errorf("factory account %d: %w", target.ID, err)
 		}
 		if normalizedPartial == nil {
 			normalizedPartial = make(map[string]any, len(partial))
