@@ -12,7 +12,7 @@ export const deployment = '/Users/clawbotbot/Projects/sub2api-local'
 export const directory = join(deployment, 'current-0.2.13')
 export const currentRecoveryVersion = '0.2.13'
 export const targetVersion = '0.2.19'
-const supportedVersions = new Set([currentRecoveryVersion, targetVersion])
+const supportedVersions = new Set([currentRecoveryVersion, targetVersion, '0.2.21'])
 const composePath = join(directory, 'compose-private.json')
 const statePath = join(directory, 'state.json')
 const project = 'sub2api-current'
@@ -328,7 +328,7 @@ async function boot(manageRoute = true) {
   if (available.status !== 0) command('/opt/homebrew/bin/colima', ['start'], undefined, 180_000)
   let activeImage = image, activeVersion = state.version || currentRecoveryVersion
   if (state.releaseManifest) {
-    assert.match(state.releaseManifest, /^\/Users\/clawbotbot\/Projects\/sub2api-[^/]+\/release\/sub2api_0\.2\.(13|19)_linux_arm64_[a-f0-9]{12}\/manifest\.json$/)
+    assert.match(state.releaseManifest, /^\/Users\/clawbotbot\/Projects\/sub2api-[^/]+\/release\/sub2api_0\.2\.(13|19|21)_linux_arm64_[a-f0-9]{12}\/manifest\.json$/)
     const bytes = await readFile(state.releaseManifest)
     assert.equal(sha(bytes), state.releaseManifestSha256, 'Active release manifest changed')
     const manifest = JSON.parse(bytes)
