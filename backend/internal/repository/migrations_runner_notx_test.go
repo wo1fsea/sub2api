@@ -383,11 +383,21 @@ func TestApplyMigrationsFS_TransactionalMigration(t *testing.T) {
 }
 
 func prepareMigrationsBootstrapExpectations(mock sqlmock.Sqlmock) {
+	prepareMigrationsBootstrapExpectationsApplied(mock, nil)
+}
+
+func prepareMigrationsBootstrapExpectationsApplied(mock sqlmock.Sqlmock, applied []string) {
 	mock.ExpectQuery("SELECT pg_try_advisory_lock\\(\\$1\\)").
 		WithArgs(migrationsAdvisoryLockID).
 		WillReturnRows(sqlmock.NewRows([]string{"pg_try_advisory_lock"}).AddRow(true))
 	mock.ExpectExec("CREATE TABLE IF NOT EXISTS schema_migrations").
 		WillReturnResult(sqlmock.NewResult(0, 0))
+	rows := sqlmock.NewRows([]string{"filename"})
+	for _, name := range applied {
+		rows.AddRow(name)
+	}
+	mock.ExpectQuery("SELECT filename FROM schema_migrations").
+		WillReturnRows(rows)
 	mock.ExpectQuery("SELECT EXISTS \\(").
 		WithArgs("schema_migrations").
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))

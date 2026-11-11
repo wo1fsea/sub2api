@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -315,6 +316,12 @@ func mcpOAuthHandleError(c *gin.Context, err error, protocol bool) bool {
 			mcpOAuthErrorResponse(c, http.StatusBadRequest, oauthErr.Code, oauthErr.Description)
 		} else {
 			response.BadRequest(c, oauthErr.Description)
+		}
+	} else if infraerrors.IsServiceUnavailable(err) {
+		if protocol {
+			mcpOAuthErrorResponse(c, http.StatusServiceUnavailable, "temporarily_unavailable", "MCP OAuth storage is not available")
+		} else {
+			response.ErrorFrom(c, err)
 		}
 	} else if protocol {
 		mcpOAuthErrorResponse(c, http.StatusInternalServerError, "server_error", "OAuth request could not be completed")

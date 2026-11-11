@@ -40,6 +40,7 @@ var (
 	ErrMCPOAuthNotFound      = errors.New("MCP OAuth record not found")
 	ErrMCPOAuthGrantLimit    = infraerrors.Conflict("MCP_GRANT_LIMIT", "Revoke an existing MCP authorization before authorizing another client (maximum 20 active authorizations)")
 	ErrMCPOAuthGrantNotFound = infraerrors.NotFound("MCP_GRANT_NOT_FOUND", "MCP authorization not found")
+	ErrMCPOAuthUnavailable   = infraerrors.ServiceUnavailable("MCP_OAUTH_UNAVAILABLE", "MCP OAuth storage is not available")
 )
 
 type MCPOAuthError struct {

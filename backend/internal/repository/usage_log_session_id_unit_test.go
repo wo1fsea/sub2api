@@ -98,9 +98,9 @@ func TestPrepareUsageLogInsert_RequestedReasoningEffortArgWiring(t *testing.T) {
 // TestUsageLogInsertQueries_IncludeSessionID guards that every generated INSERT path
 // and the SELECT column list reference session_id.
 func TestUsageLogInsertQueries_IncludeSessionID(t *testing.T) {
-	require.Contains(t, usageLogSelectColumns, "requested_reasoning_effort",
+	require.Contains(t, usageLogSelectColumns(), "requested_reasoning_effort",
 		"SELECT column list must include requested_reasoning_effort")
-	require.Contains(t, usageLogSelectColumns, "session_id",
+	require.Contains(t, usageLogSelectColumns(), "session_id",
 		"SELECT column list must include session_id")
 
 	sessionID := "sess-in-query"

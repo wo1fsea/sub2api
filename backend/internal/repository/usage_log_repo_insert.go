@@ -90,6 +90,58 @@ var usageLogInsertArgTypes = [...]string{
 	"timestamptz", // created_at
 }
 
+// activeUsageLogInsertArgTypes drops the migration-250 token columns when the
+// connected schema does not have them. Those two integers sit immediately
+// before created_at.
+func activeUsageLogInsertArgTypes() []string {
+	full := usageLogInsertArgTypes[:]
+	if schemaHasUsageLogCacheTTLColumns() {
+		return full
+	}
+	n := len(full)
+	out := make([]string, 0, n-2)
+	out = append(out, full[:n-3]...)
+	out = append(out, full[n-1])
+	return out
+}
+
+func usageLogInsertValuesSQL() string {
+	types := activeUsageLogInsertArgTypes()
+	parts := make([]string, len(types))
+	for i := range types {
+		parts[i] = "$" + strconv.Itoa(i+1)
+	}
+	return strings.Join(parts, ", ")
+}
+
+func omitUsageLogCacheTTLColumns(query string) string {
+	if schemaHasUsageLogCacheTTLColumns() {
+		return query
+	}
+	lines := strings.Split(query, "\n")
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		switch strings.TrimSpace(line) {
+		case "cache_creation_30m_tokens,", "cache_creation_12h_tokens,", "cache_creation_30m_tokens", "cache_creation_12h_tokens":
+			continue
+		default:
+			out = append(out, line)
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+func withoutUsageLogCacheTTLArgs(args []any) []any {
+	n := len(args)
+	if n < 3 {
+		return args
+	}
+	out := make([]any, 0, n-2)
+	out = append(out, args[:n-3]...)
+	out = append(out, args[n-1])
+	return out
+}
+
 const (
 	usageLogCreateBatchMaxSize  = 64
 	usageLogCreateBatchWindow   = 3 * time.Millisecond
@@ -225,7 +277,7 @@ func (r *usageLogRepository) createSingle(ctx context.Context, sqlq sqlExecutor,
 		return false, service.MarkUsageLogCreateNotPersisted(ctx.Err())
 	}
 
-	query := `
+	query := omitUsageLogCacheTTLColumns(`
 		INSERT INTO usage_logs (
 			user_id,
 			api_key_id,
@@ -291,17 +343,10 @@ func (r *usageLogRepository) createSingle(ctx context.Context, sqlq sqlExecutor,
 			cache_creation_30m_tokens,
 			cache_creation_12h_tokens,
 			created_at
-		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9,
-			$10, $11,
-			$12, $13, $14, $15,
-			$16, $17, $18, $19,
-			$20, $21, $22, $23, $24, $25,
-			$26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64
-		)
+		) VALUES (` + usageLogInsertValuesSQL() + `)
 		ON CONFLICT (request_id, api_key_id) DO NOTHING
 		RETURNING id, created_at
-	`
+	`)
 
 	if err := scanSingleRow(ctx, sqlq, query, prepared.args, &log.ID, &log.CreatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) && prepared.requestID != "" {
@@ -686,6 +731,7 @@ func (r *usageLogRepository) batchInsertUsageLogs(db *sql.DB, keys []string, pre
 
 func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usageLogInsertPrepared) (string, []any) {
 	var query strings.Builder
+	argTypes := activeUsageLogInsertArgTypes()
 	_, _ = query.WriteString(`
 		WITH input (
 			input_idx,
@@ -773,9 +819,9 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 			_, _ = query.WriteString(",")
 			_, _ = query.WriteString("$")
 			_, _ = query.WriteString(strconv.Itoa(argPos))
-			if i < len(usageLogInsertArgTypes) {
+			if i < len(argTypes) {
 				_, _ = query.WriteString("::")
-				_, _ = query.WriteString(usageLogInsertArgTypes[i])
+				_, _ = query.WriteString(argTypes[i])
 			}
 			argPos++
 		}
@@ -951,11 +997,12 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 		)
 		FROM resolved
 	`)
-	return query.String(), args
+	return omitUsageLogCacheTTLColumns(query.String()), args
 }
 
 func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (string, []any) {
 	var query strings.Builder
+	argTypes := activeUsageLogInsertArgTypes()
 	_, _ = query.WriteString(`
 		WITH input (
 			user_id,
@@ -1037,9 +1084,9 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 			}
 			_, _ = query.WriteString("$")
 			_, _ = query.WriteString(strconv.Itoa(argPos))
-			if i < len(usageLogInsertArgTypes) {
+			if i < len(argTypes) {
 				_, _ = query.WriteString("::")
-				_, _ = query.WriteString(usageLogInsertArgTypes[i])
+				_, _ = query.WriteString(argTypes[i])
 			}
 			argPos++
 		}
@@ -1184,11 +1231,11 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 		ON CONFLICT (request_id, api_key_id) DO NOTHING
 	`)
 
-	return query.String(), args
+	return omitUsageLogCacheTTLColumns(query.String()), args
 }
 
 func execUsageLogInsertNoResult(ctx context.Context, sqlq sqlExecutor, prepared usageLogInsertPrepared) error {
-	_, err := sqlq.ExecContext(ctx, `
+	_, err := sqlq.ExecContext(ctx, omitUsageLogCacheTTLColumns(`
 		INSERT INTO usage_logs (
 			user_id,
 			api_key_id,
@@ -1254,16 +1301,9 @@ func execUsageLogInsertNoResult(ctx context.Context, sqlq sqlExecutor, prepared 
 			cache_creation_30m_tokens,
 			cache_creation_12h_tokens,
 			created_at
-		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9,
-			$10, $11,
-			$12, $13, $14, $15,
-			$16, $17, $18, $19,
-			$20, $21, $22, $23, $24, $25,
-			$26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64
-		)
+		) VALUES (`+usageLogInsertValuesSQL()+`)
 		ON CONFLICT (request_id, api_key_id) DO NOTHING
-	`, prepared.args...)
+	`), prepared.args...)
 	return err
 }
 
@@ -1317,77 +1357,81 @@ func prepareUsageLogInsert(log *service.UsageLog) usageLogInsertPrepared {
 		requestIDArg = requestID
 	}
 
+	args := []any{
+		log.UserID,
+		log.APIKeyID,
+		log.AccountID,
+		requestIDArg,
+		log.Model,
+		nullString(&requestedModel),
+		upstreamModel,
+		upstreamResponseModel,
+		upstreamModelMismatch,
+		groupID,
+		subscriptionID,
+		log.InputTokens,
+		log.OutputTokens,
+		log.CacheCreationTokens,
+		log.CacheReadTokens,
+		log.CacheCreation5mTokens,
+		log.CacheCreation1hTokens,
+		log.ImageOutputTokens,
+		log.ImageOutputCost,
+		log.ImageInputTokens,
+		log.ImageInputCost,
+		log.InputCost,
+		log.OutputCost,
+		log.CacheCreationCost,
+		log.CacheReadCost,
+		log.TotalCost,
+		log.ActualCost,
+		rateMultiplier,
+		log.AccountRateMultiplier,
+		log.BillingType,
+		requestType,
+		log.Stream,
+		log.OpenAIWSMode,
+		duration,
+		firstToken,
+		userAgent,
+		ipAddress,
+		log.ImageCount,
+		imageSize,
+		imageInputSize,
+		imageOutputSize,
+		imageSizeSource,
+		imageSizeBreakdown,
+		log.VideoCount,
+		videoResolution,
+		videoDurationSeconds,
+		serviceTier,
+		reasoningEffort,
+		requestedReasoningEffort,
+		inboundEndpoint,
+		upstreamEndpoint,
+		log.CacheTTLOverridden,
+		log.LongContextBillingApplied,
+		channelID,
+		modelMappingChain,
+		billingTier,
+		billingMode,
+		log.AccountStatsCost, // account_stats_cost
+		upstreamRequestID,    // upstream_request_id
+		sessionID,            // session_id
+		log.NativeCompactionV2,
+		log.CacheCreation30mTokens,
+		log.CacheCreation12hTokens,
+		createdAt,
+	}
+	if !schemaHasUsageLogCacheTTLColumns() {
+		args = withoutUsageLogCacheTTLArgs(args)
+	}
 	return usageLogInsertPrepared{
 		createdAt:      createdAt,
 		requestID:      requestID,
 		rateMultiplier: rateMultiplier,
 		requestType:    requestType,
-		args: []any{
-			log.UserID,
-			log.APIKeyID,
-			log.AccountID,
-			requestIDArg,
-			log.Model,
-			nullString(&requestedModel),
-			upstreamModel,
-			upstreamResponseModel,
-			upstreamModelMismatch,
-			groupID,
-			subscriptionID,
-			log.InputTokens,
-			log.OutputTokens,
-			log.CacheCreationTokens,
-			log.CacheReadTokens,
-			log.CacheCreation5mTokens,
-			log.CacheCreation1hTokens,
-			log.ImageOutputTokens,
-			log.ImageOutputCost,
-			log.ImageInputTokens,
-			log.ImageInputCost,
-			log.InputCost,
-			log.OutputCost,
-			log.CacheCreationCost,
-			log.CacheReadCost,
-			log.TotalCost,
-			log.ActualCost,
-			rateMultiplier,
-			log.AccountRateMultiplier,
-			log.BillingType,
-			requestType,
-			log.Stream,
-			log.OpenAIWSMode,
-			duration,
-			firstToken,
-			userAgent,
-			ipAddress,
-			log.ImageCount,
-			imageSize,
-			imageInputSize,
-			imageOutputSize,
-			imageSizeSource,
-			imageSizeBreakdown,
-			log.VideoCount,
-			videoResolution,
-			videoDurationSeconds,
-			serviceTier,
-			reasoningEffort,
-			requestedReasoningEffort,
-			inboundEndpoint,
-			upstreamEndpoint,
-			log.CacheTTLOverridden,
-			log.LongContextBillingApplied,
-			channelID,
-			modelMappingChain,
-			billingTier,
-			billingMode,
-			log.AccountStatsCost, // account_stats_cost
-			upstreamRequestID,    // upstream_request_id
-			sessionID,            // session_id
-			log.NativeCompactionV2,
-			log.CacheCreation30mTokens,
-			log.CacheCreation12hTokens,
-			createdAt,
-		},
+		args:           args,
 	}
 }
 
