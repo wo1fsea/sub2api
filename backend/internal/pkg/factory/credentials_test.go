@@ -16,7 +16,10 @@ func TestNormalizeCredentialsStrictAndCanonicalModelMapping(t *testing.T) {
 	if credentials["api_key"] != "fk-test_Key-123" || credentials["region"] != RegionEU || credentials["factory_org_id"] != "fac_org-1" {
 		t.Fatalf("unexpected normalized credentials: %#v", credentials)
 	}
-	mapping := credentials["model_mapping"].(map[string]any)
+	mapping, ok := credentials["model_mapping"].(map[string]any)
+	if !ok {
+		t.Fatalf("model_mapping type = %T", credentials["model_mapping"])
+	}
 	if mapping["team-alias"] != "claude-opus-5-5" {
 		t.Fatalf("mapping target was not canonicalized to native: %#v", mapping)
 	}

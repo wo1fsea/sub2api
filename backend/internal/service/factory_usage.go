@@ -126,7 +126,7 @@ func requestFactoryUsage(ctx context.Context, client *http.Client, key string, s
 	if err != nil {
 		return nil, &factoryUsageError{code: "network_error"}
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		code := "network_error"
 		switch resp.StatusCode {
@@ -271,8 +271,8 @@ func (s *AccountUsageService) getFactoryUsage(ctx context.Context, account *Acco
 	read := func() *factoryUsageSnapshot {
 		stored := factorySnapshotFromExtra(account.Extra)
 		if cached, ok := s.cache.factoryCache.Load(account.ID); ok {
-			entry := cached.(*factoryUsageCacheEntry)
-			if entry.credentialDigest != credentialDigest || entry.snapshot.Generation != generation {
+			entry, isEntry := cached.(*factoryUsageCacheEntry)
+			if !isEntry || entry.credentialDigest != credentialDigest || entry.snapshot.Generation != generation {
 				return &factoryUsageSnapshot{Generation: generation}
 			}
 			value := entry.snapshot
@@ -345,6 +345,10 @@ func (s *AccountUsageService) getFactoryUsage(ctx context.Context, account *Acco
 		if response.Err != nil {
 			return nil, response.Err
 		}
-		return factoryUsageInfo(response.Val.(*factoryUsageSnapshot), time.Now(), "active"), nil
+		snapshot, ok := response.Val.(*factoryUsageSnapshot)
+		if !ok || snapshot == nil {
+			return nil, fmt.Errorf("factory usage cache returned an unexpected value")
+		}
+		return factoryUsageInfo(snapshot, time.Now(), "active"), nil
 	}
 }

@@ -11,8 +11,6 @@ import (
 	"strings"
 )
 
-var fastModeBetas = []string{"fast-mode-2026-02-01"}
-
 // PrepareInferenceBody validates the registry model and protocol, rejects
 // unsupported Fast intent, rewrites the model to its exact native id, and adds
 // only the minimal idempotent Droid preamble. Other caller content is kept.
@@ -25,20 +23,20 @@ func PrepareInferenceBody(protocol Protocol, body []byte) ([]byte, Model, error)
 	}
 	rawModel, ok := payload["model"].(string)
 	if !ok || strings.TrimSpace(rawModel) == "" {
-		return nil, Model{}, fmt.Errorf("Factory model is required")
+		return nil, Model{}, fmt.Errorf("factory model is required")
 	}
 	if IsFastOrGeminiID(rawModel) {
-		return nil, Model{}, fmt.Errorf("Factory Fast Mode and Gemini models are not supported")
+		return nil, Model{}, fmt.Errorf("factory Fast Mode and Gemini models are not supported")
 	}
 	model, ok := ResolveModel(rawModel)
 	if !ok {
 		return nil, Model{}, fmt.Errorf("unsupported Factory model")
 	}
 	if model.Protocol != protocol {
-		return nil, Model{}, fmt.Errorf("Factory model is not valid for this protocol")
+		return nil, Model{}, fmt.Errorf("factory model is not valid for this protocol")
 	}
 	if hasFastIntent(protocol, payload) {
-		return nil, Model{}, fmt.Errorf("Factory Fast Mode is not supported")
+		return nil, Model{}, fmt.Errorf("factory Fast Mode is not supported")
 	}
 	payload["model"] = model.ID
 	switch protocol {
@@ -88,7 +86,7 @@ func openResponsesInstructions(payload map[string]any) error {
 	}
 	text, ok := raw.(string)
 	if !ok {
-		return fmt.Errorf("Factory Responses instructions must be a string")
+		return fmt.Errorf("factory Responses instructions must be a string")
 	}
 	if startsWithDroidLine(text) {
 		return nil
@@ -109,7 +107,7 @@ func openChatMessages(payload map[string]any) error {
 	}
 	messages, ok := raw.([]any)
 	if !ok {
-		return fmt.Errorf("Factory chat messages must be an array")
+		return fmt.Errorf("factory chat messages must be an array")
 	}
 	if len(messages) == 0 {
 		payload["messages"] = []any{map[string]any{"role": "system", "content": DroidLine}}
@@ -142,7 +140,7 @@ func openAnthropicSystem(payload map[string]any) error {
 	}
 	blocks, ok := raw.([]any)
 	if !ok {
-		return fmt.Errorf("Factory Anthropic system must be a string or content blocks")
+		return fmt.Errorf("factory Anthropic system must be a string or content blocks")
 	}
 	container := map[string]any{"content": blocks}
 	if err := prefixSystemContent(container); err != nil {
@@ -171,7 +169,7 @@ func prefixSystemContent(message map[string]any) error {
 	}
 	blocks, ok := raw.([]any)
 	if !ok {
-		return fmt.Errorf("Factory system content must be a string or content blocks")
+		return fmt.Errorf("factory system content must be a string or content blocks")
 	}
 	if len(blocks) > 0 {
 		if first, ok := blocks[0].(map[string]any); ok {
@@ -189,10 +187,10 @@ func prefixSystemContent(message map[string]any) error {
 // and Droid-owned headers in every casing, and installs the observed contract.
 func ApplyRequestPolicy(req *http.Request, credentials Credentials, model Model, protocol Protocol) error {
 	if req == nil {
-		return fmt.Errorf("Factory request is nil")
+		return fmt.Errorf("factory request is nil")
 	}
 	if model.Protocol != protocol {
-		return fmt.Errorf("Factory model protocol mismatch")
+		return fmt.Errorf("factory model protocol mismatch")
 	}
 	endpoint, ok := EndpointURL(credentials.Region, protocol)
 	if !ok {
@@ -208,7 +206,7 @@ func ApplyRequestPolicy(req *http.Request, credentials Credentials, model Model,
 		}
 		for _, value := range values {
 			if strings.Contains(strings.ToLower(value), "fast-mode") {
-				return fmt.Errorf("Factory Fast Mode is not supported")
+				return fmt.Errorf("factory Fast Mode is not supported")
 			}
 		}
 	}

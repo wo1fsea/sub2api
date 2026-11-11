@@ -327,7 +327,7 @@ func (s *AccountService) Update(ctx context.Context, id int64, req UpdateAccount
 		return nil, fmt.Errorf("get account: %w", err)
 	}
 	if account.IsFactory() && account.Type != AccountTypeAPIKey {
-		return nil, errors.New("Factory accounts only support apikey credentials")
+		return nil, errors.New("factory accounts only support apikey credentials")
 	}
 
 	// 更新字段

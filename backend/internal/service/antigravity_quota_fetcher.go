@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -81,7 +82,8 @@ func (f *AntigravityQuotaFetcher) FetchQuota(ctx context.Context, account *Accou
 	}
 
 	// agy exposes shared weekly/5h pools through a separate read-only endpoint.
-	// Keep model details usable if this optional request is unavailable.
+	// Keep model details usable if this optional request is unavailable. The same
+	// payload feeds the quota overview pools and the per-group 5h/weekly windows.
 	summaryCtx, cancelSummary := context.WithTimeout(ctx, 8*time.Second)
 	summary, summaryErr := client.RetrieveUserQuotaSummary(summaryCtx, accessToken, projectID, resolveModelsListReadLimit(f.cfg))
 	cancelSummary()
@@ -95,6 +97,11 @@ func (f *AntigravityQuotaFetcher) FetchQuota(ctx context.Context, account *Accou
 	usageInfo.QuotaWindows = buildAntigravityQuotaPools(summary, summarySampledAt)
 	if summaryErr != nil || len(usageInfo.QuotaWindows) == 0 {
 		usageInfo.QuotaSnapshotError = "antigravity_quota_summary_unavailable"
+	}
+	if summaryErr != nil {
+		slog.Warn("failed to fetch antigravity quota summary", "account_id", account.ID, "error", summaryErr)
+	} else {
+		usageInfo.AntigravityQuotaGroups = buildAntigravityQuotaGroups(summary)
 	}
 
 	return &QuotaResult{
@@ -215,6 +222,56 @@ func (f *AntigravityQuotaFetcher) buildUsageInfo(modelsResp *antigravity.FetchAv
 	}
 
 	return info
+}
+
+// buildAntigravityQuotaGroups turns a quota summary into display groups, each with its
+// windows ordered 5h then weekly. Returns nil when there is nothing to show.
+func buildAntigravityQuotaGroups(summary *antigravity.QuotaSummaryResponse) []*AntigravityQuotaGroup {
+	if summary == nil {
+		return nil
+	}
+	windowOrder := map[string]int{"5h": 0, "weekly": 1}
+	var groups []*AntigravityQuotaGroup
+	for _, group := range summary.Groups {
+		if len(group.Buckets) == 0 {
+			continue
+		}
+		out := &AntigravityQuotaGroup{Name: group.DisplayName, Description: group.Description}
+		for _, bucket := range group.Buckets {
+			if out.Key == "" {
+				if i := strings.LastIndex(bucket.BucketID, "-"); i > 0 {
+					out.Key = bucket.BucketID[:i]
+				}
+			}
+			used := 0.0
+			if bucket.RemainingFraction != nil {
+				used = (1.0 - *bucket.RemainingFraction) * 100
+				if used < 0 {
+					used = 0
+				}
+			}
+			window := &AntigravityQuotaWindow{Window: bucket.Window, Utilization: used}
+			if bucket.ResetTime != "" {
+				if resetAt, err := time.Parse(time.RFC3339, bucket.ResetTime); err == nil {
+					window.ResetsAt = &resetAt
+				}
+			}
+			out.Windows = append(out.Windows, window)
+		}
+		sort.SliceStable(out.Windows, func(i, j int) bool {
+			oi, iok := windowOrder[out.Windows[i].Window]
+			oj, jok := windowOrder[out.Windows[j].Window]
+			if !iok {
+				oi = len(windowOrder)
+			}
+			if !jok {
+				oj = len(windowOrder)
+			}
+			return oi < oj
+		})
+		groups = append(groups, out)
+	}
+	return groups
 }
 
 // GetProxyURL 获取账户的代理 URL

@@ -14,7 +14,7 @@ await mkdir(output, { recursive: true, mode: 0o700 })
 assert((await readdir(output)).length < 10, 'Review/archive previous backend reports before exceeding the ten-run retention budget')
 const directory = await mkdtemp(join(output, 'run-'))
 const env = { PATH: process.env.PATH, HOME: process.env.HOME, TMPDIR: process.env.TMPDIR,
-  GOTOOLCHAIN: 'go1.27.3', GOMAXPROCS: '2', GOMEMLIMIT: '1GiB' }
+  GOTOOLCHAIN: 'go1.27.4', GOMAXPROCS: '2', GOMEMLIMIT: '1GiB' }
 // Explicit operator-owned build cache keeps low-space hosts from growing their
 // default cache. Do not inherit the rest of the caller's test/credential env.
 if (process.env.SUB2API_TEST_GOCACHE) {

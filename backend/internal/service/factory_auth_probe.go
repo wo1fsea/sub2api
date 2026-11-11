@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	factorypkg "github.com/Wei-Shaw/sub2api/internal/pkg/factory"
@@ -64,15 +63,4 @@ func (s *AccountTestService) testFactoryAccountConnection(c *gin.Context, accoun
 	s.sendEvent(c, TestEvent{Type: "content", Text: text, Data: map[string]any{"region": result.Region, "org_id": result.OrgID, "auth_only": true, "inference_tested": false}})
 	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
 	return nil
-}
-
-func sanitizeFactoryWhoamiError(err error) string {
-	if err == nil {
-		return ""
-	}
-	message := strings.TrimSpace(err.Error())
-	if len(message) > 300 {
-		message = message[:300]
-	}
-	return message
 }
