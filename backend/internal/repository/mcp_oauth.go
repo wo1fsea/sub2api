@@ -23,6 +23,13 @@ func NewMCPOAuthRepository(client *dbent.Client, db *sql.DB) service.MCPOAuthRep
 	return &mcpOAuthRepository{client: client, db: db}
 }
 
+func mcpOAuthStorageRequired() error {
+	if schemaHasMCPOAuthTables() {
+		return nil
+	}
+	return service.ErrMCPOAuthUnavailable
+}
+
 // ClientIDKey loads the key that signs stateless client IDs, creating it on
 // first use. It is persisted so issued client IDs and grants survive restarts,
 // and instances racing to create it converge on the stored value.
@@ -40,6 +47,9 @@ func (r *mcpOAuthRepository) ClientIDKey(ctx context.Context) ([]byte, error) {
 }
 
 func (r *mcpOAuthRepository) CreateAuthorization(ctx context.Context, grant *service.MCPOAuthGrant, code *service.MCPOAuthCode, limit int) error {
+	if err := mcpOAuthStorageRequired(); err != nil {
+		return err
+	}
 	// Grants are the only rows that outlive a request, so each new one performs
 	// bounded retention work. It runs before the owner row is locked, keeping
 	// cascaded deletes from blocking other updates to that user. Used refresh
@@ -79,6 +89,9 @@ func (r *mcpOAuthRepository) CreateAuthorization(ctx context.Context, grant *ser
 }
 
 func (r *mcpOAuthRepository) GetCode(ctx context.Context, hash string) (*service.MCPOAuthCode, error) {
+	if err := mcpOAuthStorageRequired(); err != nil {
+		return nil, err
+	}
 	code := &service.MCPOAuthCode{}
 	err := r.db.QueryRowContext(ctx, `SELECT code_hash,grant_id,client_id,redirect_uri,resource,code_challenge,expires_at,consumed_at FROM mcp_oauth_codes WHERE code_hash=$1`, hash).
 		Scan(&code.Hash, &code.GrantID, &code.ClientID, &code.RedirectURI, &code.Resource, &code.CodeChallenge, &code.ExpiresAt, &code.ConsumedAt)
@@ -89,6 +102,9 @@ func (r *mcpOAuthRepository) GetCode(ctx context.Context, hash string) (*service
 }
 
 func (r *mcpOAuthRepository) GetCredential(ctx context.Context, hash string) (*service.MCPOAuthCredential, error) {
+	if err := mcpOAuthStorageRequired(); err != nil {
+		return nil, err
+	}
 	credential := &service.MCPOAuthCredential{}
 	err := r.db.QueryRowContext(ctx, `SELECT key_hash,grant_id,kind,expires_at,used_at FROM mcp_oauth_credentials WHERE key_hash=$1`, hash).
 		Scan(&credential.Hash, &credential.GrantID, &credential.Kind, &credential.ExpiresAt, &credential.UsedAt)
@@ -110,10 +126,16 @@ func scanMCPOAuthGrant(row interface{ Scan(...any) error }) (*service.MCPOAuthGr
 }
 
 func (r *mcpOAuthRepository) GetGrant(ctx context.Context, id string) (*service.MCPOAuthGrant, error) {
+	if err := mcpOAuthStorageRequired(); err != nil {
+		return nil, err
+	}
 	return scanMCPOAuthGrant(r.db.QueryRowContext(ctx, `SELECT `+mcpOAuthGrantColumns+` FROM mcp_oauth_grants WHERE id=$1`, id))
 }
 
 func (r *mcpOAuthRepository) ListGrants(ctx context.Context, userID int64) ([]*service.MCPOAuthGrant, error) {
+	if err := mcpOAuthStorageRequired(); err != nil {
+		return nil, err
+	}
 	rows, err := r.db.QueryContext(ctx, `SELECT `+mcpOAuthGrantColumns+` FROM mcp_oauth_grants WHERE user_id=$1 ORDER BY created_at DESC`, userID)
 	if err != nil {
 		return nil, err
@@ -139,6 +161,9 @@ func (r *mcpOAuthRepository) RotateRefresh(ctx context.Context, hash, grantID st
 }
 
 func (r *mcpOAuthRepository) consumeAndIssue(ctx context.Context, hash, grantID string, at time.Time, access, refresh *service.MCPOAuthCredential, rotating bool) error {
+	if err := mcpOAuthStorageRequired(); err != nil {
+		return err
+	}
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -196,10 +221,16 @@ func (r *mcpOAuthRepository) consumeAndIssue(ctx context.Context, hash, grantID 
 }
 
 func (r *mcpOAuthRepository) TouchGrant(ctx context.Context, id string, at time.Time) error {
+	if err := mcpOAuthStorageRequired(); err != nil {
+		return err
+	}
 	return mcpOAuthResult(r.db.ExecContext(ctx, `UPDATE mcp_oauth_grants SET last_used_at=$2 WHERE id=$1 AND revoked_at IS NULL AND expires_at>$2`, id, at))
 }
 
 func (r *mcpOAuthRepository) RevokeGrant(ctx context.Context, userID int64, id string, at time.Time) error {
+	if err := mcpOAuthStorageRequired(); err != nil {
+		return err
+	}
 	return mcpOAuthResult(r.db.ExecContext(ctx, `UPDATE mcp_oauth_grants SET revoked_at=COALESCE(revoked_at,$3) WHERE id=$1 AND user_id=$2`, id, userID, at))
 }
 
@@ -210,6 +241,12 @@ func (r *mcpOAuthRepository) RevokeUserGrants(ctx context.Context, userID int64,
 // revokeMCPGrants persists revocation instead of relying on per-request user
 // checks, so restoring an account or role cannot revive earlier grants.
 func revokeMCPGrants(ctx context.Context, exec sqlExecutor, userID int64, adminOnly bool, at time.Time) error {
+	// User disable and role demotion call this in the same transaction as the
+	// user update. With no OAuth tables there is nothing to revoke, and failing
+	// the update would block account administration on the 248 schema.
+	if !schemaHasMCPOAuthTables() {
+		return nil
+	}
 	query := `UPDATE mcp_oauth_grants SET revoked_at=$2 WHERE user_id=$1 AND revoked_at IS NULL`
 	if adminOnly {
 		query += ` AND scope='admin'`

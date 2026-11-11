@@ -141,5 +141,5 @@ func TestPrepareUsageLogInsert_UpstreamRequestIDArgWiring(t *testing.T) {
 	require.True(t, ok)
 	require.False(t, nullArg.Valid, "absent upstream request id must be NULL")
 
-	require.Contains(t, usageLogSelectColumns, "upstream_request_id")
+	require.Contains(t, usageLogSelectColumns(), "upstream_request_id")
 }

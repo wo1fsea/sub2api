@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/migrations"
 )
 
@@ -66,6 +67,18 @@ const usageLogsUpstreamRequestIDIndexMigration = "233_add_usage_log_upstream_req
 const usageLogsUpstreamRequestIDIndex = "idx_usage_logs_upstream_request_id"
 const usageLogsAPIKeyCostIndexMigration = "249_add_usage_logs_api_key_cost_index_notx.sql"
 const usageLogsAPIKeyCostIndex = "idx_usage_logs_api_key_created_cost"
+const mcpOAuthMigration = "249_mcp_oauth.sql"
+const openAICacheWriteTTLMigration = "250_openai_cache_write_ttl.sql"
+
+// hotCutoverDeferredMigrations are embedded for fresh installs but must not
+// run automatically against a database that already has schema_migrations rows
+// and has not recorded them. The live 0.2.19 database stops at 248. Applying
+// these files would alter that database during process start.
+var hotCutoverDeferredMigrations = map[string]struct{}{
+	usageLogsAPIKeyCostIndexMigration: {},
+	mcpOAuthMigration:                 {},
+	openAICacheWriteTTLMigration:      {},
+}
 
 type migrationChecksumCompatibilityRule struct {
 	fileChecksum       string
@@ -168,8 +181,22 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 		return fmt.Errorf("create schema_migrations: %w", err)
 	}
 
+	// Snapshot applied files before this process writes any of them. An empty
+	// snapshot is a fresh database and receives 249/250. A non-empty snapshot
+	// that is missing those files is an existing database (the live 248 schema)
+	// and must not be altered by them.
+	applied, err := loadAppliedMigrationFilenames(ctx, lockConn)
+	if err != nil {
+		return fmt.Errorf("list applied migrations: %w", err)
+	}
+	deferHotCutover := shouldDeferHotCutoverMigrations(applied)
+	var baselineSkip map[string]struct{}
+	if deferHotCutover {
+		baselineSkip = hotCutoverDeferredMigrations
+	}
+
 	// 自动对齐 Atlas 基线（如果检测到 legacy schema_migrations 且缺失 atlas_schema_revisions）。
-	if err := ensureAtlasBaselineAligned(ctx, lockConn, fsys); err != nil {
+	if err := ensureAtlasBaselineAlignedExcept(ctx, lockConn, fsys, baselineSkip); err != nil {
 		return err
 	}
 
@@ -182,6 +209,15 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 	sort.Strings(files) // 确保按文件名顺序执行迁移
 
 	for _, name := range files {
+		if deferHotCutover {
+			if _, deferred := hotCutoverDeferredMigrations[name]; deferred {
+				if _, alreadyApplied := applied[name]; !alreadyApplied {
+					logger.LegacyPrintf("repository.migrations", "skipping migration %s on existing schema; 249/250 are not applied during hot cutover", name)
+					continue
+				}
+			}
+		}
+
 		// 读取迁移文件内容
 		contentBytes, err := fs.ReadFile(fsys, name)
 		if err != nil {
@@ -398,6 +434,10 @@ func indexIsInvalid(ctx context.Context, db migrationConnection, indexName strin
 }
 
 func ensureAtlasBaselineAligned(ctx context.Context, db migrationConnection, fsys fs.FS) error {
+	return ensureAtlasBaselineAlignedExcept(ctx, db, fsys, nil)
+}
+
+func ensureAtlasBaselineAlignedExcept(ctx context.Context, db migrationConnection, fsys fs.FS, skip map[string]struct{}) error {
 	hasLegacy, err := tableExists(ctx, db, "schema_migrations")
 	if err != nil {
 		return fmt.Errorf("check schema_migrations: %w", err)
@@ -424,7 +464,7 @@ func ensureAtlasBaselineAligned(ctx context.Context, db migrationConnection, fsy
 		return nil
 	}
 
-	version, description, hash, err := latestMigrationBaseline(fsys)
+	version, description, hash, err := latestMigrationBaselineExcept(fsys, skip)
 	if err != nil {
 		return fmt.Errorf("atlas baseline version: %w", err)
 	}
@@ -436,6 +476,39 @@ func ensureAtlasBaselineAligned(ctx context.Context, db migrationConnection, fsy
 		return fmt.Errorf("insert atlas baseline: %w", err)
 	}
 	return nil
+}
+
+func loadAppliedMigrationFilenames(ctx context.Context, db migrationConnection) (map[string]struct{}, error) {
+	rows, err := db.QueryContext(ctx, "SELECT filename FROM schema_migrations")
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	applied := make(map[string]struct{})
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		applied[name] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return applied, nil
+}
+
+func shouldDeferHotCutoverMigrations(applied map[string]struct{}) bool {
+	if len(applied) == 0 {
+		return false
+	}
+	for name := range hotCutoverDeferredMigrations {
+		if _, ok := applied[name]; !ok {
+			return true
+		}
+	}
+	return false
 }
 
 func tableExists(ctx context.Context, db migrationConnection, tableName string) (bool, error) {
@@ -451,15 +524,26 @@ func tableExists(ctx context.Context, db migrationConnection, tableName string) 
 }
 
 func latestMigrationBaseline(fsys fs.FS) (string, string, string, error) {
+	return latestMigrationBaselineExcept(fsys, nil)
+}
+
+func latestMigrationBaselineExcept(fsys fs.FS, skip map[string]struct{}) (string, string, string, error) {
 	files, err := fs.Glob(fsys, "*.sql")
 	if err != nil {
 		return "", "", "", err
 	}
-	if len(files) == 0 {
+	sort.Strings(files)
+	name := ""
+	for i := len(files) - 1; i >= 0; i-- {
+		if _, skipped := skip[files[i]]; skipped {
+			continue
+		}
+		name = files[i]
+		break
+	}
+	if name == "" {
 		return "baseline", "baseline", "", nil
 	}
-	sort.Strings(files)
-	name := files[len(files)-1]
 	contentBytes, err := fs.ReadFile(fsys, name)
 	if err != nil {
 		return "", "", "", err

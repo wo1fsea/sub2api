@@ -95,7 +95,7 @@ func (r *userRepository) BatchDisableUsers(ctx context.Context, userIDs []int64)
 	if err != nil {
 		return nil, err
 	}
-	if len(disabled) > 0 {
+	if len(disabled) > 0 && schemaHasMCPOAuthTables() {
 		if _, err := exec.ExecContext(txCtx,
 			`UPDATE mcp_oauth_grants SET revoked_at = $2 WHERE user_id = ANY($1) AND revoked_at IS NULL`,
 			pq.Array(disabled), time.Now().UTC(),
