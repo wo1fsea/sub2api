@@ -37,7 +37,7 @@
     "testFilesPassed": 4,
     "testsPassed": 52,
     "fullSuiteRerun": false,
-    "freshBuild": "Not reached: Docker Hub token fetch failed while resolving Dockerfile frontend. Local full vue-tsc -b passed; exact-image build remains required.",
+    "freshBuild": "Exact-image build pending authorized Docker Hub retry; local full vue-tsc -b and serial-checker regression passed. No business/frontend source changes since the qualified tree.",
     "buildFix": "frontend/vite.config.ts checker enableBuild:false; package.json and Dockerfile still require full vue-tsc -b before vite build; original memory limits unchanged."
   },
   "migrations": {
@@ -60,7 +60,7 @@
     "Nonempty live-copy rehearsal with unchanged 299-row migration/checksum set and no post-248 objects, including restart",
     "Read-only prepare/activate with no login/inference/usage writes; final environment and ledger verification"
   ],
-  "approval": "BRIEF-ADDENDUM-pack-cutover-20261112.md authorizes these read-only cutover and minimal build fixes, then packaging, fresh backup, isolated 248 rehearsal and conditional activation. No further activate GO is needed once every gate passes.",
+  "approval": "BRIEF-ADDENDUM-pack-cutover-20261112.md authorizes these read-only cutover and minimal build fixes, then packaging, fresh backup, isolated 248 rehearsal and conditional activation. No further activate GO is needed once every gate passes. BRIEF-ADDENDUM-pack-retry-hub-20261112.md explicitly authorizes retry after P0 verified Docker Hub with the same builder. Keep Magpie isolated and stop on another build failure.",
   "resolvedBlocker": "Installed root-owned launchd dispatcher invokes sub2api-neubrutalism/deploy/local-upgrade/service-recovery.mjs every 60s. That deployed code accepts only 0.2.13/0.2.19 in releasePin/assertVersion and manifest pathname. Pure validation reproduces Unsupported release version for 0.2.21. Editing this worktree does not update installed recovery; BRIEF permits image/compose/upgrade-state writes, not changes to the separate deployed recovery program.",
   "recoveryQualification": {
     "livePath": "/Users/clawbotbot/Projects/sub2api-neubrutalism/deploy/local-upgrade/service-recovery.mjs",
@@ -87,7 +87,7 @@
     "isolatedRehearsalPerformed": false,
     "productionDeploymentPerformed": false
   },
-  "packaging": {
+  "previousHubPackagingFailure": {
     "sourceCommit": "0de7d886a56b235ee440af35cfdd8dde87a74302",
     "command": "node deploy/local-upgrade/build-local.mjs",
     "passed": false,
@@ -102,6 +102,5 @@
     "guardStopped": false,
     "minimumHostGiB": 15.29,
     "minimumDockerGiB": 19.26
-  },
-  "blocker": "Exact-HEAD packaging failed before frontend build: auth.docker.io token request EOF. Stopped per BRIEF without retry or network changes. Read-only cutover and serial typecheck fixes passed 85 tests; no candidate image exists for the mandatory nonempty 248 restore rehearsal."
+  }
 }
