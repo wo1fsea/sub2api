@@ -1,3 +1,24 @@
+# 2026-11-12 09:59 +0800 — 本轮结果：只读切流修复完成，打包被 Docker Hub token EOF 阻断
+
+已按最新 addendum 先完成只读 prepare/activate/rollback 与最小构建修复，85项local-upgrade测试全部通过，完整前端`vue-tsc -b`通过。应用后端/SQL树未改。随后从干净HEAD `0de7d886a56b235ee440af35cfdd8dde87a74302` 运行原`build-local.mjs`，未手填tag。
+
+本次构建在步骤#3解析Dockerfile frontend时失败，**尚未进入前端构建**：`failed to fetch anonymous token: Get https://auth.docker.io/token?...: EOF`，BuildKit退出1，build-local退出1。未声称此次已经运行验证了镜像内的内存修复。按仍有效的“失败即停”，未重试、未修改网络策略、未新建数据库备份、未进行现网库副本演练、未prepare/activate/rollback。0.2.21在非空248副本上的启动/重启证明仍待完成，不能放行。
+
+只读切流修复的实际内容：删除现网`session()`/POST auth login、authenticated API、quota batch、liveGateway/verifyTerra调用；回滚同样改为只读health/image/ledger校验。唯一HTTP传输仅允许固定origin的无credentials GET `/health`、静态`/login`与hashed assets，拒绝body/token/headers/method覆盖及redirect；三处psql必须为single SELECT且包裹BEGIN READ ONLY与5秒timeout。实际源码AST回归测试防止绕过该传输和SQL门禁。每个切流阶段检查`.env` fingerprint；身份由digest/labels/确切备份与副本报告绑定。业务操作验证仅留在隔离副本里，不在现网制造或要求新usage行。
+
+构建修复仅修改`frontend/vite.config.ts`的checker `enableBuild:false`，避免Vite阶段再并行启动vue-tsc；开发checker保留，package.json与Dockerfile的完整`vue-tsc -b && vite build`串行顺序保留，原内存/CPU预算未加大。副本门禁还要求启动与重启均有三条skip日志、248 capability检测和299条filename/checksum完全一致；API派生展示值单独记录脱敏指纹，持久化settings/business/schema一致性未放宽。相关源码提交为`0de7d886a56b`，未push、未amend批准merge。
+
+最终只读核对：
+
+- 实际现网tag=`sub2api-local:0.2.19-466dc86d2eec`；digest=`sha256:ed98069e97165ce50a1286cd7707fa250c8b864e4651ab63cad0d3ce1e5b1655`；revision=`466dc86d2eec60c8d56398dcae627a3f1c375127`。无实际0.2.21 image/tag/digest或manifest；失败包目录`release/sub2api_0.2.21_linux_arm64_0de7d886a56b/`仅保留source.tar.gz和BUILDING.json。
+- app healthy，18480/18080/18583 `/health`均ok；StartedAt仍`2026-11-08T08:53:42.616998344Z`、RestartCount=6。本轮没有重启app、触发真实恢复或处理OAuth #1。
+- `.env` SHA256仍`63503f4f21908be7b28ba9686c109e20498cb489ef429a9f8277c42d08a0bc14`；mtime=`2026-09-24T18:02:14+0800`，605 bytes，0600，均未变。现网compose/state SHA256仍为`cb98c8985eb2df8f3aeed7073648a15e92538c1c8240d660015ddb5c10a8e325`/`4980a4a2e84efa1988dbc0aecbe27a1edda579ab9aef490e7474160a2c9327cc`。
+- 本轮无现网写库，仅READ ONLY/SELECT；迁移仍299条、止于248，249/250入账数0；账本指纹`6881ca3d0765b3d4376b867c6012863a`，schema列数1460、指纹`259bcb175bb7a2f0487793af6260f79c`，对应MCP表/TTL列/cost索引均0。现网正常业务继续运行，不声称活动数据库逐字节静止。
+- 已部署recovery SHA256仍`644bbcf5ffc36e55c83bc9acb2b3b1d174bf2985ff6f5c2c892488409b05eef6`，0.2.19/0.2.21纯校验都accepted=true；本轮未再修改恢复程序。
+- 新受保护数据库备份/副本演练：未执行（构建失败）。旧`backup-Omp0Fv`保留未覆盖或删除。资源守护记录host最低15.29GiB、Docker data最低19.26GiB，未触发空间/health阈值；只停止本轮启动的builder，保留缓存，未删现网image/volume/备份。
+
+---
+
 # 2026-11-12 — 只读切流与最小构建修复：源码门禁完成，等待打包/副本证明
 
 已读取 BRIEF-ADDENDUM-pack-cutover-20261112.md，同一任务续做。prepare/activate 及失败回滚均已移除 session 登录、authenticated API、quota batch、liveGateway/verifyTerra 真实推理与新增 usage 验证。实际切流仅调用本工作树 `upgrade-current.mjs`；其唯一 HTTP transport 强制无 credentials 的 GET、禁止 redirect，仅允许固定现网/candidate origin 的 `/health`、`/login` 静态页面和 hashed `/assets`。`/login` 的服务端 public settings 注入经源码核对仅 GetMultiple 读取，不调用 auth login。所有三处 psql 查询经同一 single-SELECT + BEGIN READ ONLY + bounded timeout + ROLLBACK 门禁；无手工 DML/DDL。镜像标签/digest、248账本与副本报告提供身份/兼容资格；不再用真实现网推理作为资格。切流和回滚各阶段校验 `.env` hash/mtime/size/mode。

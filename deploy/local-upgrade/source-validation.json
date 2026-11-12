@@ -37,7 +37,7 @@
     "testFilesPassed": 4,
     "testsPassed": 52,
     "fullSuiteRerun": false,
-    "freshBuild": "Required from exact clean HEAD; full vue-tsc -b remains sequential before Vite. Only duplicate vite-plugin-checker production invocation disabled; dev checker retained.",
+    "freshBuild": "Not reached: Docker Hub token fetch failed while resolving Dockerfile frontend. Local full vue-tsc -b passed; exact-image build remains required.",
     "buildFix": "frontend/vite.config.ts checker enableBuild:false; package.json and Dockerfile still require full vue-tsc -b before vite build; original memory limits unchanged."
   },
   "migrations": {
@@ -86,5 +86,22 @@
     "privateBackupPerformed": false,
     "isolatedRehearsalPerformed": false,
     "productionDeploymentPerformed": false
-  }
+  },
+  "packaging": {
+    "sourceCommit": "0de7d886a56b235ee440af35cfdd8dde87a74302",
+    "command": "node deploy/local-upgrade/build-local.mjs",
+    "passed": false,
+    "buildxExitCode": 1,
+    "runnerExitCode": 1,
+    "error": "Dockerfile frontend resolution: auth.docker.io anonymous token fetch returned EOF",
+    "frontendBuildStarted": false,
+    "candidateImageProduced": false,
+    "privateBackupPerformed": false,
+    "isolatedRehearsalPerformed": false,
+    "productionDeploymentPerformed": false,
+    "guardStopped": false,
+    "minimumHostGiB": 15.29,
+    "minimumDockerGiB": 19.26
+  },
+  "blocker": "Exact-HEAD packaging failed before frontend build: auth.docker.io token request EOF. Stopped per BRIEF without retry or network changes. Read-only cutover and serial typecheck fixes passed 85 tests; no candidate image exists for the mandatory nonempty 248 restore rehearsal."
 }
