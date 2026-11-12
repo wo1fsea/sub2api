@@ -1,3 +1,45 @@
+# 2026-11-12 11:07 +0800 — Hub 重试结果：镜像/248副本演练通过，prepare 缓存预算阻断，未 activate
+
+已执行 BRIEF-ADDENDUM-pack-retry-hub-20261112.md，同一任务/tab续做。本轮没有改应用业务源码、迁移或切流工具，没有改Clash、恢复程序、Tailscale Serve；没有操作并行Magpie任务、容器、卷或项目目录。切前重新运行4项只读切流/串行构建专项测试，全通过；85项工具测试及后端/前端源码鉴定沿用同任务、相同应用树的已通过证据。
+
+## 实际构建产物（保留，未升级成现网）
+
+从干净HEAD `121573906e4ddb2c1a7e381e4951f15ea1094b56` 运行 `build-local.mjs`，退出0，tag由脚本生成，未手填/retag：
+
+- 实际候选tag：`sub2api-local:0.2.21-121573906e4d`。
+- Docker实际image ID/digest：`sha256:da2f09731adeaf048341b7fd627f14209c8e8a0b322c2b174f0d213c25d8b14e`。
+- 平台linux/arm64，image label version=0.2.21，revision=`121573906e4ddb2c1a7e381e4951f15ea1094b56`；批准的应用merge仍为`a8314a689286`，其后仅本地运维/构建/鉴定提交，无push、无amend。
+- manifest：`release/sub2api_0.2.21_linux_arm64_121573906e4d/manifest.json`，SHA256=`0cd5f692cbfee3d84c5595b94d97820582a3dca0c3442d8433c5785b965b3fab`。完整bundle与image/source归档均保留，未修改已生成manifest。
+- Docker Hub解析与拉取成功；镜像内i18n检查、完整vue-tsc、Vite、Go编译均通过。Vite实际构建18.23s，ARM64后端编译232.7s；串行类型检查修复在实际镜像构建中得到验证，未加内存。guardStopped=false，host最低13.57GiB、Docker data最低16.85GiB，现网health无回退。构建后只停回自己的builder。
+
+## 新受保护备份与非空现网库副本演练
+
+新备份：`/Users/clawbotbot/Projects/sub2api-upgrade-private/backup-aDGPmz`，2026-11-12 10:54:38至10:54:47 +0800完成，目录0700、文件0600。包括postgres.dump 49,675,532 bytes、app-data.tar.gz 16,520 bytes、redis.rdb 19,782,326 bytes以及受保护配置/恢复元数据；备份manifest SHA256=`e03224b7b53322a78f9413e08f1f25182cd58115059ea8d726fc659a63ebcc0f`。来源是当时运行的0.2.19及其非空299条248账本。旧`backup-Omp0Fv`完整保留，未覆盖/删除。
+
+实际报告：`/Users/clawbotbot/Projects/sub2api-upgrade-private/rehearsal-nqHIp2/rehearsal-report.json`，SHA256=`f63df4ea214fd3c4f656588e448dddf85e7589959c2d804285ff62d806a6d2c0`。mode=`hot-cutover-0.2.19-to-0.2.21-schema-248`，passed=true，script exit=0，cleanupSucceeded=true。
+
+- 确实从新备份恢复非空现网数据库副本，使用internal无外网网络、独立PG/Redis/app卷、无host发布端口，未引用生产DB/Redis。候选启动约2012ms。
+- 启动前、启动后、重启后：已应用均为299条，filename/checksum逐项匹配release source且完全不变，newCount=0；源码302条中恰好以下三条保持未应用：`249_add_usage_logs_api_key_cost_index_notx.sql`、`249_mcp_oauth.sql`、`250_openai_cache_write_ttl.sql`。
+- 每条skip日志在首次启动出现1次、重启后累计2次；248 capability检测为usage TTL=false、12h pricing=false、MCP OAuth=false。三个阶段对应MCP表、TTL/12h价格列、cost索引数量均为0，schemaStable/restartStable=true。
+- 业务投影、持久化settings/configuration/app-data在启动及重启门禁中保持一致。用户/admin用量和渠道读取成功，缺MCP OAuth表受控返回503；管理员设置往返、两个版本创建/交叉读取合成key等写行为只发生于隔离副本。未进行真实gateway推理，未拿空库测试当放行依据。
+- 演练自己的容器/网络/临时卷已清理；新备份与受保护报告保留，未触及Magpie。
+
+## prepare 的新 blocker 与处理
+
+在上述报告通过后，调用本工作树只读`upgrade-current.mjs prepare MANIFEST BACKUP REPORT`。备份/报告/镜像/248门禁通过，生产旁路候选已启动，但合并历史frontend assets时返回 `Historical frontend cache exceeds its retention budget`，prepare退出1。原缓存1712项、73,610,796 bytes（约70.2MiB），合并预算为1800项且<96MiB；未修改预算或删历史资源。失败发生在`cacheAssets`写入及route reload之前，原assets.json mtime仍为2026-11-05 21:17:02 +0800，未发生切流或current app替换。
+
+按“失败即停”，未调用activate，也未重试prepare。仅调用规定的 `upgrade-current.mjs rollback MANIFEST` 收回本次候选，退出0；最终operation=`rolled-back-verified`，candidateCleanup.ok=true，candidate.present=false，route=current。当前app未被stop/start，StartedAt/RestartCount不变；没有恢复数据库快照、没有登录/推理/usage-row现网探针，productionInferenceProbes=false，databaseRestored=false，tailscaleServeChanged=false。操作state位于`/Users/clawbotbot/Projects/sub2api-local/upgrade-0.2.21-121573906e4d/state.json`。后续需解决历史静态资源保留预算卡点；本轮未擅自放宽。
+
+## 最终现网与不变性
+
+- **实际现网tag仍为**`sub2api-local:0.2.19-466dc86d2eec`，image ID=`sha256:ed98069e97165ce50a1286cd7707fa250c8b864e4651ab63cad0d3ce1e5b1655`，revision=`466dc86d2eec60c8d56398dcae627a3f1c375127`。新0.2.21镜像仅保留为候选产物。
+- app healthy；18480/18080/18583及public health均ok。StartedAt=`2026-11-08T08:53:42.616998344Z`，RestartCount=6，均未变。未为OAuth #1重启或重登。
+- `.env` hash仍`63503f4f21908be7b28ba9686c109e20498cb489ef429a9f8277c42d08a0bc14`，mtime=`2026-09-24T18:02:14+0800`、605 bytes、0600。current compose/state hash仍`cb98c8985eb2df8f3aeed7073648a15e92538c1c8240d660015ddb5c10a8e325` / `4980a4a2e84efa1988dbc0aecbe27a1edda579ab9aef490e7474160a2c9327cc`。
+- 现网DB：本轮运维SQL只读，未发登录/推理写请求、未手工DML/DDL、未apply或伪造迁移。最终299条、止于248，249/250计数0，账本指纹仍`6881ca3d0765b3d4376b867c6012863a`；public列数1460、schema指纹仍`259bcb175bb7a2f0487793af6260f79c`，post-248表/列/索引均0。正常业务仍运行，不声称活动DB字节静止。
+- 最终host约13GiB、Docker data约18GiB可用；只清理本轮演练/候选的自有临时资源，没有删除现网image/volume或备份，没有操作Magpie，没有更改Tailscale Serve。任务停在本tab等待P0，未push。
+
+---
+
 # 2026-11-12 09:59 +0800 — 本轮结果：只读切流修复完成，打包被 Docker Hub token EOF 阻断
 
 已按最新 addendum 先完成只读 prepare/activate/rollback 与最小构建修复，85项local-upgrade测试全部通过，完整前端`vue-tsc -b`通过。应用后端/SQL树未改。随后从干净HEAD `0de7d886a56b235ee440af35cfdd8dde87a74302` 运行原`build-local.mjs`，未手填tag。

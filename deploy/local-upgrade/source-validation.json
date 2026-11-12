@@ -37,7 +37,7 @@
     "testFilesPassed": 4,
     "testsPassed": 52,
     "fullSuiteRerun": false,
-    "freshBuild": "Exact-image build pending authorized Docker Hub retry; local full vue-tsc -b and serial-checker regression passed. No business/frontend source changes since the qualified tree.",
+    "freshBuild": "PASS in exact ARM64 package 121573906e4ddb2c1a7e381e4951f15ea1094b56: i18n, full vue-tsc, Vite (18.23s), then Go compile (232.7s); unchanged memory limits.",
     "buildFix": "frontend/vite.config.ts checker enableBuild:false; package.json and Dockerfile still require full vue-tsc -b before vite build; original memory limits unchanged."
   },
   "migrations": {
@@ -51,14 +51,13 @@
       "249_mcp_oauth.sql",
       "250_openai_cache_write_ttl.sql"
     ],
-    "runtimeRehearsalPerformed": false
+    "runtimeRehearsalPerformed": true
   },
   "productionDeploymentPerformed": false,
   "pendingProductionGates": [
-    "Exact clean-HEAD ARM64 package within disk/memory limits",
-    "New protected backup, preserving backup-Omp0Fv",
-    "Nonempty live-copy rehearsal with unchanged 299-row migration/checksum set and no post-248 objects, including restart",
-    "Read-only prepare/activate with no login/inference/usage writes; final environment and ledger verification"
+    "Resolve historical frontend asset retention budget within approved scope; do not bypass or delete historical assets unilaterally",
+    "A new valid preparation/activation sequence with fresh backup and exact rehearsal binding; current operation is rolled-back-verified",
+    "Final read-only image/health/environment/ledger verification"
   ],
   "approval": "BRIEF-ADDENDUM-pack-cutover-20261112.md authorizes these read-only cutover and minimal build fixes, then packaging, fresh backup, isolated 248 rehearsal and conditional activation. No further activate GO is needed once every gate passes. BRIEF-ADDENDUM-pack-retry-hub-20261112.md explicitly authorizes retry after P0 verified Docker Hub with the same builder. Keep Magpie isolated and stop on another build failure.",
   "resolvedBlocker": "Installed root-owned launchd dispatcher invokes sub2api-neubrutalism/deploy/local-upgrade/service-recovery.mjs every 60s. That deployed code accepts only 0.2.13/0.2.19 in releasePin/assertVersion and manifest pathname. Pure validation reproduces Unsupported release version for 0.2.21. Editing this worktree does not update installed recovery; BRIEF permits image/compose/upgrade-state writes, not changes to the separate deployed recovery program.",
@@ -102,5 +101,51 @@
     "guardStopped": false,
     "minimumHostGiB": 15.29,
     "minimumDockerGiB": 19.26
-  }
+  },
+  "packaging": {
+    "sourceCommit": "121573906e4ddb2c1a7e381e4951f15ea1094b56",
+    "command": "node deploy/local-upgrade/build-local.mjs",
+    "passed": true,
+    "image": "sub2api-local:0.2.21-121573906e4d",
+    "imageId": "sha256:da2f09731adeaf048341b7fd627f14209c8e8a0b322c2b174f0d213c25d8b14e",
+    "manifestSha256": "0cd5f692cbfee3d84c5595b94d97820582a3dca0c3442d8433c5785b965b3fab",
+    "buildExitCode": 0,
+    "guardStopped": false,
+    "minimumHostGiB": 13.57,
+    "minimumDockerGiB": 16.85
+  },
+  "isolatedRehearsal": {
+    "passed": true,
+    "mode": "hot-cutover-0.2.19-to-0.2.21-schema-248",
+    "backup": "/Users/clawbotbot/Projects/sub2api-upgrade-private/backup-aDGPmz",
+    "report": "/Users/clawbotbot/Projects/sub2api-upgrade-private/rehearsal-nqHIp2/rehearsal-report.json",
+    "reportSha256": "f63df4ea214fd3c4f656588e448dddf85e7589959c2d804285ff62d806a6d2c0",
+    "beforeCount": 299,
+    "afterCount": 299,
+    "newMigrations": 0,
+    "restartStable": true,
+    "skipLogOccurrencesPerFileAfterRestart": 2,
+    "post248ObjectsAbsent": true,
+    "businessStable": true,
+    "configurationStable": true,
+    "cleanupSucceeded": true,
+    "realGatewayCallsTested": false
+  },
+  "productionPreparation": {
+    "attempted": true,
+    "passed": false,
+    "failure": "Historical frontend cache exceeds its retention budget",
+    "historicalAssetCount": 1712,
+    "historicalAssetBytes": 73610796,
+    "fileLimit": 1800,
+    "byteLimit": 100663296,
+    "candidateStarted": true,
+    "activateInvoked": false,
+    "rollback": "rolled-back-verified",
+    "candidateCleanupSucceeded": true,
+    "currentAppRestarted": false,
+    "liveDatabaseWritesByOperator": false,
+    "productionInferenceProbes": false
+  },
+  "blocker": "Prepare rejected the merged historical frontend cache budget before any routing/current-image change. Did not raise the budget or delete historical assets. Prescribed rollback removed only the candidate; current 0.2.19 remains healthy and unchanged. Exact image, new protected backup and successful nonempty 248 rehearsal are retained."
 }
