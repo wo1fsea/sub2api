@@ -1,3 +1,46 @@
+# 2026-11-12 11:40 +0800 — 完成：旧缓存清理后，现网0.2.21已active-verified，schema仍248
+
+按 BRIEF-ADDENDUM-cache-prune-activate-20261112.md 完成同一任务。未重新打包，复用批准的既有候选镜像；未改1800项/<96MiB预算。prepare成功、activate成功，最终route=current、operation=`active-verified`、candidate不存在且cleanup.ok=true。
+
+## 缓存结果与回滚保护
+
+|阶段|项数|bytes|
+|---|---:|---:|
+|清理前历史缓存|1712|73,610,796|
+|清理后历史缓存|512|21,249,514|
+|prepare实际合并后、最终缓存|647|27,789,270|
+
+最终647项、约26.50MiB，低于原1800项和96MiB预算，647项hash通过prepare/activate验证。仅移出11月1日前且现网图不引用的1200项（52,361,282 bytes）；所有11月历史资源保留。现网0.2.19直接入口解析所得完整180项资源全保留，清理后及切换到0.2.21后均通过18480逐项hash校验，可供旧页面和app回滚使用。旧0.2.19 image仍保留。
+
+移出的缓存可恢复，路径`/Users/clawbotbot/Projects/sub2api-upgrade-private/cache-prune-bAPFFZ`，包含原inventory/map、保护清单、计划、执行结果和旧assets。上轮失败且已经回滚的操作记录保留在`/Users/clawbotbot/Projects/sub2api-upgrade-private/operation-retry-4L3frJ/upgrade-0.2.21-121573906e4d`；未篡改其phase，重新prepare生成了本轮操作。
+
+## 新备份/演练与切换
+
+为满足30分钟新鲜度和当前ops hash绑定，新建`/Users/clawbotbot/Projects/sub2api-upgrade-private/backup-KcyqfJ`，11:32:23–11:32:32 +0800完成，目录0700、文件0600。`backup-aDGPmz`与`backup-Omp0Fv`均保留，没有覆盖/删除。
+
+现网非空库副本演练报告：`/Users/clawbotbot/Projects/sub2api-upgrade-private/rehearsal-SCXl1G/rehearsal-report.json`。mode=`hot-cutover-0.2.19-to-0.2.21-schema-248`，passed=true、cleanupSucceeded=true。同一候选启动约2003ms；299条filename/checksum在启动前后和重启后完全相同；三条249/250始终未应用，skip日志首次各1次、重启后各2次；post-248表/列/索引均0，schema/business/configuration/restartStable均true。仍使用internal无外网独立数据库/Redis/卷，无生产依赖、无host端口。所有登录、设置往返和合成key写测试仅在副本上执行。
+
+prepare时间=`2026-11-12T03:36:40.227Z`，activate时间=`2026-11-12T03:37:13.339Z`（11:37:13 +0800）。使用既有只读HTTP/SQL门禁，未对现网POST auth login、未推理、未制造/要求新的usage行；productionInferenceProbes=false，databaseRestored=false，tailscaleServeChanged=false。实际compose与previous-compose逐字段对比，唯一改变为`services.app.image`；current/upgrade state记录新manifest与image pin。
+
+activate完成时首次candidate cleanup遇到Docker health仍为starting的短暂窗口，报`Current application must already serve correctly`，未影响durable active-verified。待容器自然变为healthy后，仅运行脚本`cleanup MANIFEST`，成功移除旁路candidate及自有volume；没有再次重启current。最终`status MANIFEST`成功：route=current、current healthy/publicHealth=ok、candidate.present=false、cleanup.ok=true（03:38:10Z）。
+
+## 最终实际现网
+
+- tag：`sub2api-local:0.2.21-121573906e4d`。
+- image ID/digest：`sha256:da2f09731adeaf048341b7fd627f14209c8e8a0b322c2b174f0d213c25d8b14e`。
+- revision：`121573906e4ddb2c1a7e381e4951f15ea1094b56`，应用批准merge仍为`a8314a689286` / PR #5；本轮运维提交未改变backend/frontend/migrations树，无重打包、无retag。
+- container=`sub2api-current-app`，healthy；18480/18080/18583及public health均ok，route=current。
+- StartedAt=`2026-11-12T03:37:08.976426837Z`（11:37:08 +0800），RestartCount=0。这是本次获批image替换创建的新容器，未为OAuth #1进行额外重启/重登。
+- `.env`未变：SHA256=`63503f4f21908be7b28ba9686c109e20498cb489ef429a9f8277c42d08a0bc14`，mtime=`2026-09-24T18:02:14+0800`，605 bytes，0600。
+- 现网迁移仍299条，末条`248_group_image_count_billing.sql`，249/250入账数0，账本指纹仍`6881ca3d0765b3d4376b867c6012863a`。public schema列数1460、指纹仍`259bcb175bb7a2f0487793af6260f79c`；MCP表、TTL/12h定价列、cost索引均0。实际current启动日志明确显示三条migration skipped和248 capabilities=false。
+- 本轮运维未执行现网DML/DDL/迁移/restore或登录推理写探针；schema/账本实测不变，`.env`完整不变。正常现网业务写入仍继续，不将活动数据库描述为逐字节静止。
+- 已部署recovery文件未改，hash仍`644bbcf5ffc36e55c83bc9acb2b3b1d174bf2985ff6f5c2c892488409b05eef6`；未触发真实恢复。未碰Magpie安装/容器/卷/目录，未改Clash/Tailscale Serve，未push或amend。
+- 最终host约12GiB、Docker data约18GiB可用，未触发磁盘阈值；旧镜像/现网卷和所有指定备份均保留。
+
+如确有回滚需求，唯一约定入口（本轮不执行）：`node deploy/local-upgrade/upgrade-current.mjs rollback /Users/clawbotbot/Projects/sub2api-0.2.21-a8314a/release/sub2api_0.2.21_linux_arm64_121573906e4d/manifest.json`，只回app、不restore数据库。完成后停在本tab等待P0验收。
+
+---
+
 # 2026-11-12 11:31 +0800 — 授权清理旧前端缓存完成，复用既有候选等待重试
 
 已读 BRIEF-ADDENDUM-cache-prune-activate-20261112.md。候选 `sub2api-local:0.2.21-121573906e4d`、image ID `sha256:da2f09731adeaf048341b7fd627f14209c8e8a0b322c2b174f0d213c25d8b14e` 和revision均再次核对存在；没有重新打包。

@@ -53,12 +53,8 @@
     ],
     "runtimeRehearsalPerformed": true
   },
-  "productionDeploymentPerformed": false,
-  "pendingProductionGates": [
-    "Fresh protected backup and nonempty 248 rehearsal for unchanged retained candidate and current ops hashes",
-    "Retry original read-only prepare/activate after archiving the verified closed operation; preserve old backups",
-    "Verify actual merged cache remains within 1800 files / <96MiB and all current rollback resources remain served"
-  ],
+  "productionDeploymentPerformed": true,
+  "pendingProductionGates": [],
   "approval": "BRIEF-ADDENDUM-pack-cutover-20261112.md authorizes these read-only cutover and minimal build fixes, then packaging, fresh backup, isolated 248 rehearsal and conditional activation. No further activate GO is needed once every gate passes. BRIEF-ADDENDUM-pack-retry-hub-20261112.md explicitly authorizes retry after P0 verified Docker Hub with the same builder. Keep Magpie isolated and stop on another build failure.",
   "resolvedBlocker": "Installed root-owned launchd dispatcher invokes sub2api-neubrutalism/deploy/local-upgrade/service-recovery.mjs every 60s. That deployed code accepts only 0.2.13/0.2.19 in releasePin/assertVersion and manifest pathname. Pure validation reproduces Unsupported release version for 0.2.21. Editing this worktree does not update installed recovery; BRIEF permits image/compose/upgrade-state writes, not changes to the separate deployed recovery program.",
   "recoveryQualification": {
@@ -117,9 +113,9 @@
   "isolatedRehearsal": {
     "passed": true,
     "mode": "hot-cutover-0.2.19-to-0.2.21-schema-248",
-    "backup": "/Users/clawbotbot/Projects/sub2api-upgrade-private/backup-aDGPmz",
-    "report": "/Users/clawbotbot/Projects/sub2api-upgrade-private/rehearsal-nqHIp2/rehearsal-report.json",
-    "reportSha256": "f63df4ea214fd3c4f656588e448dddf85e7589959c2d804285ff62d806a6d2c0",
+    "backup": "/Users/clawbotbot/Projects/sub2api-upgrade-private/backup-KcyqfJ",
+    "report": "/Users/clawbotbot/Projects/sub2api-upgrade-private/rehearsal-SCXl1G/rehearsal-report.json",
+    "reportSha256": "61c354e44fd2c6230b486646e73cf45993413b2ed2e04b438b708fe5b17de465",
     "beforeCount": 299,
     "afterCount": 299,
     "newMigrations": 0,
@@ -166,6 +162,59 @@
     },
     "archive": "/Users/clawbotbot/Projects/sub2api-upgrade-private/cache-prune-bAPFFZ",
     "recoverable": true,
-    "budgetUnchanged": true
+    "budgetUnchanged": true,
+    "afterMerge": {
+      "count": 647,
+      "bytes": 27789270,
+      "rollbackGraphVerified": 180,
+      "budgetUnchanged": true
+    }
+  },
+  "previousIsolatedRehearsal": {
+    "passed": true,
+    "mode": "hot-cutover-0.2.19-to-0.2.21-schema-248",
+    "backup": "/Users/clawbotbot/Projects/sub2api-upgrade-private/backup-aDGPmz",
+    "report": "/Users/clawbotbot/Projects/sub2api-upgrade-private/rehearsal-nqHIp2/rehearsal-report.json",
+    "reportSha256": "f63df4ea214fd3c4f656588e448dddf85e7589959c2d804285ff62d806a6d2c0",
+    "beforeCount": 299,
+    "afterCount": 299,
+    "newMigrations": 0,
+    "restartStable": true,
+    "skipLogOccurrencesPerFileAfterRestart": 2,
+    "post248ObjectsAbsent": true,
+    "businessStable": true,
+    "configurationStable": true,
+    "cleanupSucceeded": true,
+    "realGatewayCallsTested": false
+  },
+  "productionDeployment": {
+    "phase": "active-verified",
+    "activatedAt": "2026-11-12T03:37:13.339Z",
+    "image": "sub2api-local:0.2.21-121573906e4d",
+    "imageId": "sha256:da2f09731adeaf048341b7fd627f14209c8e8a0b322c2b174f0d213c25d8b14e",
+    "revision": "121573906e4ddb2c1a7e381e4951f15ea1094b56",
+    "health": "healthy",
+    "entryHealth": {
+      "18080": "ok",
+      "18480": "ok",
+      "18583": "ok",
+      "public": "ok"
+    },
+    "route": "current",
+    "startedAt": "2026-11-12T03:37:08.976426837Z",
+    "restartCount": 0,
+    "envUnchanged": true,
+    "schemaUnchanged": true,
+    "migrationRows": 299,
+    "lastMigration": "248_group_image_count_billing.sql",
+    "post248Applied": 0,
+    "liveSkipLogsVerified": true,
+    "productionInferenceProbes": false,
+    "candidateCleanupSucceeded": true,
+    "candidatePresent": false,
+    "composeChangedOnlyImage": true,
+    "oldImageRetained": true,
+    "databaseRestored": false,
+    "tailscaleServeChanged": false
   }
 }
