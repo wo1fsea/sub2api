@@ -119,7 +119,8 @@ await writeFile(join(output, 'manifest.json'), `${JSON.stringify({
   sourceValidation: validation,
   releaseGates: ['exact-image smoke and current database restore compatibility',
     'fresh private backup and retained background-role owner',
-    'successful real gateway response on the candidate', 'entry activation and real response through original URL',
+    'exact nonempty schema-248 restore rehearsal with zero applied migration changes',
+    'read-only live health, image identity, ledger and environment checks before and after entry activation',
     'old static assets and healthy rollback instance retained']
 }, null, 2)}\n`)
 const files = ['image.tar', 'source.tar.gz', 'README.md', 'manifest.json', 'source-validation.json', 'smoke.mjs', 'smoke-compose.yaml']

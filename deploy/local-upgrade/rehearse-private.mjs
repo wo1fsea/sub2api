@@ -131,7 +131,7 @@ const configuration = {
       healthcheck: { test: ['CMD', 'redis-cli', 'ping'], interval: '2s', timeout: '2s', retries: 45 } },
     blue: app(backupManifest.oldImageId, 'blue-data'), green: {
       ...app(candidate.imageId, 'green-data'),
-      environment: { ...appEnv, GATEWAY_SCHEDULING_LEGACY_SNAPSHOT_COMPAT: 'true' }
+      environment: { ...appEnv, LOG_LEVEL: 'info', GATEWAY_SCHEDULING_LEGACY_SNAPSHOT_COMPAT: 'true' }
     }
   }, networks: { default: { internal: true } },
   volumes: { 'db-data': {}, 'redis-data': {}, 'blue-data': {}, 'green-data': {} }
@@ -250,6 +250,15 @@ function post248Objects() {
     'tables', (SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name LIKE 'mcp_oauth_%'),
     'columns', (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND column_name IN ('cache_creation_30m_tokens','cache_creation_12h_tokens','cache_write_12h_price')),
     'index', (SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND indexname='idx_usage_logs_api_key_created_cost'))`))
+}
+function deferredStartupEvidence(startups) {
+  const logs = spawnSync('docker', ['logs', '--tail', '1000', id('green')], { encoding: 'utf8', timeout: 10_000, maxBuffer: 1 << 20 })
+  assert(!logs.error && logs.status === 0, 'Cannot read bounded isolated startup evidence')
+  const text = (logs.stdout || '') + (logs.stderr || '')
+  const counts = Object.fromEntries(deferred.map(name => [name, text.split(`skipping migration ${name} on existing schema`).length - 1]))
+  assert(Object.values(counts).every(count => count >= startups), 'Missing explicit deferred-migration startup evidence')
+  assert(text.includes('serving without post-248 schema objects: usage_log_cache_ttl=false channel_cache_write_12h=false mcp_oauth=false'), 'Missing 248 capability detection evidence')
+  return { counts, schema248Detected: true }
 }
 function assertPost248Absent() {
   const objects = post248Objects()
@@ -384,6 +393,7 @@ try {
   const started = Date.now()
   docker([...compose, 'up', '--detach', 'green'])
   await ready('green')
+  if (hotCutover248) report.hotCutover248.startupLogs = deferredStartupEvidence(1)
   report.candidateStartupMs = Date.now() - started
   const isolatedDefaultNetwork = `${project}_default`
   for (const service of ['blue', 'green']) {
@@ -423,7 +433,11 @@ try {
     const sameVersionAdminSettingsAfter = readAdminSettings('green', token)
     const configurationAfter = configurationSnapshot('green', token, sameVersionAdminSettingsAfter)
     assertPersistedConfigurationEqual(configurationBefore, configurationAfter, 'Same-version startup changed persisted configuration state')
-    report.adminSettingsApi = assertExpectedFactoryPlatformQuotaProjection(sameVersionAdminSettingsBefore, sameVersionAdminSettingsAfter)
+    // New versions may expose new derived defaults. Persisted settings and
+    // configuration remain byte-exact gates; API projections are observations.
+    report.adminSettingsApi = hotCutover248
+      ? { before: adminSettingsMetadata(sameVersionAdminSettingsBefore), after: adminSettingsMetadata(sameVersionAdminSettingsAfter) }
+      : assertExpectedFactoryPlatformQuotaProjection(sameVersionAdminSettingsBefore, sameVersionAdminSettingsAfter)
     report.persistedSettingsTable = { beforeSha256: jsonSha256(businessBefore.settings), afterSha256: jsonSha256(businessAfter.settings),
       unchanged: jsonSha256(businessAfter.settings) === jsonSha256(businessBefore.settings) }
     assert.equal(report.persistedSettingsTable.unchanged, true, 'Persisted settings table changed')
@@ -541,6 +555,7 @@ try {
   const restartConfigurationBefore = sameVersion ? configurationSnapshot('green', token) : null
   docker([...compose, 'restart', 'green'])
   await ready('green')
+  if (hotCutover248) report.hotCutover248.restartLogs = deferredStartupEvidence(2)
   assert.equal(request('green', '/api/v1/auth/me', token).status, 200)
   docker([...compose, 'restart', 'blue'])
   await ready('blue')

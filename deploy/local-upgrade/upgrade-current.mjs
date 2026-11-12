@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { createReadStream } from 'node:fs'
 import { chmod, copyFile, lstat, mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises'
@@ -8,7 +8,6 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { isDeepStrictEqual } from 'node:util'
 import { setTimeout as delay } from 'node:timers/promises'
 import { acquireLock, assertCurrent, deployment, directory, names, routing } from './service-recovery.mjs'
-import { liveGateway } from './live-gateway.mjs'
 import { assertLivePostgresCoverage, assertProtectedFileMetadata, assertVolumeCoverage, backupArchiveNames, backupArchiveSpecs, protectedBackupFileNames } from './backup-manifest.mjs'
 import { assert248Ledger, assertMigrationRowsMatchSource, deferred248Migrations, firstUpgradeMode, hotCutover248Mode, sameVersionMode } from './rehearse-private-validation.mjs'
 import { postgresDumpListToc } from './pg-dump-toc.mjs'
@@ -173,8 +172,8 @@ export function assertFreshBackup(record, current, dependencies, now = Date.now(
 }
 
 
-// The ordering is also exercised with an injected operation fixture. No POST
-// is retried automatically, and candidate cleanup is outside the rollback path.
+// Candidate cleanup is outside rollback. Every live verification is read-only;
+// authenticated and write compatibility checks belong to the isolated rehearsal.
 export async function runHotSwitch(operations) {
   await operations.verifyCandidate()
   try {
@@ -293,6 +292,11 @@ export function assertRestoreReport(report, reportPath, backup, manifest, manife
       for (const stage of ['beforeObjects', 'afterObjects', 'restartObjects']) {
         check(isDeepStrictEqual(evidence[stage], { tables: 0, columns: 0, index: 0 }), 'Post-248 objects must remain absent')
       }
+      for (const [stage, minimum] of [['startupLogs', 1], ['restartLogs', 2]]) {
+        check(evidence[stage]?.schema248Detected === true && deferred248Migrations.every(name =>
+          Number.isInteger(evidence[stage]?.counts?.[name]) && evidence[stage].counts[name] >= minimum),
+        '248 cutover requires explicit skip/capability logs from startup and restart')
+      }
     }
   } else if (migrations.alreadyMigrated === true) {
     check(migrations.newCount === 0, 'Already-migrated restore report unexpectedly applied migrations')
@@ -312,7 +316,7 @@ function postgresMetadata(container) {
     'migrationsCount', (SELECT count(*) FROM schema_migrations)
   )::text;`
   return JSON.parse(docker(['exec', '-i', container.Id, 'sh', '-c',
-    'exec psql -X -qAt -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'], query))
+    'exec psql -X -qAt -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'], readOnlySQL(query)))
 }
 
 async function verifyBackup(backup, active, manifest, manifestSha256, reportPath) {
@@ -357,15 +361,14 @@ async function verifyBackup(backup, active, manifest, manifestSha256, reportPath
 }
 
 async function verifyLive248(postgres) {
-  const query = `BEGIN READ ONLY; SET LOCAL statement_timeout='5s';
-    SELECT json_build_object(
+  const query = `SELECT json_build_object(
       'rows', (SELECT json_agg(json_build_object('filename',filename,'checksum',checksum) ORDER BY filename) FROM schema_migrations),
       'tables', (SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name LIKE 'mcp_oauth_%'),
       'columns', (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND column_name IN ('cache_creation_30m_tokens','cache_creation_12h_tokens','cache_write_12h_price')),
       'index', (SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND indexname='idx_usage_logs_api_key_created_cost'));
-    ROLLBACK;`
+    `
   const snapshot = JSON.parse(docker(['exec', '-i', postgres.Id, 'sh', '-c',
-    'exec psql -X -qAt -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'], query))
+    'exec psql -X -qAt -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'], readOnlySQL(query)))
   assert248Ledger(snapshot.rows)
   const source = new Map()
   for (const name of (await readdir(join(root, 'backend/migrations'))).filter(name => name.endsWith('.sql'))) {
@@ -375,19 +378,36 @@ async function verifyLive248(postgres) {
   check(snapshot.tables === 0 && snapshot.columns === 0 && snapshot.index === 0, 'Live post-248 objects must remain absent')
 }
 
-async function request(base, path, { token, body, timeoutMs = 10_000 } = {}) {
+// Deliberately no authenticated API, login, inference, request body or redirects.
+export async function request(base, path, options = {}) {
+  check([direct, entry, compatibility, publicBase, 'http://127.0.0.1:18585'].includes(base), 'Unexpected live check origin')
+  check(path === '/health' || path === '/login' || assetPattern.test(path), 'Live checks allow only health and static frontend reads')
+  check(Object.keys(options).every(key => key === 'timeoutMs'), 'Live checks forbid credentials, bodies and method overrides')
   const response = await fetch(base + path, {
-    method: body === undefined ? 'GET' : 'POST', redirect: 'error', signal: AbortSignal.timeout(timeoutMs),
-    headers: { Connection: 'close', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
-    body: body === undefined ? undefined : JSON.stringify(body)
+    method: 'GET', credentials: 'omit', redirect: 'error',
+    signal: AbortSignal.timeout(options.timeoutMs ?? 10_000), headers: { Connection: 'close' }
   })
   check(response.status === 200, `Application check returned HTTP ${response.status}; response details suppressed`)
   return response
 }
-async function api(base, path, options) {
-  const value = await (await request(base, '/api/v1' + path, options)).json()
-  check(value.code === 0 && value.data !== undefined, 'Application API envelope is invalid')
-  return value.data
+export function readOnlySQL(query) {
+  const statement = query.trim().replace(/;$/, '')
+  check(/^SELECT\s/i.test(statement) && !statement.includes(';'), 'Live SQL must be one SELECT statement')
+  return `BEGIN READ ONLY; SET LOCAL statement_timeout='5s'; ${statement}; ROLLBACK;`
+}
+async function verifyServing(base, containerName, image, version) {
+  await ready(base)
+  const container = inspect(containerName)
+  check(container.Image === image && container.State.Running, 'Serving container image/running identity changed')
+  check(container.Config.Labels?.['org.opencontainers.image.version'] === version, 'Serving image version label changed')
+}
+async function environmentFingerprint() {
+  const path = join(deployment, '.env'), info = await lstat(path)
+  check(info.isFile() && !info.isSymbolicLink() && (info.mode & 0o777) === 0o600, 'Live .env metadata changed')
+  return { sha256: await checksum(path), mtimeMs: info.mtimeMs, bytes: info.size, mode: info.mode & 0o777 }
+}
+async function verifyEnvironment(expected) {
+  check(isDeepStrictEqual(await environmentFingerprint(), expected), 'Live .env changed during cutover')
 }
 async function health(base) { check((await (await request(base, '/health', { timeoutMs: 5000 })).json()).status === 'ok', 'Application health check failed') }
 async function ready(base) {
@@ -395,21 +415,6 @@ async function ready(base) {
   while (true) {
     try { await health(base); return } catch { check(Date.now() < deadline, 'Application did not become ready'); await delay(1000) }
   }
-}
-async function session(config, base = direct) {
-  const data = await api(base, '/auth/login', { body: { email: config.services.app.environment.ADMIN_EMAIL, password: config.services.app.environment.ADMIN_PASSWORD } })
-  check(typeof data.access_token === 'string' && data.access_token.length > 20, 'Current administrator login failed')
-  return data.access_token
-}
-async function verifyShared(base, token, appearance, version) {
-  check(supportedVersions.has(version), 'Application version argument is unsupported')
-  const user = await api(base, '/auth/me', { token })
-  check(user.role === 'admin', 'The same administrator session was not accepted')
-  check((await api(base, '/admin/system/version', { token })).version === version, 'Application version is incorrect')
-  const current = (await api(base, '/settings/public')).site_appearance
-  const admin = (await api(base, '/admin/settings', { token })).site_appearance
-  assertAppearanceMatch(current, admin, appearance)
-  return current
 }
 export function assertAppearanceMatch(current, admin, previous) {
   check(isDeepStrictEqual(admin, current), 'Public and administrator themes disagree')
@@ -497,20 +502,6 @@ export function selectQuotaAccountIDs(accounts) {
     .sort((left, right) => Number(right.id === 13) - Number(left.id === 13)).slice(0, 2)
   return [...existing, ...factory].map(account => account.id)
 }
-async function verifyQuota(base, token, frontend) {
-  const list = await api(base, '/admin/accounts?page=1&page_size=100&lite=1', { token })
-  check(Array.isArray(list.items), 'Compact account list is invalid')
-  const ids = selectQuotaAccountIDs(list.items)
-  const batch = await api(base, '/admin/accounts/usage/batch', { token, body: { account_ids: ids, force: false }, timeoutMs: 45_000 })
-  const summary = quotaResponseSummary(batch, ids)
-  if (frontend) {
-    for (const chunk of frontend) {
-      const response = await request(base, chunk.path, { timeoutMs: 5000 })
-      check(!response.headers.get('content-type')?.includes('text/html') && sha(Buffer.from(await response.arrayBuffer())) === chunk.sha256, 'Quota overview lazy frontend chunk changed or is unavailable')
-    }
-  }
-  return { ...summary, lazyChunksVerified: frontend?.length || 0 }
-}
 export function validateTerraUsage(items, requestId) {
   check(Array.isArray(items) && requestId, 'Terra usage response is invalid')
   const row = items.find(item => item.request_id === requestId)
@@ -525,21 +516,6 @@ export function validateTerraUsage(items, requestId) {
     inputTokens: row.input_tokens, outputTokens: row.output_tokens, totalCost: row.total_cost, actualCost: row.actual_cost,
     billingMode: row.billing_mode || null, upstreamModelMismatch: row.upstream_model_mismatch === true }
 }
-async function verifyTerra(base, token) {
-  const clientRequestId = randomUUID()
-  const probe = await liveGateway(base + '/v1', null, { model: 'gpt-6.1-terra', expectedModel: 'gpt-6.1-terra', clientRequestId, timeoutMs: 60_000 })
-  check(typeof probe.requestId === 'string' && probe.requestId.startsWith('client:'), 'Terra probe has no exact client request id')
-  check(typeof probe.responseId === 'string' && probe.responseId.length > 0, 'Terra completed event has no response id')
-  let items
-  for (let attempt = 0; attempt < 30; attempt++) {
-    const data = await api(base, `/admin/usage?request_id=${encodeURIComponent(probe.requestId)}&exact_total=true`, { token })
-    if (Array.isArray(data.items) && data.items.length > 0) { items = data.items; break }
-    await delay(1000)
-  }
-  const billing = validateTerraUsage(items, probe.requestId)
-  return { probe, billing, automaticRetries: 0 }
-}
-
 async function reload(upstream) {
   check(upstream === `${names.app}:8080` || /^sub2api-upgrade-candidate-[a-f0-9]{12}:8080$/.test(upstream), 'Unexpected upgrade routing target')
   // The single-file bind mount must retain its inode during HAProxy reload.
@@ -705,33 +681,33 @@ async function prepare(manifestPath, backup, restoreReport) {
   check(active.state.image !== identity.image, 'This release is already active')
   check(await readFile(join(directory, 'haproxy.cfg'), 'utf8') === routing(`${names.app}:8080`), 'The current entry is not pinned to its active app')
   const backupCheck = await verifyBackup(resolve(backup || ''), active, manifest, release.manifestSha256, restoreReport)
-  const jobs = JSON.parse(docker(['exec', '-i', active.dependencies[0].Id, 'sh', '-c', 'exec psql -X -qAt -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'], `BEGIN READ ONLY; SET LOCAL statement_timeout='3s'; ${await readFile(new URL('./compatibility-inventory.sql', import.meta.url), 'utf8')} ROLLBACK;`))
+  const jobs = JSON.parse(docker(['exec', '-i', active.dependencies[0].Id, 'sh', '-c', 'exec psql -X -qAt -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'], readOnlySQL(await readFile(new URL('./compatibility-inventory.sql', import.meta.url), 'utf8'))))
   check(jobs.enabledScheduledTests === 0 && jobs.enabledChannelMonitors === 0 && !jobs.backupScheduleEnabled && jobs.activeBackupOperations === 0, 'An overlapping unclaimed background job blocks candidate preparation')
   const priorPins = await prepareDirectory(release, active)
   const state = { ...identity, phase: 'preparing', manifestSha256: release.manifestSha256,
     backup: resolve(backup), backupCheck, priorVersion: active.priorManifest?.version || currentRecoveryVersion,
     priorImage: active.state.image, priorContainerId: active.container.Id,
     ...priorPins,
-    preparedAt: new Date().toISOString() }
+    preparedAt: new Date().toISOString(), environment: await environmentFingerprint(),
+    validationMode: 'read-only-live-plus-isolated-248-rehearsal', productionInferenceProbes: false }
   const statePath = join(identity.directory, 'state.json')
   await save(statePath, state)
   try {
-    const token = await session(active.config)
-    const appearance = await verifyShared(direct, token, undefined, state.priorVersion)
+    await verifyServing(direct, names.app, state.priorImage, state.priorVersion)
     await startCandidate(identity, active.config)
     await verifyLive248(active.dependencies[0])
-    await verifyShared(identity.candidateBase, token, appearance, targetVersion)
+    await verifyServing(identity.candidateBase, identity.candidateName, identity.image, targetVersion)
     const oldGraph = await assetGraph(direct), nextGraph = await assetGraph(identity.candidateBase)
     state.frontend = [...nextGraph].filter(([path]) => /\/QuotaOverviewView-[^/]+\.(?:js|css)$/.test(path)).map(([path, bytes]) => ({ path, sha256: sha(bytes) }))
     check(state.frontend.some(chunk => chunk.path.endsWith('.js')) && state.frontend.some(chunk => chunk.path.endsWith('.css')), 'Quota overview lazy frontend files are absent')
-    state.quota = await verifyQuota(identity.candidateBase, token, state.frontend)
-    state.candidateProbe = await liveGateway(identity.candidateBase + '/v1', null, { timeoutMs: 45_000 })
-    state.candidateTerra = await verifyTerra(identity.candidateBase, token)
+    await verifyEnvironment(state.environment)
     await cacheAssets([oldGraph, nextGraph])
     await reload(`${names.app}:8080`)
     state.assetsVerified = await verifyAssets()
     assertActivePin(await jsonPrivate(activeStatePath), await jsonPrivate(composePath), inspect(names.app))
     check(inspect(names.app).Id === active.container.Id, 'Current application changed during preparation')
+    await verifyLive248(active.dependencies[0])
+    await verifyEnvironment(state.environment)
     state.phase = 'prepared'
     await save(statePath, state)
   } catch (error) {
@@ -757,19 +733,19 @@ export async function runPriorImageRestore(operations, replacementStarted) {
   }
   await operations.waitPriorHealthy()
   await operations.verifyPriorIdentity()
-  // Restore the self-consistent prior state and route before any remote auth,
-  // entry or inference verification. A shared upstream outage must not leave
+  // Restore the self-consistent prior state and route before read-only entry
+  // verification. A shared upstream outage must not leave
   // the failed candidate routed while the canonical container is the old image.
   await operations.persistPriorState()
   await operations.routePrior()
   await operations.checkpointRouteRestored()
   try {
     await operations.waitPriorEntryHealthy()
-    await operations.authenticatePriorDirect()
+    await operations.verifyPriorLedger()
     await operations.verifyPriorDirect()
-    await operations.probePriorDirect()
+    await operations.verifyPriorDirectHealth()
     await operations.verifyPriorEntry()
-    await operations.probePriorEntry()
+    await operations.verifyPriorEntryHealth()
     await operations.verifyCompatibility()
     await operations.finalizePriorState({ verified: true })
     return { verified: true, verificationErrors: [] }
@@ -783,7 +759,6 @@ export async function runPriorImageRestore(operations, replacementStarted) {
 async function restorePrevious(identity, state, replacementStarted) {
   const prior = await snapshots(identity, state)
   imageMetadata(state.priorImage)
-  let token, appearance
   const verificationErrors = []
   state.phase = 'restoring-prior'
   state.rollbackStartedAt = new Date().toISOString()
@@ -817,15 +792,14 @@ async function restorePrevious(identity, state, replacementStarted) {
       await save(join(identity.directory, 'state.json'), state)
     },
     waitPriorEntryHealthy: async () => ready(entry),
-    authenticatePriorDirect: async () => {
-      token = await session(prior.config, direct)
-      appearance = await verifyShared(direct, token, undefined, state.priorVersion)
+    verifyPriorLedger: async () => {
+      await verifyLive248(inspect('sub2api-postgres'))
     },
-    verifyPriorDirect: async () => verifyShared(direct, token, appearance, state.priorVersion),
-    probePriorDirect: async () => { state.rollbackDirectProbe = await liveGateway(direct + '/v1', null, { timeoutMs: 45_000 }) },
-    verifyPriorEntry: async () => verifyShared(publicBase, token, appearance, state.priorVersion),
-    probePriorEntry: async () => { state.rollbackProbe = await liveGateway(publicBase + '/v1', 'blue', { timeoutMs: 45_000 }) },
-    verifyCompatibility: async () => { await verifyShared(compatibility, token, appearance, state.priorVersion); await health(compatibility) },
+    verifyPriorDirect: async () => verifyServing(direct, names.app, state.priorImage, state.priorVersion),
+    verifyPriorDirectHealth: async () => health(direct),
+    verifyPriorEntry: async () => verifyServing(publicBase, names.app, state.priorImage, state.priorVersion),
+    verifyPriorEntryHealth: async () => health(entry),
+    verifyCompatibility: async () => { await health(compatibility); await verifyEnvironment(state.environment) },
     recordVerificationFailure: async error => {
       const message = safeError(error)
       verificationErrors.push(message)
@@ -850,7 +824,9 @@ async function activate(path) {
   check(active.container.Id === state.priorContainerId && active.state.image === state.priorImage, 'Production changed after preparation')
   await verifyBackup(state.backup, active, manifest, state.manifestSha256, state.backupCheck.isolatedRestoreReport)
   await snapshots(identity, state)
-  const token = await session(active.config), appearance = await verifyShared(direct, token, undefined, state.priorVersion)
+  check(state.validationMode === 'read-only-live-plus-isolated-248-rehearsal', 'Prepared operation lacks read-only validation')
+  await verifyEnvironment(state.environment)
+  await verifyServing(direct, names.app, state.priorImage, state.priorVersion)
   let replacementStarted = false
   const checkpoint = async phase => { state.phase = phase; await save(join(identity.directory, 'state.json'), state) }
   await runHotSwitch({
@@ -858,16 +834,14 @@ async function activate(path) {
       assertCandidate(identity)
       await ready(identity.candidateBase)
       await verifyLive248(active.dependencies[0])
-      await verifyShared(identity.candidateBase, token, appearance, targetVersion)
-      await verifyQuota(identity.candidateBase, token, state.frontend)
-      await liveGateway(identity.candidateBase + '/v1', null, { timeoutMs: 45_000 })
-      state.candidateTerra = await verifyTerra(identity.candidateBase, token)
+      await verifyServing(identity.candidateBase, identity.candidateName, identity.image, targetVersion)
+      await verifyEnvironment(state.environment)
     },
     routeCandidate: async () => { await checkpoint('routing-candidate'); await reload(identity.candidateName + ':8080') },
     verifyEntryCandidate: async () => {
-      await verifyShared(publicBase, token, appearance, targetVersion)
-      state.firstEntryQuota = await verifyQuota(publicBase, token, state.frontend)
-      state.firstEntryProbe = await liveGateway(publicBase + '/v1', 'blue', { timeoutMs: 45_000 })
+      await verifyServing(publicBase, identity.candidateName, identity.image, targetVersion)
+      await verifyLive248(active.dependencies[0])
+      await verifyEnvironment(state.environment)
     },
     replaceCurrent: async () => {
       await checkpoint('replacing-current')
@@ -880,16 +854,14 @@ async function activate(path) {
       await ready(direct)
       await verifyLive248(active.dependencies[0])
       assertCurrent(inspect(names.app), identity.image)
-      await verifyShared(direct, token, appearance, targetVersion)
-      state.finalDirectQuota = await verifyQuota(direct, token, state.frontend)
-      state.finalDirectProbe = await liveGateway(direct + '/v1', null, { timeoutMs: 45_000 })
+      await verifyServing(direct, names.app, identity.image, targetVersion)
+      await verifyEnvironment(state.environment)
     },
     routeCurrent: async () => { await checkpoint('routing-current'); await reload(names.app + ':8080') },
     verifyEntryCurrent: async () => {
-      await verifyShared(publicBase, token, appearance, targetVersion)
-      state.finalEntryQuota = await verifyQuota(publicBase, token, state.frontend)
-      state.finalEntryProbe = await liveGateway(publicBase + '/v1', 'blue', { timeoutMs: 45_000 })
-      state.finalEntryTerra = await verifyTerra(publicBase, token)
+      await verifyServing(publicBase, names.app, identity.image, targetVersion)
+      await verifyLive248(active.dependencies[0])
+      await verifyEnvironment(state.environment)
       await health(compatibility)
       state.assetsVerified = await verifyAssets()
     },
@@ -964,6 +936,7 @@ export function publicSummary(state) {
     candidateProbe: probe(state.candidateProbe), finalEntryProbe: probe(state.finalEntryProbe),
     candidateTerra: state.candidateTerra ? { probe: probe(state.candidateTerra.probe), billing: state.candidateTerra.billing } : undefined,
     finalEntryTerra: state.finalEntryTerra ? { probe: probe(state.finalEntryTerra.probe), billing: state.finalEntryTerra.billing } : undefined,
+    validationMode: state.validationMode, productionInferenceProbes: state.productionInferenceProbes,
     oldImageRetained: true, databaseRestored: false, tailscaleServeChanged: false }
 }
 

@@ -1,3 +1,15 @@
+# 2026-11-12 — 只读切流与最小构建修复：源码门禁完成，等待打包/副本证明
+
+已读取 BRIEF-ADDENDUM-pack-cutover-20261112.md，同一任务续做。prepare/activate 及失败回滚均已移除 session 登录、authenticated API、quota batch、liveGateway/verifyTerra 真实推理与新增 usage 验证。实际切流仅调用本工作树 `upgrade-current.mjs`；其唯一 HTTP transport 强制无 credentials 的 GET、禁止 redirect，仅允许固定现网/candidate origin 的 `/health`、`/login` 静态页面和 hashed `/assets`。`/login` 的服务端 public settings 注入经源码核对仅 GetMultiple 读取，不调用 auth login。所有三处 psql 查询经同一 single-SELECT + BEGIN READ ONLY + bounded timeout + ROLLBACK 门禁；无手工 DML/DDL。镜像标签/digest、248账本与副本报告提供身份/兼容资格；不再用真实现网推理作为资格。切流和回滚各阶段校验 `.env` hash/mtime/size/mode。
+
+隔离演练仍绑定确切 image/backup/tool hashes 和非空299条248账本；增加启动和重启的三条 migration skip / schema capability 日志证据。跨版本新派生 admin API 默认值仅记录脱敏指纹，持久化 settings/business/configuration 的完全一致断言保留，不把 API 展示形状变化误认为已写库。业务写入测试仍仅在 internal network 的独立数据库副本中执行。
+
+85 项 local-upgrade 测试通过：包括实际 HTTP transport 对登录、推理、POST/body/auth headers 的拒绝（无网络发送），生产源码 AST 检查禁止绕过传输门禁、三处SQL必须只读，以及启动/重启缺失证据拒绝。前端 vue-tsc 类型检查通过。构建修复仅在 `frontend/vite.config.ts` 设置 checker `enableBuild:false`，保留开发 checker、package.json/Dockerfile 中独立完整 `vue-tsc -b && vite build` 的串行顺序；未加内存、未跳过完整类型检查、未改业务后端/SQL。
+
+切前只读核对：仍为原0.2.19 digest/revision、healthy，18480/18080 ok，StartedAt不变/RestartCount=6；`.env` SHA256仍`63503f4f21908be7b28ba9686c109e20498cb489ef429a9f8277c42d08a0bc14`。已部署 recovery SHA256仍`644bbcf5ffc36e55c83bc9acb2b3b1d174bf2985ff6f5c2c892488409b05eef6`，0.2.19/0.2.21纯校验accepted=true，本轮未改该程序。host约15GiB、Docker data约20GiB可用。下一阶段按实际干净HEAD打包；任何host<3GiB、Docker data<5GiB或现网health回退均停止。
+
+---
+
 # 2026-11-12 00:02 +0800 — 续做结果：恢复兼容已完成，打包内存失败，未 activate
 
 依据追加批准继续同一任务，恢复兼容 blocker 已解除；随后按实际干净 HEAD `fe58becea5756f429b33887482d7e6bcf01e134f` 运行 `node deploy/local-upgrade/build-local.mjs`。构建在 frontend-builder 8/8 失败，遵守“失败即停”，未重试或放宽构建资源，也未继续新数据库备份、隔离演练、prepare、activate。0.2.19→0.2.21 的现网副本启动/重启安全证明仍未完成。

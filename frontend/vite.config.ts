@@ -87,7 +87,10 @@ export default defineConfig(({ mode }) => {
     plugins: [
       vue(),
       checker({
-        vueTsc: true
+        vueTsc: true,
+        // package.json and the bounded Docker build run full vue-tsc first.
+        // Keep the dev checker, without a second concurrent production check.
+        enableBuild: false
       }),
       injectPublicSettings(backendUrl)
     ],

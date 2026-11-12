@@ -347,6 +347,9 @@ test('0.2.21 activation requires exact 248 preservation and cannot accept a lega
   for (const stage of ['Before', 'After', 'Restart']) report[`sourceCoverage${stage}`] = { rows: 299, sourceFiles: 302, missing: [...deferred248Migrations] }
   report.hotCutover248 = { deferred: [...deferred248Migrations], schemaStable: true, restartStable: true,
     beforeObjects: { tables: 0, columns: 0, index: 0 }, afterObjects: { tables: 0, columns: 0, index: 0 }, restartObjects: { tables: 0, columns: 0, index: 0 } }
+  for (const [stage, count] of [['startupLogs', 1], ['restartLogs', 2]]) {
+    report.hotCutover248[stage] = { schema248Detected: true, counts: Object.fromEntries(deferred248Migrations.map(name => [name, count])) }
+  }
   assert.doesNotThrow(() => validate(report))
   for (const mutate of [
     r => { r.migrations.beforeCount = 0; r.migrations.afterCount = 0 },
@@ -357,13 +360,15 @@ test('0.2.21 activation requires exact 248 preservation and cannot accept a lega
     r => { r.hotCutover248.afterObjects.index = 1 },
     r => { r.hotCutover248.restartObjects.columns = 2 },
     r => { r.hotCutover248.schemaStable = false },
+    r => { delete r.hotCutover248.restartLogs },
+    r => { r.hotCutover248.restartLogs.counts[deferred248Migrations[0]] = 1 },
     r => { r.sameVersion.businessStable = false }
   ]) { const invalid = structuredClone(report); mutate(invalid); assert.throws(() => validate(invalid)) }
 })
 
 const priorOperationalSteps = ['stopCurrentReplacement', 'installPriorConfiguration', 'startPriorImage', 'waitPriorHealthy',
   'verifyPriorIdentity', 'persistPriorState', 'routePrior', 'checkpointRouteRestored', 'waitPriorEntryHealthy',
-  'authenticatePriorDirect', 'verifyPriorDirect', 'probePriorDirect', 'verifyPriorEntry', 'probePriorEntry', 'verifyCompatibility']
+  'verifyPriorLedger', 'verifyPriorDirect', 'verifyPriorDirectHealth', 'verifyPriorEntry', 'verifyPriorEntryHealth', 'verifyCompatibility']
 function priorRestoreOperations(failAt) {
   const events = [], finalizations = [], verificationFailures = []
   const operations = Object.fromEntries(priorOperationalSteps.map(step => [step, async () => {
@@ -382,7 +387,7 @@ function priorRestoreOperations(failAt) {
   return { events, operations, finalizations, verificationFailures }
 }
 
-test('candidate-independent emergency restore persists prior state and route before any auth or inference probe', async () => {
+test('candidate-independent emergency restore persists prior state and route before read-only verification', async () => {
   const { events, operations, finalizations } = priorRestoreOperations()
   const result = await runPriorImageRestore(operations, true)
   assert.deepEqual(result, { verified: true, verificationErrors: [] })
@@ -392,8 +397,8 @@ test('candidate-independent emergency restore persists prior state and route bef
   assert(events.indexOf('verifyPriorIdentity') < events.indexOf('persistPriorState'))
   assert(events.indexOf('persistPriorState') < events.indexOf('routePrior'))
   assert(events.indexOf('routePrior') < events.indexOf('checkpointRouteRestored'))
-  assert(events.indexOf('checkpointRouteRestored') < events.indexOf('authenticatePriorDirect'))
-  assert(events.indexOf('checkpointRouteRestored') < events.indexOf('probePriorEntry'))
+  assert(events.indexOf('checkpointRouteRestored') < events.indexOf('verifyPriorLedger'))
+  assert(events.indexOf('checkpointRouteRestored') < events.indexOf('verifyPriorEntryHealth'))
   assert(!runPriorImageRestore.toString().includes('identity.candidateName'))
 })
 
@@ -403,8 +408,8 @@ test('emergency restore without replacement does not stop/start current and stil
   assert.deepEqual(events, [...priorOperationalSteps.slice(3), 'finalizePriorState'])
 })
 
-for (const failAt of ['authenticatePriorDirect', 'probePriorDirect', 'probePriorEntry']) {
-  test(`shared auth/upstream failure at ${failAt} cannot prevent prior state+route recovery or be reported verified`, async () => {
+for (const failAt of ['verifyPriorLedger', 'verifyPriorDirectHealth', 'verifyPriorEntryHealth']) {
+  test(`read-only verification failure at ${failAt} cannot prevent prior state+route recovery or be reported verified`, async () => {
     const { events, operations, finalizations, verificationFailures } = priorRestoreOperations(failAt)
     const result = await runPriorImageRestore(operations, true)
     assert.equal(result.verified, false)
@@ -732,7 +737,7 @@ test('local upgrade does not restore live stores, rewrite Serve, prune images or
   assert(restoration.indexOf('stopCurrentReplacement') < restoration.indexOf('installPriorConfiguration'))
   assert(restoration.indexOf('persistPriorState') < restoration.indexOf('routePrior'))
   assert(restoration.indexOf('routePrior') < restoration.indexOf('checkpointRouteRestored'))
-  assert(restoration.indexOf('checkpointRouteRestored') < restoration.indexOf('authenticatePriorDirect'))
+  assert(restoration.indexOf('checkpointRouteRestored') < restoration.indexOf('verifyPriorLedger'))
   assert(restoration.includes("verified ? 'rolled-back-verified' : 'rolled-back-route-restored-unverified'"))
   assert(!restoration.includes('pg_restore'))
   assert(!restoration.includes('state.rollbackCandidateProbe'))

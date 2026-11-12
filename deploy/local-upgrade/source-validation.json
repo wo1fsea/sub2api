@@ -1,15 +1,15 @@
 {
   "status": "source-checks-passed-not-production-approved",
-  "recordedDate": "2026-11-11",
+  "recordedDate": "2026-11-12",
   "version": "0.2.21",
   "releaseBranch": "codex/fix/image-allowlist-20261103",
   "baselineCommit": "a8314a689286dfac8d26b017e2b853d8335c19bb",
   "upstreamTag": "v0.2.21",
   "upstreamCommit": "10ba8f9b4dc2e6023d4a9879ab77b21841babd10",
   "backendTree": "94629c84797fc066a407f00e0dac9440f75a228e",
-  "frontendTree": "ea2cd82cf1aae491fe701874288b94ff8bb80b0e",
+  "frontendTree": "9c210576ab3b5cc0944bb5838e91bf9de082ca12",
   "migrationsTree": "e5e04ecb8116b6a626154bf399891d0ec89ebefd",
-  "qualificationScope": "PR #5 page-context/call_id and 248-schema compatibility: source/unit qualification only. Never apply 249/250 to production. Zero-migration rehearsal mode is unit-tested but still requires a live-copy isolated rehearsal. Installed recovery version/path blocker resolved under BRIEF-ADDENDUM-recovery-0.2.21.md approval.",
+  "qualificationScope": "PR #5 page-context/call_id and 248-schema compatibility, plus read-only prepare/activate/rollback and serial frontend type checking. Backend and SQL trees unchanged. Live validation excludes login, authenticated APIs, inference and usage-row probes; behavior is proven only on the isolated nonempty live database copy.",
   "backend": {
     "command": "node deploy/local-upgrade/test-backend.mjs unit",
     "toolchain": "go1.27.4",
@@ -25,9 +25,9 @@
   },
   "operationsTests": {
     "command": "node --test deploy/local-upgrade/*.test.mjs",
-    "passed": 81,
+    "passed": 85,
     "failed": 0,
-    "note": "Explicit 0.2.19-to-0.2.21-schema-248 mode requires 299 unchanged applied rows, exact checksums, and exactly three deferred files. Negative activation-report tests passed."
+    "note": "Real constrained HTTP transport and source-AST tests reject login/inference/body/credentials; every live psql input uses a single SELECT in BEGIN READ ONLY; .env fingerprints checked through cutover. Rehearsal requires exact 299-row ledger, three deferred migrations and explicit startup/restart skip logs."
   },
   "frontend": {
     "install": "corepack pnpm@9.15.9 install --frozen-lockfile --ignore-scripts",
@@ -37,7 +37,8 @@
     "testFilesPassed": 4,
     "testsPassed": 52,
     "fullSuiteRerun": false,
-    "freshBuild": "FAILED 2026-11-12: frontend-builder 8/8 cannot allocate memory / ResourceExhausted; no candidate image or manifest produced."
+    "freshBuild": "Required from exact clean HEAD; full vue-tsc -b remains sequential before Vite. Only duplicate vite-plugin-checker production invocation disabled; dev checker retained.",
+    "buildFix": "frontend/vite.config.ts checker enableBuild:false; package.json and Dockerfile still require full vue-tsc -b before vite build; original memory limits unchanged."
   },
   "migrations": {
     "sourceFiles": 302,
@@ -54,11 +55,12 @@
   },
   "productionDeploymentPerformed": false,
   "pendingProductionGates": [
-    "Exact clean-HEAD linux/arm64 package and fresh protected backup",
-    "Isolated rehearsal from nonempty live 248 database copy, with startup/restart ledger/schema/business/configuration preservation",
-    "prepare, activate, status and final environment/schema verification"
+    "Exact clean-HEAD ARM64 package within disk/memory limits",
+    "New protected backup, preserving backup-Omp0Fv",
+    "Nonempty live-copy rehearsal with unchanged 299-row migration/checksum set and no post-248 objects, including restart",
+    "Read-only prepare/activate with no login/inference/usage writes; final environment and ledger verification"
   ],
-  "approval": "BRIEF plus addendum authorize recovery compatibility changes, build, protected backup and isolated live-copy rehearsal. Production prepare/activate remain conditional on proof of no .env changes, no live DB writes and no 249/250 migration application.",
+  "approval": "BRIEF-ADDENDUM-pack-cutover-20261112.md authorizes these read-only cutover and minimal build fixes, then packaging, fresh backup, isolated 248 rehearsal and conditional activation. No further activate GO is needed once every gate passes.",
   "resolvedBlocker": "Installed root-owned launchd dispatcher invokes sub2api-neubrutalism/deploy/local-upgrade/service-recovery.mjs every 60s. That deployed code accepts only 0.2.13/0.2.19 in releasePin/assertVersion and manifest pathname. Pure validation reproduces Unsupported release version for 0.2.21. Editing this worktree does not update installed recovery; BRIEF permits image/compose/upgrade-state writes, not changes to the separate deployed recovery program.",
   "recoveryQualification": {
     "livePath": "/Users/clawbotbot/Projects/sub2api-neubrutalism/deploy/local-upgrade/service-recovery.mjs",
@@ -73,7 +75,7 @@
     "pureValidationOnly": true,
     "bootOrRestartInvoked": false
   },
-  "packaging": {
+  "previousPackagingFailure": {
     "sourceCommit": "fe58becea5756f429b33887482d7e6bcf01e134f",
     "command": "node deploy/local-upgrade/build-local.mjs",
     "passed": false,
@@ -84,6 +86,5 @@
     "privateBackupPerformed": false,
     "isolatedRehearsalPerformed": false,
     "productionDeploymentPerformed": false
-  },
-  "blocker": "Packaging failed under the unchanged 2560 MiB builder limit: Vite plus its additional vue-tsc checker reached the memory limit. Stopped without retry as instructed. Separately, prepare/activate require real login and persisted inference usage, incompatible with the current strict no-live-DB-writes condition."
+  }
 }
