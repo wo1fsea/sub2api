@@ -1,3 +1,15 @@
+# 2026-11-12 11:31 +0800 — 授权清理旧前端缓存完成，复用既有候选等待重试
+
+已读 BRIEF-ADDENDUM-cache-prune-activate-20261112.md。候选 `sub2api-local:0.2.21-121573906e4d`、image ID `sha256:da2f09731adeaf048341b7fd627f14209c8e8a0b322c2b174f0d213c25d8b14e` 和revision均再次核对存在；没有重新打包。
+
+只清理mtime早于2026-11-01 00:00 +0800、且不在现网0.2.19完整引用图中的历史JS/CSS。现网直接入口实际解析得180项资源，全部保护；11月历史资源全部保留。清理前1712项/73,610,796 bytes，清理后512项/21,249,514 bytes，移出1200项/52,361,282 bytes。清理工具复用了生产assetGraph和mergeAssetInventory校验，未改1800项/<96MiB预算；即使候选图达到既有1000项/<64MiB单图上限，合并保守上界也仅1512项/88,358,378 bytes，低于原预算。现网图包含在保留集内，清理后180项经18480逐项验证hash一致，app identity/route/health不变。
+
+清理为可恢复移出：`/Users/clawbotbot/Projects/sub2api-upgrade-private/cache-prune-bAPFFZ`（0700）保留原assets.json/old-assets.map、具体计划、现网保护清单、result.json及移出的文件。仅更新历史缓存清单和map、reload自己的ingress使map生效，再移走旧文件；没有改haproxy路由目标、current镜像、.env、数据库、Tailscale Serve、Magpie或恢复程序。失败自动还原机制与现网资源保护/预算拒绝测试通过，local-upgrade共87 tests PASS。
+
+为同一候选重试，已核对旧operation=`rolled-back-verified`、candidateCleanup.ok=true、candidate不存在、现网ID/compose/state/route均匹配原rollback pins，然后把整个已结束operation归档到`/Users/clawbotbot/Projects/sub2api-upgrade-private/operation-retry-4L3frJ/upgrade-0.2.21-121573906e4d`，不改旧phase或伪造准备证据。之后由原prepare从空操作目录建立新尝试。旧备份`backup-aDGPmz`、`backup-Omp0Fv`均保留；由于30分钟备份时效及运维工具hash变化（仅导出assetGraph供清理复用），将创建新备份并以同一镜像重做非空248副本演练，再prepare/activate。应用backend/frontend/SQL树未变化，不需要重打包。
+
+---
+
 # 2026-11-12 11:07 +0800 — Hub 重试结果：镜像/248副本演练通过，prepare 缓存预算阻断，未 activate
 
 已执行 BRIEF-ADDENDUM-pack-retry-hub-20261112.md，同一任务/tab续做。本轮没有改应用业务源码、迁移或切流工具，没有改Clash、恢复程序、Tailscale Serve；没有操作并行Magpie任务、容器、卷或项目目录。切前重新运行4项只读切流/串行构建专项测试，全通过；85项工具测试及后端/前端源码鉴定沿用同任务、相同应用树的已通过证据。

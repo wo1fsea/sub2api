@@ -421,7 +421,7 @@ export function assertAppearanceMatch(current, admin, previous) {
   if (previous !== undefined) check(isDeepStrictEqual(current, previous), 'The existing administrator theme changed during upgrade')
 }
 
-async function assetGraph(base) {
+export async function assetGraph(base) {
   ts ||= require('typescript')
   const html = await (await request(base, '/login')).text(), paths = new Set(), files = new Map()
   function add(value, parent = '/') {

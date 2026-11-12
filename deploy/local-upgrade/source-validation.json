@@ -25,7 +25,7 @@
   },
   "operationsTests": {
     "command": "node --test deploy/local-upgrade/*.test.mjs",
-    "passed": 85,
+    "passed": 87,
     "failed": 0,
     "note": "Real constrained HTTP transport and source-AST tests reject login/inference/body/credentials; every live psql input uses a single SELECT in BEGIN READ ONLY; .env fingerprints checked through cutover. Rehearsal requires exact 299-row ledger, three deferred migrations and explicit startup/restart skip logs."
   },
@@ -55,9 +55,9 @@
   },
   "productionDeploymentPerformed": false,
   "pendingProductionGates": [
-    "Resolve historical frontend asset retention budget within approved scope; do not bypass or delete historical assets unilaterally",
-    "A new valid preparation/activation sequence with fresh backup and exact rehearsal binding; current operation is rolled-back-verified",
-    "Final read-only image/health/environment/ledger verification"
+    "Fresh protected backup and nonempty 248 rehearsal for unchanged retained candidate and current ops hashes",
+    "Retry original read-only prepare/activate after archiving the verified closed operation; preserve old backups",
+    "Verify actual merged cache remains within 1800 files / <96MiB and all current rollback resources remain served"
   ],
   "approval": "BRIEF-ADDENDUM-pack-cutover-20261112.md authorizes these read-only cutover and minimal build fixes, then packaging, fresh backup, isolated 248 rehearsal and conditional activation. No further activate GO is needed once every gate passes. BRIEF-ADDENDUM-pack-retry-hub-20261112.md explicitly authorizes retry after P0 verified Docker Hub with the same builder. Keep Magpie isolated and stop on another build failure.",
   "resolvedBlocker": "Installed root-owned launchd dispatcher invokes sub2api-neubrutalism/deploy/local-upgrade/service-recovery.mjs every 60s. That deployed code accepts only 0.2.13/0.2.19 in releasePin/assertVersion and manifest pathname. Pure validation reproduces Unsupported release version for 0.2.21. Editing this worktree does not update installed recovery; BRIEF permits image/compose/upgrade-state writes, not changes to the separate deployed recovery program.",
@@ -131,7 +131,7 @@
     "cleanupSucceeded": true,
     "realGatewayCallsTested": false
   },
-  "productionPreparation": {
+  "previousProductionPreparation": {
     "attempted": true,
     "passed": false,
     "failure": "Historical frontend cache exceeds its retention budget",
@@ -147,5 +147,25 @@
     "liveDatabaseWritesByOperator": false,
     "productionInferenceProbes": false
   },
-  "blocker": "Prepare rejected the merged historical frontend cache budget before any routing/current-image change. Did not raise the budget or delete historical assets. Prescribed rollback removed only the candidate; current 0.2.19 remains healthy and unchanged. Exact image, new protected backup and successful nonempty 248 rehearsal are retained."
+  "cachePrune": {
+    "authorizedBy": "BRIEF-ADDENDUM-cache-prune-activate-20261112.md",
+    "cutoff": "2026-11-01T00:00:00+08:00",
+    "before": {
+      "count": 1712,
+      "bytes": 73610796
+    },
+    "after": {
+      "count": 512,
+      "bytes": 21249514
+    },
+    "removedCount": 1200,
+    "currentGraphProtected": 180,
+    "worstMerged": {
+      "count": 1512,
+      "bytes": 88358378
+    },
+    "archive": "/Users/clawbotbot/Projects/sub2api-upgrade-private/cache-prune-bAPFFZ",
+    "recoverable": true,
+    "budgetUnchanged": true
+  }
 }
