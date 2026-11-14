@@ -1,5 +1,31 @@
 # Factory upstream implementation
 
+## 2026-11-11 — 0.2.21 hot-cutover qualification: BLOCKED, NOT ACTIVATED
+
+本次按本目录 `BRIEF.md` 的硬约束执行。鉴定结论：在允许的 image/compose/upgrade-state、鉴定记录及 upgrade 脚本调整范围内，当前候选不存在可证明安全的 `0.2.19 → 0.2.21、newCount=0、现网 schema 保持 248` 路径。停在源码/迁移兼容性鉴定；未构建、未创建新备份、未演练、未 prepare、未 activate、未回滚、未重启任何服务。没有生成或手填 0.2.21 image tag。
+
+### 候选与阻断证据
+
+- 实际 detached HEAD：`1712dcead2c0ec299670f4c53833f111c0211bf1`，parents 为 `466dc86d2eec60c8d56398dcae627a3f1c375127` 和 `b22ad5763f0f7ae43935ebf4df9e15128633f210`。VERSION / build-inputs 为 0.2.21；本地 `v0.2.21` 指向 `10ba8f9b4dc2e6023d4a9879ab77b21841babd10`，祖先检查通过。未使用 c5ec507 线。
+- 实测树：backend=`6fab116a1b194e7e0a1d89d3de4545467370aa0e`；frontend=`ea2cd82cf1aae491fe701874288b94ff8bb80b0e`；migrations=`e5e04ecb8116b6a626154bf399891d0ec89ebefd`。`source-validation.json` 仍是 2026-11-05 / 0.2.19 的旧鉴定，本次不把未通过的 0.2.21 鉴定伪写为 passed；未重跑完整 backend/frontend 测试，不声称候选已经取得发布资格。
+- 使用 `BEGIN READ ONLY`、5 秒 statement_timeout、`ROLLBACK` 查询现网迁移清单，在内存中与候选 SQL 按 runner 的 trim + SHA256 规则逐条比较：现网 299 条，候选 302 条，既有 299 条 checksum 全部相同，恰有三条 pending：`249_add_usage_logs_api_key_cost_index_notx.sql`、`249_mcp_oauth.sql`、`250_openai_cache_write_ttl.sql`。
+- `backend/migrations/migrations.go:33` 的 `go:embed *.sql` 会把三条 SQL 嵌入二进制；`backend/internal/repository/ent.go:138` 正常启动无条件调用 `applyMigrationsFS(ctx, drv.DB(), migrations.FS)`。`backend/internal/repository/migrations_runner.go` 枚举全部 SQL，对账本中不存在的条目执行 SQL 并插入迁移记录；未发现可限制到 248 的配置/跳过开关。`AUTO_SETUP=false` 不能绕过 InitEnt 的迁移。249 的索引使用非事务 CONCURRENTLY 执行，不能指望应用启动失败或仅回滚 app 撤销数据库变更。
+- 即使另行屏蔽迁移，候选也不是 248 schema 的兼容程序：`usage_log_repo_query.go:22` 的公共 SELECT 列表以及 `usage_log_repo_insert.go` 的写入语句直接引用 `cache_creation_30m_tokens` / `cache_creation_12h_tokens`；`channel_repo_pricing.go:19` 等读写直接引用 `cache_write_12h_price`。现网 information_schema 查询确认这六个新增列均不存在，三个 MCP OAuth 表及新增 cost 索引也不存在。只修改版本白名单、newCount 断言或镜像打包脚本不能解决运行时依赖。
+- 对纯函数实际执行断言，确认 `selectRehearsalMode('0.2.19','0.2.21')` 被拒绝；`rehearse-private.mjs:24` 与 `upgrade-current.mjs:28` 也将目标锁定为 0.2.19。未移除这些保护，未添加任何允许现网应用 249/250 的模式。
+- 要解除此 blocker，需要另行设计、授权并验证应用层兼容改造（迁移执行策略及旧 schema 的用量/定价/MCP 路径），或单独评估 page-context/call_id 的旧版本回移方案；这超出本次允许的鉴定及 upgrade 脚本调整范围。本次没有实施这些替代方案，也不请求放宽数据库禁改约束。
+
+### 实际现网结果（结束复核 2026-11-11 18:34:59 +0800）
+
+- image tag（从运行镜像 RepoTags 核实）：`sub2api-local:0.2.19-466dc86d2eec`。
+- image ID / 本地部署 digest：`sha256:ed98069e97165ce50a1286cd7707fa250c8b864e4651ab63cad0d3ce1e5b1655`。容器 Config.Image 与 live compose 均按此 digest 固定，并非按 tag 运行；未声称这是 registry manifest digest。
+- revision：`466dc86d2eec60c8d56398dcae627a3f1c375127`。按 BRIEF 要求在本轮重新执行了 `docker inspect --format '{{.Image}} {{index .Config.Labels "org.opencontainers.image.revision"}}' sub2api-current-app`，没有沿用旧笔记。
+- `sub2api-current-app`：`healthy`；`http://127.0.0.1:18480/health` 与 `http://127.0.0.1:18080/health` 前后均返回 `{"status":"ok"}`。StartedAt 前后均为 `2026-11-08T08:53:42.616998344Z`，RestartCount 前后均为 6；本轮未引起重启，也未处理 OAuth #1。
+- `.env` 未改：前后 SHA256 均为 `63503f4f21908be7b28ba9686c109e20498cb489ef429a9f8277c42d08a0bc14`；mtime 均为 `2026-09-24T18:02:14+0800`，605 bytes，权限 0600。仅计算文件指纹/读取元数据，没有输出密钥内容。
+- DB：本轮仅执行显式只读事务，未执行 DDL/DML、备份恢复或手工 schema_migrations 写入。现网正常业务仍在运行，因此不声称整个业务库在观察期间字节不变。迁移账本前后均为 299 条，最后 `248_group_image_count_billing.sql`，`^(249|250)_` 计数均为 0；按 filename 排序的 `filename:checksum`（换行连接）SHA256 均为 `bd9bfcd1defecb9abba972d24a7f6f929db7d84a144aa2429a3a41b2f8b367fd`。
+- live compose / upgrade state 均未写入；两次指纹一致：`current-0.2.13/compose-private.json`=`cb98c8985eb2df8f3aeed7073648a15e92538c1c8240d660015ddb5c10a8e325`，`current-0.2.13/state.json`=`4980a4a2e84efa1988dbc0aecbe27a1edda579ab9aef490e7474160a2c9327cc`（phase `active-old-retired`）；`upgrade-0.2.19-466dc86d2eec/compose-private.json`=`fb241b8221af86cecdbd3c24d37177806729a5e5a8855b889a8cb179368eca23`，其 `state.json`=`4a8dc232101975055fec2d3e92fdd39c42994e4fac4b1fe134101445eb16b7e0`（phase `active-verified`）。
+- 新备份路径、候选 manifest、演练模式均为 N/A（安全路径不成立，未进入这些阶段）；旧备份 `/Users/clawbotbot/Projects/sub2api-upgrade-private/backup-Omp0Fv` 确认存在且未动。数据盘约 16 GiB 可用、92% 使用率，Docker build cache 为 0；未构建、未清理镜像/volume/日志/备份，未改网络策略。
+- 本轮仅追加此 NOTES 记录；BRIEF.md 原有未跟踪状态保留，source-validation 与源码/upgrade 脚本未改，未创建鉴定提交，未 amend，未 push 任一远端。
+
 ## M0 — evidence and implementation plan (2026-11-02)
 
 Scope: `codex/feat/factory-upstream`, fork `wo1fsea/sub2api`, base `9f3e93c1c`. No production Docker/Compose, production data, remote host changes, or origin pushes. Planning and acceptance are coordinated by `codex-plan` (`hc t4`); implementation/build/review are delegated through local `hc` terminals.
