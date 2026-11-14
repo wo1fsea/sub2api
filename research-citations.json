@@ -1,0 +1,161 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": 1,
+      "url": "https://github.com/Wei-Shaw/sub2api/compare/v0.2.8...a3eb7ef302961cba716dc78b39b93b60c467db0e",
+      "title": "main/release对比",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 2,
+      "url": "https://github.com/Wei-Shaw/sub2api/releases/tag/v0.2.8",
+      "title": "稳定版v0.2.8",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 3,
+      "url": "https://github.com/Wei-Shaw/sub2api/blob/a3eb7ef302961cba716dc78b39b93b60c467db0e/README_CN.md",
+      "title": "官方中文README",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 4,
+      "url": "https://github.com/Wei-Shaw/sub2api/blob/a3eb7ef302961cba716dc78b39b93b60c467db0e/backend/internal/service/openai_oauth_service.go",
+      "title": "OpenAI OAuth与刷新",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 5,
+      "url": "https://github.com/Wei-Shaw/sub2api/blob/a3eb7ef302961cba716dc78b39b93b60c467db0e/backend/internal/service/openai_gateway_forward.go",
+      "title": "上游OAuth/APIKey分流",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 6,
+      "url": "https://github.com/Wei-Shaw/sub2api/blob/a3eb7ef302961cba716dc78b39b93b60c467db0e/backend/internal/service/openai_account_scheduler.go",
+      "title": "调度权重与默认值",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 7,
+      "url": "https://github.com/Wei-Shaw/sub2api/blob/a3eb7ef302961cba716dc78b39b93b60c467db0e/backend/internal/service/openai_gateway_scheduling.go",
+      "title": "额度自动暂停与复原",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 8,
+      "url": "https://github.com/Wei-Shaw/sub2api/blob/a3eb7ef302961cba716dc78b39b93b60c467db0e/backend/internal/service/ratelimit_service.go",
+      "title": "OpenAI429冷却计算",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 9,
+      "url": "https://github.com/Wei-Shaw/sub2api/blob/a3eb7ef302961cba716dc78b39b93b60c467db0e/backend/internal/service/openai_quota_service.go",
+      "title": "用量查询与重置卡",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 10,
+      "url": "https://github.com/Wei-Shaw/sub2api/blob/a3eb7ef302961cba716dc78b39b93b60c467db0e/backend/internal/service/account_usage_service.go",
+      "title": "用量探测刷新",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 11,
+      "url": "https://github.com/Wei-Shaw/sub2api/blob/a3eb7ef302961cba716dc78b39b93b60c467db0e/backend/internal/handler/openai_gateway_handler.go",
+      "title": "Responses HTTP/WS handler",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 12,
+      "url": "https://github.com/Wei-Shaw/sub2api/blob/a3eb7ef302961cba716dc78b39b93b60c467db0e/backend/internal/pkg/apicompat/responses_client_tools.go",
+      "title": "Codex客户端工具适配",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 13,
+      "url": "https://github.com/Wei-Shaw/sub2api/blob/a3eb7ef302961cba716dc78b39b93b60c467db0e/backend/internal/service/openai_responses_tool_schema.go",
+      "title": "工具Schema清洗",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 14,
+      "url": "https://github.com/Wei-Shaw/sub2api/blob/a3eb7ef302961cba716dc78b39b93b60c467db0e/backend/internal/service/account.go",
+      "title": "账号端点能力",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 15,
+      "url": "https://github.com/Wei-Shaw/sub2api/blob/a3eb7ef302961cba716dc78b39b93b60c467db0e/backend/internal/service/billing_cache_service.go",
+      "title": "多租户计费准入与simple模式",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 16,
+      "url": "https://github.com/Wei-Shaw/sub2api/blob/a3eb7ef302961cba716dc78b39b93b60c467db0e/backend/internal/repository/usage_billing_repo.go",
+      "title": "事务与计费幂等",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 17,
+      "url": "https://github.com/Wei-Shaw/sub2api/blob/a3eb7ef302961cba716dc78b39b93b60c467db0e/deploy/docker-compose.yml",
+      "title": "Docker部署配置",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 18,
+      "url": "https://github.com/Wei-Shaw/sub2api/blob/a3eb7ef302961cba716dc78b39b93b60c467db0e/deploy/README.md",
+      "title": "部署官方文档",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 19,
+      "url": "https://github.com/Wei-Shaw/sub2api/blob/a3eb7ef302961cba716dc78b39b93b60c467db0e/LICENSE",
+      "title": "LGPLv3许可证",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 20,
+      "url": "https://github.com/Wei-Shaw/sub2api/issues/5735",
+      "title": "WS订阅日限额issue",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 21,
+      "url": "https://github.com/Wei-Shaw/sub2api/issues/7368",
+      "title": "Composite WS路由issue",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 22,
+      "url": "https://github.com/Wei-Shaw/sub2api/blob/a3eb7ef302961cba716dc78b39b93b60c467db0e/backend/internal/handler/composite_platform.go",
+      "title": "Composite WS按名检测源码",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 23,
+      "url": "https://github.com/Wei-Shaw/sub2api/blob/a3eb7ef302961cba716dc78b39b93b60c467db0e/backend/internal/handler/auth_oauth_pending_flow.go",
+      "title": "历史OAuth账号接管修复护栏",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 24,
+      "url": "https://github.com/Wei-Shaw/sub2api/blob/a3eb7ef302961cba716dc78b39b93b60c467db0e/docs/COMPOSITE_GROUPS.md",
+      "title": "Composite官方文档",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 25,
+      "url": "https://github.com/Wei-Shaw/sub2api/blob/a3eb7ef302961cba716dc78b39b93b60c467db0e/backend/internal/service/openai_codex_transform.go",
+      "title": "OAuth Responses参数变换",
+      "accessed": "2026-09-26"
+    },
+    {
+      "id": 26,
+      "url": "https://github.com/Wei-Shaw/sub2api/blob/a3eb7ef302961cba716dc78b39b93b60c467db0e/backend/internal/service/openai_token_provider.go",
+      "title": "Token过期刷新",
+      "accessed": "2026-09-26"
+    }
+  ]
+}
